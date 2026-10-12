@@ -26,6 +26,11 @@ const loadingNoticeDelay = 200 * time.Millisecond
 const maxWatchedDirs = 1000
 
 func main() {
+	if isVersionFlag(os.Args) {
+		fmt.Println(versionLine(version))
+		return
+	}
+
 	dir, err := os.Getwd()
 	if err != nil {
 		exit(err)
