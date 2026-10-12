@@ -22,8 +22,8 @@ func TestLoad(t *testing.T) {
 		wantErr string
 	}{
 		{name: "нет файла", missing: true, want: defaultQuit},
-		{name: "переназначение", content: `{"keybinds":{"app.quit":"w"}}`, want: []string{"w"}},
-		{name: "массив", content: `{"keybinds":{"app.quit":["w","y"]}}`, want: []string{"w", "y"}},
+		{name: "переназначение", content: `{"keybinds":{"app.quit":"e"}}`, want: []string{"e"}},
+		{name: "массив", content: `{"keybinds":{"app.quit":["e","y"]}}`, want: []string{"e", "y"}},
 		{name: "none отключает", content: `{"keybinds":{"app.quit":"none"}}`, want: nil},
 		{name: "false отключает", content: `{"keybinds":{"app.quit":false}}`, want: nil},
 		{name: "неизвестное действие", content: `{"keybinds":{"app.quitt":"w"}}`, want: defaultQuit, wantErr: "app.quitt"},
@@ -148,7 +148,7 @@ func TestActionForIgnoresWindowActions(t *testing.T) {
 // Клавиша из файла ведёт к своему действию, а не к встроенному.
 func TestActionForFollowsOverride(t *testing.T) {
 	dir := t.TempDir()
-	content := `{"keybinds":{"app.quit":"w"}}`
+	content := `{"keybinds":{"app.quit":"e"}}`
 	if err := os.WriteFile(filepath.Join(dir, "keybinds.json"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestActionForFollowsOverride(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if got := km.ActionFor("w"); got != keymap.AppQuit {
+	if got := km.ActionFor("e"); got != keymap.AppQuit {
 		t.Errorf("x ведёт к %q, ожидался %q", got, keymap.AppQuit)
 	}
 	if got := km.ActionFor("q"); got != "" {

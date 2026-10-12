@@ -39,19 +39,19 @@ func openWithKeys(km keymap.Keymap) tea.Model {
 // Переназначенный выход работает, встроенный перестаёт, а подвал показывает
 // новую клавишу.
 func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
-	model := openWithKeys(loadKeys(t, `{"keybinds":{"app.quit":"w"}}`))
+	model := openWithKeys(loadKeys(t, `{"keybinds":{"app.quit":"e"}}`))
 
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "w quit") || strings.Contains(footer, "q quit") {
-		t.Fatalf("в подвале %q, ожидалось «w quit» без «q quit»", footer)
+	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "e quit") || strings.Contains(footer, "q quit") {
+		t.Fatalf("в подвале %q, ожидалось «e quit» без «q quit»", footer)
 	}
 
 	if _, cmd := model.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd != nil {
 		if _, isQuit := cmd().(tea.QuitMsg); isQuit {
-			t.Fatal("q выходит, хотя выход переназначен на w")
+			t.Fatal("q выходит, хотя выход переназначен на e")
 		}
 	}
 
-	_, cmd := model.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
 	if cmd == nil {
 		t.Fatal("x не выходит, хотя назначен на выход")
 	}

@@ -24,9 +24,9 @@ func (m Model) render(line line) string {
 	case line.notice != nil:
 		return m.renderNotice(*line.notice)
 	case line.split != nil:
-		return m.renderSplit(*line.split)
+		return m.renderSplit(*line.split, line.part)
 	default:
-		return m.renderUnified(*line.unified)
+		return m.renderUnified(*line.unified, line.part)
 	}
 }
 
@@ -39,7 +39,7 @@ func (m Model) renderNotice(note notice) string {
 	return style.Render(fill(m.width, note.text))
 }
 
-func (m Model) renderUnified(row diff.UnifiedRow) string {
+func (m Model) renderUnified(row diff.UnifiedRow, part int) string {
 	switch row.Kind {
 	case diff.RowGap:
 		return ""
@@ -47,21 +47,21 @@ func (m Model) renderUnified(row diff.UnifiedRow) string {
 		return m.noNewline(m.width, 2)
 	}
 
-	return m.cell(m.width, row.Line, []int{row.OldNumber, row.NewNumber}, row.Text, row.Changed)
+	return m.cell(m.width, row.Line, []int{row.OldNumber, row.NewNumber}, row.Text, row.Changed, part)
 }
 
 // renderSplit делит ширину пополам. Половина без строки остаётся пустой и без
 // фона, чтобы было видно, с какой стороны строки нет.
-func (m Model) renderSplit(row diff.SplitRow) string {
+func (m Model) renderSplit(row diff.SplitRow, part int) string {
 	if row.Kind == diff.RowGap {
 		return ""
 	}
 
 	leftWidth := m.width / 2
-	return m.half(leftWidth, row.Kind, row.Left) + m.half(m.width-leftWidth, row.Kind, row.Right)
+	return m.half(leftWidth, row.Kind, row.Left, part) + m.half(m.width-leftWidth, row.Kind, row.Right, part)
 }
 
-func (m Model) half(width int, kind diff.RowKind, side diff.Cell) string {
+func (m Model) half(width int, kind diff.RowKind, side diff.Cell, part int) string {
 	switch {
 	case side.Kind == "":
 		return strings.Repeat(" ", width)
@@ -69,15 +69,16 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell) string {
 		return m.noNewline(width, 1)
 	}
 
-	return m.cell(width, side.Kind, []int{side.Number}, side.Text, side.Changed)
+	return m.cell(width, side.Kind, []int{side.Number}, side.Text, side.Changed, part)
 }
 
 // cell рисует строку файла шириной ровно width: номера, знак и текст,
 // обрезанный по краю. Каждый кусок несёт фон строки сам: вложенный стиль
 // со сбросом иначе гасит фон до конца строки. У изменённой строки номер и
 // знак идут её цветом на своём фоне, светлее фона кода: так изменение видно
-// по краю, даже когда код длинный.
-func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, changed []diff.Span) string {
+// по краю, даже когда код длинный. Продолжение перенесённой строки (part
+// больше нуля) идёт без номера и знака, с тем же фоном.
+func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, changed []diff.Span, part int) string {
 	base := lipgloss.NewStyle()
 	gutter := base.Foreground(m.colors.TextMuted)
 	wordBg := m.colors.DiffAddedWordBg
@@ -102,16 +103,21 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, c
 		}
 		prefix = strings.Join(columns, " ") + " " + marker + " "
 	}
+	if part > 0 {
+		prefix = strings.Repeat(" ", ansi.StringWidth(prefix))
+	}
 
+	codeWidth := width - ansi.StringWidth(prefix)
 	code := m.lexer.Tokens(text)
-	return gutter.Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), base, wordBg, text, changed, code)
+	return gutter.Render(prefix) + m.textCells(codeWidth, m.skip(part, codeWidth), base, wordBg, text, changed, code)
 }
 
-// textCells рисует текст ровно на width клеток. Изменённые слова идут с фоном
-// слов, категории синтаксиса с цветом текста, остальное с фоном строки. Таб
+// textCells рисует текст ровно на width клеток, начиная с колонки skip:
+// сдвинутый вбок или перенесённый код. Изменённые слова идут с фоном слов,
+// категории синтаксиса с цветом текста, остальное с фоном строки. Таб
 // раскрывается до обрезки, поэтому отрезки относятся к исходному тексту, а
 // ширина считается по раскрытому.
-func (m Model) textCells(width int, base lipgloss.Style, wordBg color.Color, text string, changed []diff.Span, code []syntax.Span) string {
+func (m Model) textCells(width, skip int, base lipgloss.Style, wordBg color.Color, text string, changed []diff.Span, code []syntax.Span) string {
 	var out strings.Builder
 	left := max(width, 0)
 
@@ -120,7 +126,13 @@ func (m Model) textCells(width int, base lipgloss.Style, wordBg color.Color, tex
 			break
 		}
 
-		content := ansi.Truncate(strings.ReplaceAll(piece.text, "\t", tabSpaces), left, "")
+		content := strings.ReplaceAll(piece.text, "\t", tabSpaces)
+		if pieceWidth := ansi.StringWidth(content); skip >= pieceWidth {
+			skip -= pieceWidth
+			continue
+		}
+		content = ansi.Truncate(ansi.TruncateLeft(content, skip, ""), left, "")
+		skip = 0
 		style := m.pieceStyle(base, piece, wordBg)
 
 		out.WriteString(style.Render(content))

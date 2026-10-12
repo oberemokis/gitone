@@ -133,10 +133,10 @@ func TestSearchChooseWithoutMatchesKeepsSearch(t *testing.T) {
 // ctrl+c в окне выходит и тогда, когда выход переназначен.
 func TestCtrlCQuitsWindowWithRemappedQuit(t *testing.T) {
 	repo, _ := threeFileRepo(t)
-	model := openAsync(openWithKeybinds(t, repo, `{"keybinds":{"app.quit":"w"}}`, 100), key('l'))
+	model := openAsync(openWithKeybinds(t, repo, `{"keybinds":{"app.quit":"e"}}`, 100), key('l'))
 
-	if _, cmd := model.Update(key('w')); cmd != nil {
-		t.Fatal("w в логе дал команду, want ничего: окно забирает нажатия")
+	if _, cmd := model.Update(key('e')); cmd != nil {
+		t.Fatal("e в логе дал команду, want ничего: окно забирает нажатия")
 	}
 	_, cmd := model.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {

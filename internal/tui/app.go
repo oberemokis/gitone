@@ -25,6 +25,9 @@ import (
 // десятки щелчков на жест.
 const wheelStep = 3
 
+// Колонок за одно нажатие стрелки или щелчок колеса вбок.
+const shiftStep = 8
+
 type Model struct {
 	// dir и args нужны для перечитывания по r: тот же git diff, что при запуске
 	dir     string
@@ -101,7 +104,8 @@ func New(opts Options, files []diff.File) Model {
 
 	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth).
 		WithoutNumbers(!opts.Config.UI.LineNumbers).
-		WithText(opts.Text)
+		WithText(opts.Text).
+		WithWrap(opts.Config.Diff.Wrap)
 	if len(files) > 0 {
 		view = view.SetFile(files[0])
 	}
@@ -136,12 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.keyPress(msg)
 	case tea.MouseWheelMsg:
-		switch msg.Button {
-		case tea.MouseWheelDown:
-			m.view = m.view.ScrollBy(wheelStep)
-		case tea.MouseWheelUp:
-			m.view = m.view.ScrollBy(-wheelStep)
-		}
+		m.view = m.wheel(msg)
 	case tickMsg:
 		return m.ticked()
 	// возврат в терминал из редактора: правка видна сразу, а не к тику
@@ -249,6 +248,33 @@ func (m Model) arrangement() layout.Node {
 	return layout.Default()
 }
 
+// wheel прокручивает дифф колесом: вверх и вниз по строкам, вбок по
+// колонкам. Колесо с shift тоже идёт вбок: так горизонтальную прокрутку
+// шлёт мышь без второго колеса.
+func (m Model) wheel(msg tea.MouseWheelMsg) diffview.Model {
+	button := msg.Button
+	if msg.Mod&tea.ModShift != 0 {
+		switch button {
+		case tea.MouseWheelUp:
+			button = tea.MouseWheelLeft
+		case tea.MouseWheelDown:
+			button = tea.MouseWheelRight
+		}
+	}
+
+	switch button {
+	case tea.MouseWheelDown:
+		return m.view.ScrollBy(wheelStep)
+	case tea.MouseWheelUp:
+		return m.view.ScrollBy(-wheelStep)
+	case tea.MouseWheelRight:
+		return m.view.ScrollRight(shiftStep)
+	case tea.MouseWheelLeft:
+		return m.view.ScrollRight(-shiftStep)
+	}
+	return m.view
+}
+
 func findPane(placed layout.Placed, pane string) (layout.Placed, bool) {
 	if placed.Pane == pane && len(placed.Children) == 0 {
 		return placed, true
@@ -282,6 +308,12 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m = m.openFile(m.current - 1)
 	case keymap.DiffToggleMode:
 		m.view = m.view.ToggleMode()
+	case keymap.DiffToggleWrap:
+		m.view = m.view.ToggleWrap()
+	case keymap.DiffScrollLeft:
+		m.view = m.view.ScrollRight(-shiftStep)
+	case keymap.DiffScrollRight:
+		m.view = m.view.ScrollRight(shiftStep)
 	case keymap.DiffReload:
 		return m.startReload()
 	case keymap.FilesStage:
