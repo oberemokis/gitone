@@ -24,8 +24,9 @@ func openWithKeybinds(t *testing.T, repo, keybinds string, width int) tea.Model 
 
 // markedRow это строка списка под курсором.
 func markedRow(model tea.Model) string {
-	for _, line := range screenOf(model) {
-		if strings.Contains(line, "›") {
+	for row, line := range screenOf(model) {
+		// в заголовке › это стрелка к следующему файлу (#120)
+		if row != headerRow && strings.Contains(line, "›") {
 			return line
 		}
 	}

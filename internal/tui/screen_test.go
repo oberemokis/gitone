@@ -23,7 +23,7 @@ func TestFirstChangedFileOpensWithPathAndCounts(t *testing.T) {
 
 	screen := render(open(t, options(repo, layout.Focus())), 100, 20)
 
-	if header := strings.TrimSpace(screen[headerRow]); header != "a.txt +2 -1 (1/2)" {
+	if header := headerText(screen); header != "a.txt +2 -1 (1/2)" {
 		t.Fatalf("заголовок %q, ожидался %q", header, "a.txt +2 -1 (1/2)")
 	}
 	if body := strings.Join(screen[1:], "\n"); !strings.Contains(body, "TWO") || strings.Contains(body, "y") {

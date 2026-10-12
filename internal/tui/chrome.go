@@ -15,6 +15,7 @@ import (
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
+	"gitone/internal/tui/zone"
 )
 
 const (
@@ -27,18 +28,36 @@ const (
 
 // header показывает путь открытого файла и счётчики строк, как заголовок
 // critique: «examples.ts +6 -1», и номер файла в диффе «(2/5)»: другого места,
-// где видно число файлов, на экране нет.
-func header(width int, file diff.File, counter string, colors theme.Theme, text i18n.Dictionary) string {
-	title := fileTitle(file, text)
+// где видно число файлов, на экране нет. У краёв стрелки к соседним файлам
+// (#120), клик по ним открывает файл, как [ и ]. У края списка стрелка
+// приглушена. Длинное имя обрезается «…» и стрелок не задевает, счётчики
+// остаются видны.
+func header(width int, files []diff.File, current int, colors theme.Theme, text i18n.Dictionary) string {
+	file := files[current]
+	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
 
+	tail := ""
 	if file.Added > 0 || file.Removed > 0 {
 		added := lipgloss.NewStyle().Foreground(colors.DiffAdded).Render(fmt.Sprintf("+%d", file.Added))
 		removed := lipgloss.NewStyle().Foreground(colors.DiffRemoved).Render(fmt.Sprintf("-%d", file.Removed))
-		title += " " + added + " " + removed
+		tail += " " + added + " " + removed
 	}
-	title += " " + lipgloss.NewStyle().Foreground(colors.TextMuted).Render(counter)
+	tail += " " + muted.Render(fmt.Sprintf("(%d/%d)", current+1, len(files)))
 
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center, title)
+	// между стрелками: поля подвала и по пробелу у каждой стрелки
+	inner := max(width-2*footerPadding-4, 0)
+	name := ansi.Truncate(fileTitle(file, text), max(inner-ansi.StringWidth(tail), 1), "…")
+	title := ansi.Truncate(name+tail, inner, "…")
+
+	arrow := func(symbol string, index int) string {
+		if index < 0 || index >= len(files) {
+			return muted.Render(symbol)
+		}
+		return zone.Mark(zone.Row(index), symbol)
+	}
+
+	padding := strings.Repeat(" ", footerPadding)
+	return padding + arrow("‹", current-1) + " " + lipgloss.PlaceHorizontal(inner, lipgloss.Center, title) + " " + arrow("›", current+1) + padding
 }
 
 // fileTitle это имя файла для заголовка и списка: у переименования оба пути,
