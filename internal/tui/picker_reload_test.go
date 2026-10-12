@@ -26,6 +26,8 @@ func pickerOverReload(t *testing.T, query string) tea.Model {
 
 	runGit(t, repo, "checkout", "--", "a.txt")
 	changes <- struct{}{}
+	// сигнал последний: закрытый канал отпускает ожидание следующего
+	close(changes)
 	return settle(model, model.Init(), 4)
 }
 

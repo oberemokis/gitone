@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -206,39 +206,34 @@ func pressReload(t *testing.T, model tea.Model) tea.Model {
 	return model
 }
 
-// runAll выполняет команду и её части, если она пакетная. Части, которые
-// блокируются без сигнала, отбрасываются по времени.
+// runAll выполняет команду, как Bubble Tea: части пакетной команды идут
+// одновременно. Ждёт все части и возвращает ответы в порядке пакета, а не в
+// порядке прихода. Ожидание сигнала слежения возвращается только по сигналу
+// или закрытию канала, поэтому тест со слежением закрывает канал после
+// последнего сигнала.
 func runAll(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
 		return nil
 	}
 
-	results := make(chan tea.Msg, 8)
-	go func() {
-		msg := cmd()
-		batch, ok := msg.(tea.BatchMsg)
-		if !ok {
-			results <- msg
-			return
-		}
-		for _, sub := range batch {
-			go func(sub tea.Cmd) { results <- sub() }(sub)
-		}
-	}()
-
-	var msgs []tea.Msg
-	for {
-		select {
-		case msg := <-results:
-			msgs = append(msgs, msg)
-		case <-time.After(500 * time.Millisecond):
-			return msgs
-		}
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return []tea.Msg{msg}
 	}
+
+	msgs := make([]tea.Msg, len(batch))
+	var wg sync.WaitGroup
+	for index, sub := range batch {
+		wg.Go(func() { msgs[index] = sub() })
+	}
+	wg.Wait()
+
+	return msgs
 }
 
-// settle выполняет команду и её ответы, пока команды дают ответы. Ограничение
-// глубины не даёт зациклиться на ожидании сигнала.
+// settle выполняет команду и её ответы, пока команды дают ответы. Глубина
+// ограничивает цепочку: перечитывание по ответу может запустить следующее.
 func settle(model tea.Model, cmd tea.Cmd, depth int) tea.Model {
 	if depth == 0 {
 		return model

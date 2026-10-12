@@ -24,6 +24,8 @@ func TestChangeSignalReloadsWithoutKey(t *testing.T) {
 
 	write(t, repo, "a.txt", "three\n")
 	changes <- struct{}{}
+	// сигнал последний: закрытый канал отпускает ожидание следующего
+	close(changes)
 
 	for _, signal := range runAll(model.Init()) {
 		var next tea.Cmd
