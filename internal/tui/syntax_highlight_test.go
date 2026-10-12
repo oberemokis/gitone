@@ -4,13 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
 	"gitone/internal/layout"
-	"gitone/internal/tui"
 	"gitone/internal/tui/theme"
 )
 
@@ -23,14 +19,9 @@ func rawWith(t *testing.T, name, old, new string, palette theme.Theme) string {
 	commitAll(t, repo)
 	write(t, repo, name, new)
 
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: palette, Layout: layout.Focus()}
-	model, _ := tui.New(opts, files).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
-
-	return model.View().Content
+	opts := options(repo, layout.Focus())
+	opts.Theme = palette
+	return resize(open(t, opts), 100, 20).View().Content
 }
 
 // Ключевое слово в Go красится цветом syntaxKeyword. #0a0b0c в ANSI это

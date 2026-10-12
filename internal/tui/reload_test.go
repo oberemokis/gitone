@@ -1,43 +1,22 @@
 package tui_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/layout"
 )
-
-// pressReload нажимает r и доводит перечитывание до конца так же, как Bubble
-// Tea: команда выполняется, её сообщение возвращается в модель.
-func pressReload(t *testing.T, model tea.Model) tea.Model {
-	t.Helper()
-
-	model, cmd := model.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
-	if cmd == nil {
-		t.Fatal("r не запустил перечитывание")
-	}
-	model, _ = model.Update(cmd())
-	return model
-}
-
-// numberedLines это count строк l1, l2, … с переводом строки в конце.
-func numberedLines(count int) string {
-	var content strings.Builder
-	for number := 1; number <= count; number++ {
-		fmt.Fprintf(&content, "l%d\n", number)
-	}
-	return content.String()
-}
 
 func TestReloadShowsChangedLines(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "one\ntwo\n")
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
 	write(t, repo, "a.txt", "one\ntwo\nthree\n")
 	screen := screenOf(pressReload(t, model))
@@ -57,7 +36,7 @@ func TestReloadKeepsOpenFileAndScroll(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "a\n")
 	write(t, repo, "b.txt", numberedLines(60))
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
 	// открыт второй файл, а не первый: иначе возврат к первому ничего не докажет
 	model, _ = model.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
@@ -82,7 +61,7 @@ func TestReloadOpensFirstFileWhenOpenOneIsGone(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "changed a\n")
 	write(t, repo, "b.txt", "changed b\n")
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 	model, _ = model.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
 
 	// откат возвращает b.txt к HEAD, и он выпадает из диффа
@@ -99,7 +78,7 @@ func TestSecondReloadWhileLoadingIsIgnored(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 	reloadKey := tea.KeyPressMsg{Code: 'r', Text: "r"}
 
 	model, first := model.Update(reloadKey)
@@ -126,7 +105,7 @@ func TestReloadErrorKeepsOldDiffUntilNextKey(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
 	// без .git git не узнаёт репозиторий, и перечитывание падает
 	if err := os.RemoveAll(filepath.Join(repo, ".git")); err != nil {

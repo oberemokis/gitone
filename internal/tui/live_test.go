@@ -3,47 +3,12 @@ package tui_test
 import (
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
 	"gitone/internal/layout"
 	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
 )
-
-// runAll выполняет команду и её части, если она пакетная. Части, которые
-// блокируются без сигнала, отбрасываются по времени.
-func runAll(cmd tea.Cmd) []tea.Msg {
-	if cmd == nil {
-		return nil
-	}
-
-	results := make(chan tea.Msg, 8)
-	go func() {
-		msg := cmd()
-		batch, ok := msg.(tea.BatchMsg)
-		if !ok {
-			results <- msg
-			return
-		}
-		for _, sub := range batch {
-			go func(sub tea.Cmd) { results <- sub() }(sub)
-		}
-	}()
-
-	var msgs []tea.Msg
-	for {
-		select {
-		case msg := <-results:
-			msgs = append(msgs, msg)
-		case <-time.After(500 * time.Millisecond):
-			return msgs
-		}
-	}
-}
 
 // Изменение файла на диске и сигнал из канала: экран обновляется без r.
 func TestChangeSignalReloadsWithoutKey(t *testing.T) {
@@ -53,19 +18,14 @@ func TestChangeSignalReloadsWithoutKey(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 
 	changes := make(chan struct{}, 1)
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	opts := tui.Options{
-		Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(),
-		Layout: layout.Focus(), Changes: changes,
-	}
-	var model tea.Model = tui.New(opts, files)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	opts := options(repo, layout.Focus())
+	opts.Changes = changes
+	model := resize(open(t, opts), 100, 20)
 
 	write(t, repo, "a.txt", "three\n")
 	changes <- struct{}{}
+	// сигнал последний: закрытый канал отпускает ожидание следующего
+	close(changes)
 
 	for _, signal := range runAll(model.Init()) {
 		var next tea.Cmd
@@ -85,9 +45,9 @@ func TestStoppedWatchShowsNotice(t *testing.T) {
 	changes := make(chan struct{})
 	close(changes)
 
-	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Changes: changes}
-	var model tea.Model = tui.New(opts, nil)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	opts := options("", layout.Focus())
+	opts.Changes = changes
+	model := resize(tui.New(opts, nil), 100, 20)
 
 	for _, msg := range runAll(model.Init()) {
 		model, _ = model.Update(msg)

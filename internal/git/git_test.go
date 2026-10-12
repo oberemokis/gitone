@@ -152,12 +152,12 @@ func TestErrorsCarryGitMessage(t *testing.T) {
 		{name: "неверный аргумент", dir: repo, args: []string{"main..nope"}, want: "unknown revision"},
 	}
 
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			_, err := git.Diff(testCase.dir, testCase.args)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := git.Diff(tc.dir, tc.args)
 
-			if err == nil || !strings.Contains(err.Error(), testCase.want) {
-				t.Fatalf("ожидалась ошибка с %q, получили %v", testCase.want, err)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("Diff(%q, %q) error = %v, want с текстом %q", tc.dir, tc.args, err, tc.want)
 			}
 		})
 	}

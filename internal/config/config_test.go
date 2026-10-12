@@ -1,20 +1,22 @@
-package config
+package config_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitone/internal/config"
 )
 
 func TestLoad(t *testing.T) {
-	withUI := func(ui UI) Config {
-		cfg := Default()
+	withUI := func(ui config.UI) config.Config {
+		cfg := config.Default()
 		cfg.UI = ui
 		return cfg
 	}
-	withMode := func(mode string) Config {
-		cfg := Default()
+	withMode := func(mode string) config.Config {
+		cfg := config.Default()
 		cfg.Diff.Mode = mode
 		return cfg
 	}
@@ -23,27 +25,27 @@ func TestLoad(t *testing.T) {
 		name    string
 		missing bool
 		content string
-		want    Config
+		want    config.Config
 		// подстрока ошибки, пусто значит ошибки нет
 		wantErr string
 	}{
-		{name: "нет файла", missing: true, want: Default()},
+		{name: "нет файла", missing: true, want: config.Default()},
 		{name: "режим из файла", content: `{"diff":{"mode":"split"}}`, want: withMode("split")},
-		{name: "неизвестное поле", content: `{"diff":{"thme":"x"}}`, want: Default(), wantErr: "thme"},
-		{name: "неверный тип", content: `{"diff":{"autoSplitMinWidth":"много"}}`, want: Default(), wantErr: "autoSplitMinWidth"},
-		{name: "неверный режим", content: `{"diff":{"mode":"wide"}}`, want: Default(), wantErr: "wide"},
-		{name: "не JSON", content: `{"diff":`, want: Default(), wantErr: "config.json"},
-		{name: "текст после JSON", content: `{} {}`, want: Default(), wantErr: "config.json"},
-		{name: "ui: одно поле", content: `{"ui":{"paneTitles":false}}`, want: withUI(UI{KeyHints: true, PaneTitles: false, LineNumbers: true, AutoReload: true})},
-		{name: "ui: autoReload выключен", content: `{"ui":{"autoReload":false}}`, want: withUI(UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: false})},
-		{name: "ui: scrollbar пока не принимается", content: `{"ui":{"scrollbar":true}}`, want: Default(), wantErr: "scrollbar"},
-		{name: "ui: statusBar пока не принимается", content: `{"ui":{"statusBar":false}}`, want: Default(), wantErr: "statusBar"},
-		{name: "$schema допустим", content: `{"$schema":"./schemas/config.schema.json","diff":{"mode":"unified"}}`, want: Config{
+		{name: "неизвестное поле", content: `{"diff":{"thme":"x"}}`, want: config.Default(), wantErr: "thme"},
+		{name: "неверный тип", content: `{"diff":{"autoSplitMinWidth":"много"}}`, want: config.Default(), wantErr: "autoSplitMinWidth"},
+		{name: "неверный режим", content: `{"diff":{"mode":"wide"}}`, want: config.Default(), wantErr: "wide"},
+		{name: "не JSON", content: `{"diff":`, want: config.Default(), wantErr: "config.json"},
+		{name: "текст после JSON", content: `{} {}`, want: config.Default(), wantErr: "config.json"},
+		{name: "ui: одно поле", content: `{"ui":{"paneTitles":false}}`, want: withUI(config.UI{KeyHints: true, PaneTitles: false, LineNumbers: true, AutoReload: true})},
+		{name: "ui: autoReload выключен", content: `{"ui":{"autoReload":false}}`, want: withUI(config.UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: false})},
+		{name: "ui: scrollbar пока не принимается", content: `{"ui":{"scrollbar":true}}`, want: config.Default(), wantErr: "scrollbar"},
+		{name: "ui: statusBar пока не принимается", content: `{"ui":{"statusBar":false}}`, want: config.Default(), wantErr: "statusBar"},
+		{name: "$schema допустим", content: `{"$schema":"./schemas/config.schema.json","diff":{"mode":"unified"}}`, want: config.Config{
 			Schema: "./schemas/config.schema.json",
 			Theme:  "dark",
 			Layout: "default",
-			UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
-			Diff:   Diff{Mode: "unified", AutoSplitMinWidth: 120},
+			UI:     config.UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
+			Diff:   config.Diff{Mode: "unified", AutoSplitMinWidth: 120},
 		}},
 	}
 
@@ -56,23 +58,23 @@ func TestLoad(t *testing.T) {
 				}
 			}
 
-			got, err := Load(dir)
+			got, err := config.Load(dir)
 
 			if tc.wantErr == "" {
 				if err != nil {
-					t.Fatalf("ошибка %v, ожидалась без ошибки", err)
+					t.Fatalf("Load(config.json %q) error = %v, want nil", tc.content, err)
 				}
 			} else {
 				if err == nil {
-					t.Fatalf("ошибки нет, ожидалась с текстом %q", tc.wantErr)
+					t.Fatalf("Load(config.json %q) error = nil, want error with %q", tc.content, tc.wantErr)
 				}
 				if !strings.Contains(err.Error(), tc.wantErr) || !strings.Contains(err.Error(), "config.json") {
-					t.Fatalf("ошибка %q не называет файл и %q", err, tc.wantErr)
+					t.Errorf("Load(config.json %q) error = %q, want error with config.json and %q", tc.content, err, tc.wantErr)
 				}
 			}
 
 			if got != tc.want {
-				t.Fatalf("значения %+v, ожидались %+v", got, tc.want)
+				t.Errorf("Load(config.json %q) = %+v, want %+v", tc.content, got, tc.want)
 			}
 		})
 	}
@@ -91,8 +93,8 @@ func TestDir(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Dir(tc.xdg, tc.home); got != tc.want {
-				t.Fatalf("каталог %q, ожидался %q", got, tc.want)
+			if got := config.Dir(tc.xdg, tc.home); got != tc.want {
+				t.Errorf("Dir(%q, %q) = %q, want %q", tc.xdg, tc.home, got, tc.want)
 			}
 		})
 	}

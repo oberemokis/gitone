@@ -1,10 +1,12 @@
-package config
+package config_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitone/internal/config"
 )
 
 func writeLayout(t *testing.T, dir, name, content string) {
@@ -27,7 +29,7 @@ func TestReadLayout(t *testing.T) {
 		wantOK  bool
 		// подстрока ошибки, пусто значит ошибки нет
 		wantErr string
-		check   func(t *testing.T, file LayoutFile)
+		check   func(t *testing.T, file config.LayoutFile)
 	}{
 		{name: "нет файла", file: "compact", missing: true},
 		{
@@ -35,12 +37,12 @@ func TestReadLayout(t *testing.T) {
 			file:    "compact",
 			content: `{"root":{"direction":"row","children":[{"pane":"files","size":"30%"},{"pane":"diff","size":6}]}}`,
 			wantOK:  true,
-			check: func(t *testing.T, file LayoutFile) {
+			check: func(t *testing.T, file config.LayoutFile) {
 				if file.Root.Direction != "row" || len(file.Root.Children) != 2 {
-					t.Fatalf("дерево %+v", file.Root)
+					t.Fatalf("ReadLayout(compact).Root = %+v, want row with 2 children", file.Root)
 				}
 				if file.Root.Children[0].Size != "30%" || file.Root.Children[1].Size != "6" {
-					t.Fatalf("размеры %q и %q", file.Root.Children[0].Size, file.Root.Children[1].Size)
+					t.Errorf("ReadLayout(compact) sizes = %q, %q, want %q, %q", file.Root.Children[0].Size, file.Root.Children[1].Size, "30%", "6")
 				}
 			},
 		},
@@ -71,19 +73,19 @@ func TestReadLayout(t *testing.T) {
 				writeLayout(t, dir, filepath.Base(tc.file), tc.content)
 			}
 
-			file, found, err := ReadLayout(dir, tc.file)
+			file, found, err := config.ReadLayout(dir, tc.file)
 
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("ошибка %v, ожидалась с текстом %q", err, tc.wantErr)
+					t.Errorf("ReadLayout(%q) error = %v, want error with %q", tc.file, err, tc.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ошибка %v, ожидалась без ошибки", err)
+				t.Fatalf("ReadLayout(%q) error = %v, want nil", tc.file, err)
 			}
 			if found != tc.wantOK {
-				t.Fatalf("найдена %v, ожидалось %v", found, tc.wantOK)
+				t.Errorf("ReadLayout(%q) found = %v, want %v", tc.file, found, tc.wantOK)
 			}
 			if tc.check != nil {
 				tc.check(t, file)
@@ -93,16 +95,16 @@ func TestReadLayout(t *testing.T) {
 }
 
 func TestConfigReadsLayoutName(t *testing.T) {
-	if Default().Layout != "default" {
-		t.Fatalf("раскладка по умолчанию %q, ожидалась default", Default().Layout)
+	if config.Default().Layout != "default" {
+		t.Errorf("раскладка по умолчанию %q, ожидалась default", config.Default().Layout)
 	}
 
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"layout":"focus"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := Load(dir)
+	cfg, err := config.Load(dir)
 	if err != nil || cfg.Layout != "focus" {
-		t.Fatalf("раскладка %q, ошибка %v", cfg.Layout, err)
+		t.Errorf("раскладка %q, ошибка %v", cfg.Layout, err)
 	}
 }

@@ -3,19 +3,14 @@ package tui_test
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
-	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
+	"gitone/internal/layout"
 )
 
 func TestFirstChangedFileOpensWithPathAndCounts(t *testing.T) {
@@ -26,7 +21,7 @@ func TestFirstChangedFileOpensWithPathAndCounts(t *testing.T) {
 	write(t, repo, "a.txt", "one\nTWO\nthree\n")
 	write(t, repo, "b.txt", "y\n")
 
-	screen := render(open(t, repo, nil), 100, 20)
+	screen := render(open(t, options(repo, layout.Focus())), 100, 20)
 
 	if header := strings.TrimSpace(screen[0]); header != "a.txt +2-1" {
 		t.Fatalf("заголовок %q, ожидался %q", header, "a.txt +2-1")
@@ -41,7 +36,7 @@ func TestModeFollowsWidthUntilToggled(t *testing.T) {
 	write(t, repo, "a.txt", "one\ntwo\n")
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "one\nTWO\n")
-	model := open(t, repo, nil)
+	model := open(t, options(repo, layout.Focus()))
 	toggle := tea.KeyPressMsg{Code: 'm', Text: "m"}
 
 	steps := []struct {
@@ -72,7 +67,7 @@ func TestLongLinesAreCutAtColumnEdgeAndTabsBecomeSpaces(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "SHORT\n"+strings.Repeat("y", 300)+"\n\tTABBED\n")
 
-	screen := render(open(t, repo, nil), 120, 20)
+	screen := render(open(t, options(repo, layout.Focus())), 120, 20)
 
 	for index, line := range screen[2 : len(screen)-1] {
 		if width := ansi.StringWidth(line); width != 120 {
@@ -95,7 +90,7 @@ func TestScrollStopsAtBothEnds(t *testing.T) {
 	write(t, repo, "long.txt", content.String())
 
 	// высота 20: заголовок с пустой строкой и подвал оставляют телу 17 строк
-	var model tea.Model = open(t, repo, nil)
+	var model tea.Model = open(t, options(repo, layout.Focus()))
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	steps := []struct {
@@ -140,7 +135,7 @@ func TestModeToggleKeepsTopLine(t *testing.T) {
 
 	// unified: сорок удалённых строк, затем сорок добавленных. Пять раз на
 	// полэкрана (по 8 строк) ставят наверх первую добавленную, её номер 1.
-	var model tea.Model = open(t, repo, nil)
+	var model tea.Model = open(t, options(repo, layout.Focus()))
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	for range 5 {
 		model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
@@ -201,116 +196,22 @@ func TestSpecialFilesShowNotices(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
 			repo := newRepo(t)
-			for name, content := range testCase.before {
+			for name, content := range tc.before {
 				write(t, repo, name, content)
 			}
 			commitAll(t, repo)
-			testCase.change(t, repo)
+			tc.change(t, repo)
 
-			screen := render(open(t, repo, testCase.args), 100, 20)
+			opts := options(repo, layout.Focus())
+			opts.Args = tc.args
+			screen := render(open(t, opts), 100, 20)
 
-			if body := strings.Join(screen, "\n"); !strings.Contains(body, testCase.want) {
-				t.Fatalf("на экране нет %q:\n%s", testCase.want, body)
+			if body := strings.Join(screen, "\n"); !strings.Contains(body, tc.want) {
+				t.Fatalf("на экране нет %q:\n%s", tc.want, body)
 			}
 		})
 	}
-}
-
-// topNumber читает номер строки файла в первой строке тела: в unified у
-// добавленной строки старого номера нет, первым идёт новый.
-func topNumber(t *testing.T, screen []string) int {
-	t.Helper()
-
-	fields := strings.Fields(screen[2])
-	if len(fields) == 0 {
-		t.Fatalf("первая строка тела пустая:\n%s", strings.Join(screen, "\n"))
-	}
-
-	number, err := strconv.Atoi(fields[0])
-	if err != nil {
-		t.Fatalf("в первой строке тела нет номера: %q", screen[2])
-	}
-
-	return number
-}
-
-// isSplit узнаёт split по тому, что удалённая и добавленная строки стоят на
-// одной строке экрана.
-func isSplit(screen []string, removed, added string) bool {
-	for _, line := range screen {
-		if strings.Contains(line, removed) && strings.Contains(line, added) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// open загружает дифф репозитория так же, как cmd/gitone при запуске.
-func open(t *testing.T, repo string, args []string) tea.Model {
-	t.Helper()
-
-	files, err := tui.Load(repo, args)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	return tui.New(tui.Options{Dir: repo, Args: args, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}, files)
-}
-
-// render задаёт размер окна и возвращает экран построчно без цветов.
-func render(model tea.Model, width, height int) []string {
-	model, _ = model.Update(tea.WindowSizeMsg{Width: width, Height: height})
-	return screenOf(model)
-}
-
-func screenOf(model tea.Model) []string {
-	return strings.Split(ansi.Strip(model.View().Content), "\n")
-}
-
-// newRepo создаёт репозиторий во временном каталоге. Глобальный и системный
-// конфиги отключены: результат не должен зависеть от настроек машины.
-func newRepo(t *testing.T) string {
-	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
-	t.Setenv("GIT_AUTHOR_NAME", "test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "test@example.com")
-	t.Setenv("GIT_COMMITTER_NAME", "test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "test@example.com")
-
-	repo := t.TempDir()
-	runGit(t, repo, "init", "-q", "-b", "main")
-	return repo
-}
-
-func runGit(t *testing.T, dir string, args ...string) {
-	t.Helper()
-
-	command := exec.Command("git", args...)
-	command.Dir = dir
-	if out, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, out)
-	}
-}
-
-func write(t *testing.T, dir, name, content string) {
-	t.Helper()
-
-	target := filepath.Join(dir, name)
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func commitAll(t *testing.T, repo string) {
-	t.Helper()
-	runGit(t, repo, "add", "-A")
-	runGit(t, repo, "commit", "-q", "-m", "commit")
 }

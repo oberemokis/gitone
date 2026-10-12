@@ -9,14 +9,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
+	"gitone/internal/layout"
 	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
 )
 
 func TestBracketsMoveBetweenFilesAndStopAtEdges(t *testing.T) {
-	model := openThreeFiles(t)
+	_, model := threeFileRepo(t)
 	next := tea.KeyPressMsg{Code: ']', Text: "]"}
 	previous := tea.KeyPressMsg{Code: '[', Text: "["}
 
@@ -56,7 +54,7 @@ func TestPickerFiltersBySubsequenceAndOpensChoice(t *testing.T) {
 	for _, name := range paths {
 		write(t, repo, name, "new\n")
 	}
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 	model = typeText(model, "tuiapp")
@@ -78,7 +76,7 @@ func TestPickerFiltersBySubsequenceAndOpensChoice(t *testing.T) {
 }
 
 func TestPickerTakesQuitAndHelpKeysAsText(t *testing.T) {
-	model := openThreeFiles(t)
+	_, model := threeFileRepo(t)
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
@@ -115,7 +113,7 @@ func TestSamePathTwiceIsDistinguishableInPicker(t *testing.T) {
 	if err := os.Symlink("target", filepath.Join(repo, "link")); err != nil {
 		t.Fatal(err)
 	}
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 
@@ -131,7 +129,7 @@ func TestSamePathTwiceIsDistinguishableInPicker(t *testing.T) {
 }
 
 func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
-	model := openThreeFiles(t)
+	_, model := threeFileRepo(t)
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 
@@ -142,7 +140,7 @@ func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
 }
 
 func TestHelpShrinksOnNarrowScreen(t *testing.T) {
-	model, _ := tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}, nil).Update(tea.WindowSizeMsg{Width: 40, Height: 40})
+	model := resize(tui.New(options("", layout.Focus()), nil), 40, 40)
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
 	screen := screenOf(model)
@@ -154,41 +152,4 @@ func TestHelpShrinksOnNarrowScreen(t *testing.T) {
 	if body := strings.Join(screen, "\n"); !strings.Contains(body, "Hotkeys") || !strings.Contains(body, "esc") {
 		t.Fatalf("справка потеряла заголовок или esc:\n%s", body)
 	}
-}
-
-// typeText набирает текст по одной клавише, как с клавиатуры.
-func typeText(model tea.Model, text string) tea.Model {
-	for _, char := range text {
-		model, _ = model.Update(tea.KeyPressMsg{Code: char, Text: string(char)})
-	}
-
-	return model
-}
-
-// openThreeFiles открывает дифф из трёх изменённых файлов a.txt, b.txt и
-// c.txt на экране 100 на 20.
-func openThreeFiles(t *testing.T) tea.Model {
-	t.Helper()
-
-	repo := newRepo(t)
-	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
-		write(t, repo, name, "old "+name+"\n")
-	}
-	commitAll(t, repo)
-	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
-		write(t, repo, name, "new "+name+"\n")
-	}
-
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
-	return model
-}
-
-// openedFile читает путь открытого файла из заголовка: первое слово.
-func openedFile(screen []string) string {
-	fields := strings.Fields(screen[0])
-	if len(fields) == 0 {
-		return ""
-	}
-
-	return fields[0]
 }

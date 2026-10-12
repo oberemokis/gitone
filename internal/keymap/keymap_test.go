@@ -1,4 +1,4 @@
-package keymap
+package keymap_test
 
 import (
 	"os"
@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"gitone/internal/keymap"
 )
 
 func TestLoad(t *testing.T) {
@@ -42,23 +44,23 @@ func TestLoad(t *testing.T) {
 				}
 			}
 
-			km, err := Load(dir)
+			km, err := keymap.Load(dir)
 
 			if tc.wantErr == "" {
 				if err != nil {
-					t.Fatalf("ошибка %v, ожидалась без ошибки", err)
+					t.Fatalf("Load(keybinds.json %q) error = %v, want nil", tc.content, err)
 				}
 			} else {
 				if err == nil {
-					t.Fatalf("ошибки нет, ожидалась с текстом %q", tc.wantErr)
+					t.Fatalf("Load(keybinds.json %q) error = nil, want error with %q", tc.content, tc.wantErr)
 				}
 				if !strings.Contains(err.Error(), tc.wantErr) || !strings.Contains(err.Error(), "keybinds.json") {
-					t.Fatalf("ошибка %q не называет файл и %q", err, tc.wantErr)
+					t.Errorf("Load(keybinds.json %q) error = %q, want error with keybinds.json and %q", tc.content, err, tc.wantErr)
 				}
 			}
 
-			if got := km.KeysFor(AppQuit); !slices.Equal(got, tc.want) {
-				t.Fatalf("клавиши app.quit %q, ожидались %q", got, tc.want)
+			if got := km.KeysFor(keymap.AppQuit); !slices.Equal(got, tc.want) {
+				t.Errorf("Load(keybinds.json %q).KeysFor(app.quit) = %q, want %q", tc.content, got, tc.want)
 			}
 		})
 	}
@@ -72,15 +74,15 @@ func TestActionForFollowsOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	km, err := Load(dir)
+	km, err := keymap.Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if got := km.ActionFor("w"); got != AppQuit {
-		t.Fatalf("x ведёт к %q, ожидался %q", got, AppQuit)
+	if got := km.ActionFor("w"); got != keymap.AppQuit {
+		t.Errorf("x ведёт к %q, ожидался %q", got, keymap.AppQuit)
 	}
 	if got := km.ActionFor("q"); got != "" {
-		t.Fatalf("q ведёт к %q, ожидалось ничего", got)
+		t.Errorf("q ведёт к %q, ожидалось ничего", got)
 	}
 }

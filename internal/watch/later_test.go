@@ -1,4 +1,4 @@
-package watch
+package watch_test
 
 import (
 	"os"

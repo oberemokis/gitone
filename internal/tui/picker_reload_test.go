@@ -6,10 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
-	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
+	"gitone/internal/layout"
 )
 
 // pickerOverReload открывает дифф трёх файлов со слежением, открывает окно
@@ -18,29 +15,19 @@ import (
 func pickerOverReload(t *testing.T, query string) tea.Model {
 	t.Helper()
 
-	repo := newRepo(t)
-	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
-		write(t, repo, name, "old "+name+"\n")
-	}
-	commitAll(t, repo)
-	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
-		write(t, repo, name, "new "+name+"\n")
-	}
-
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	repo, _ := threeFileRepo(t)
 	changes := make(chan struct{}, 1)
-	opts := tui.Options{Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Changes: changes}
-	var model tea.Model = tui.New(opts, files)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	opts := options(repo, layout.Focus())
+	opts.Changes = changes
+	model := resize(open(t, opts), 100, 20)
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 	model = typeText(model, query)
 
 	runGit(t, repo, "checkout", "--", "a.txt")
 	changes <- struct{}{}
+	// сигнал последний: закрытый канал отпускает ожидание следующего
+	close(changes)
 	return settle(model, model.Init(), 4)
 }
 

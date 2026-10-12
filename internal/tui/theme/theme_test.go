@@ -28,7 +28,7 @@ func TestBuildOverlaysDark(t *testing.T) {
 			file: config.ThemeFile{},
 			check: func(t *testing.T, got theme.Theme) {
 				if got != dark {
-					t.Fatalf("тема %+v, ожидалась dark", got)
+					t.Errorf("Build(file) = %+v, want dark", got)
 				}
 			},
 		},
@@ -40,10 +40,10 @@ func TestBuildOverlaysDark(t *testing.T) {
 			},
 			check: func(t *testing.T, got theme.Theme) {
 				if got.DiffAdded != lipgloss.Color("#3fb950") {
-					t.Fatalf("diffAdded %v, ожидался #3fb950", got.DiffAdded)
+					t.Errorf("Build(file).DiffAdded = %v, want #3fb950", got.DiffAdded)
 				}
 				if got.DiffRemoved != dark.DiffRemoved {
-					t.Fatalf("diffRemoved изменился без причины")
+					t.Errorf("Build(file).DiffRemoved = %v, want как в dark %v", got.DiffRemoved, dark.DiffRemoved)
 				}
 			},
 		},
@@ -52,7 +52,7 @@ func TestBuildOverlaysDark(t *testing.T) {
 			file: config.ThemeFile{Colors: map[string]config.Color{"textMuted": "8"}},
 			check: func(t *testing.T, got theme.Theme) {
 				if got.TextMuted != lipgloss.Color("8") {
-					t.Fatalf("textMuted %v, ожидался ANSI 8", got.TextMuted)
+					t.Errorf("Build(file).TextMuted = %v, want ANSI 8", got.TextMuted)
 				}
 			},
 		},
@@ -61,7 +61,7 @@ func TestBuildOverlaysDark(t *testing.T) {
 			file: config.ThemeFile{Colors: map[string]config.Color{"backgroundPanel": "none"}},
 			check: func(t *testing.T, got theme.Theme) {
 				if got.BackgroundPanel != (lipgloss.NoColor{}) {
-					t.Fatalf("backgroundPanel %v, ожидался NoColor", got.BackgroundPanel)
+					t.Errorf("Build(file).BackgroundPanel = %v, want NoColor", got.BackgroundPanel)
 				}
 			},
 		},
@@ -88,15 +88,15 @@ func TestBuildOverlaysDark(t *testing.T) {
 
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("ошибка %v, ожидалась с текстом %q", err, tc.wantErr)
+					t.Errorf("Build(file) error = %v, want с текстом %q", err, tc.wantErr)
 				}
 				if got != dark {
-					t.Fatalf("при ошибке тема %+v, ожидалась dark", got)
+					t.Errorf("Build(file) при ошибке = %+v, want dark", got)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ошибка %v, ожидалась без ошибки", err)
+				t.Fatalf("Build(file) error = %v, want nil", err)
 			}
 			tc.check(t, got)
 		})

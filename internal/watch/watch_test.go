@@ -1,4 +1,4 @@
-package watch
+package watch_test
 
 import (
 	"errors"
@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"gitone/internal/watch"
 )
 
 // wait ждёт сигнал и падает, если его нет. Окно с запасом: события доходят
@@ -17,6 +19,31 @@ func wait(t *testing.T, signals <-chan struct{}) {
 	case <-signals:
 	case <-time.After(3 * time.Second):
 		t.Fatal("сигнала не было")
+	}
+}
+
+// drain ждёт первый сигнал и дочитывает следующие, пока они идут. Окно
+// схлопывания отсчитывается от первого события пачки и не сдвигается, поэтому
+// пачка дольше окна (медленный диск, -race) честно даёт больше одного сигнала.
+// Пачка записана до вызова, так что её последний сигнал приходит не позже
+// задержки после последнего события: пауза в 500 мс значит, что сигналы от
+// пачки кончились. Потолок в 3 с ловит сигналы, которые не прекращаются.
+// Возвращает число съеденных сигналов.
+func drain(t *testing.T, signals <-chan struct{}) int {
+	t.Helper()
+
+	wait(t, signals)
+	count := 1
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case <-signals:
+			count++
+		case <-time.After(500 * time.Millisecond):
+			return count
+		case <-deadline:
+			t.Fatal("сигналы не прекращаются")
+		}
 	}
 }
 
@@ -37,7 +64,7 @@ func start(t *testing.T, root string, maxDirs int) <-chan struct{} {
 	done := make(chan struct{})
 	t.Cleanup(func() { close(done) })
 
-	signals, err := Start(root, maxDirs, done)
+	signals, err := watch.Start(root, maxDirs, done)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -54,19 +81,25 @@ func TestWriteSignals(t *testing.T) {
 	wait(t, signals)
 }
 
-// Ожидание шлёт один сигнал на пачку записей, а не на каждую.
-func TestBurstGivesOneSignal(t *testing.T) {
+// Пачка записей схлопывается: сигналов меньше, чем записей, и после них
+// тишина. Точное число зависит от длины пачки относительно окна, поэтому
+// тест требует только «меньше», а тишину проверяет после того, как сигналы
+// пачки съедены.
+func TestBurstIsCoalesced(t *testing.T) {
 	root := t.TempDir()
 	signals := start(t, root, 100)
 
-	for index := range 5 {
+	const writes = 5
+	for index := range writes {
 		name := filepath.Join(root, "f"+string(rune('a'+index))+".txt")
 		if err := os.WriteFile(name, []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	wait(t, signals)
+	if got := drain(t, signals); got >= writes {
+		t.Errorf("пачка из %d записей дала %d сигналов, want меньше", writes, got)
+	}
 	silent(t, signals)
 }
 
@@ -112,7 +145,7 @@ func TestTooManyDirectoriesFails(t *testing.T) {
 
 	done := make(chan struct{})
 	defer close(done)
-	if _, err := Start(root, 2, done); !errors.Is(err, ErrTooManyDirs) {
-		t.Fatalf("ошибка %v, ожидалась ErrTooManyDirs", err)
+	if _, err := watch.Start(root, 2, done); !errors.Is(err, watch.ErrTooManyDirs) {
+		t.Errorf("ошибка %v, ожидалась ErrTooManyDirs", err)
 	}
 }

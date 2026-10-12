@@ -8,7 +8,7 @@ import (
 )
 
 func TestUnified(t *testing.T) {
-	cases := []struct {
+	tests := []struct {
 		name string
 		file diff.File
 		want []diff.UnifiedRow
@@ -43,19 +43,19 @@ func TestUnified(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			got := diff.Unified(testCase.file)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := diff.Unified(tc.file)
 
-			if !reflect.DeepEqual(got, testCase.want) {
-				t.Fatalf("получили\n%+v\nожидалось\n%+v", got, testCase.want)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("Unified(%+v) =\n%+v\nwant\n%+v", tc.file, got, tc.want)
 			}
 		})
 	}
 }
 
 func TestSplit(t *testing.T) {
-	cases := []struct {
+	tests := []struct {
 		name string
 		file diff.File
 		want []diff.SplitRow
@@ -107,12 +107,12 @@ func TestSplit(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			got := diff.Split(testCase.file)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := diff.Split(tc.file)
 
-			if !reflect.DeepEqual(got, testCase.want) {
-				t.Fatalf("получили\n%+v\nожидалось\n%+v", got, testCase.want)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("Split(%+v) =\n%+v\nwant\n%+v", tc.file, got, tc.want)
 			}
 		})
 	}

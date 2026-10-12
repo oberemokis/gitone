@@ -6,10 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
-	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
+	"gitone/internal/layout"
 )
 
 // Поведение окон, которое перестройка обязана сохранить. Каждый тест проходит и
@@ -118,14 +115,10 @@ func TestListsIgnoreGlobalKeys(t *testing.T) {
 // его закрытие.
 func TestListKeepsFooterMessage(t *testing.T) {
 	repo, _ := threeFileRepo(t)
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
 	changes := make(chan struct{})
-	opts := tui.Options{Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Changes: changes}
-	var model tea.Model = tui.New(opts, files)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	opts := options(repo, layout.Focus())
+	opts.Changes = changes
+	model := resize(open(t, opts), 100, 20)
 	waiter := model.Init()
 
 	model = openAsync(model, key('l'))
@@ -156,7 +149,7 @@ func TestCtrlCAnswersQuestions(t *testing.T) {
 	t.Run("удаление stash", func(t *testing.T) {
 		repo, _ := threeFileRepo(t)
 		runGit(t, repo, "stash", "push", "-q")
-		model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+		model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 		model = openAsync(model, key('Z'))
 		model, _ = model.Update(key('d'))
 

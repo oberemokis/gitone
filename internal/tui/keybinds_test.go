@@ -8,10 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/config"
 	"gitone/internal/keymap"
+	"gitone/internal/layout"
 	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
 )
 
 // loadKeys читает клавиши из keybinds.json с заданным содержимым.
@@ -30,12 +29,17 @@ func loadKeys(t *testing.T, content string) keymap.Keymap {
 	return km
 }
 
+// openWithKeys открывает экран без диффа с заданными клавишами.
+func openWithKeys(km keymap.Keymap) tea.Model {
+	opts := options("", layout.Focus())
+	opts.Keys = km
+	return resize(tui.New(opts, nil), 100, 20)
+}
+
 // Переназначенный выход работает, встроенный перестаёт, а подвал показывает
 // новую клавишу.
 func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
-	km := loadKeys(t, `{"keybinds":{"app.quit":"w"}}`)
-	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: km, Theme: theme.Dark()}, nil)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := openWithKeys(loadKeys(t, `{"keybinds":{"app.quit":"w"}}`))
 
 	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "w quit") || strings.Contains(footer, "q quit") {
 		t.Fatalf("в подвале %q, ожидалось «w quit» без «q quit»", footer)
@@ -59,18 +63,13 @@ func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
 // Отключённая справка не открывается, а отключённые клавиши закрытия не
 // роняют отрисовку: справка без клавиши закрытия остаётся работоспособной.
 func TestDisabledActionsDoNotBreakScreen(t *testing.T) {
-	km := loadKeys(t, `{"keybinds":{"app.help":"none"}}`)
-	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: km, Theme: theme.Dark()}, nil)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
-
+	model := openWithKeys(loadKeys(t, `{"keybinds":{"app.help":"none"}}`))
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 	if strings.Contains(strings.Join(screenOf(model), "\n"), "Hotkeys") {
 		t.Fatal("справка открылась, хотя ? отключён")
 	}
 
-	km = loadKeys(t, `{"keybinds":{"help.close":"none"}}`)
-	model = tui.New(tui.Options{Config: config.Default(), Keys: km, Theme: theme.Dark()}, nil)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model = openWithKeys(loadKeys(t, `{"keybinds":{"help.close":"none"}}`))
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
 	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "Hotkeys") {

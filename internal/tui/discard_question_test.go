@@ -6,10 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
-	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
+	"gitone/internal/layout"
 )
 
 // askDiscardWithWatch открывает изменённый a.txt со слежением и задаёт вопрос
@@ -22,14 +19,10 @@ func askDiscardWithWatch(t *testing.T) (string, tea.Model, tea.Cmd, chan struct{
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "new\n")
 
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
 	changes := make(chan struct{}, 1)
-	opts := tui.Options{Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Changes: changes}
-	var model tea.Model = tui.New(opts, files)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	opts := options(repo, layout.Focus())
+	opts.Changes = changes
+	model := resize(open(t, opts), 100, 20)
 	waiter := model.Init()
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
