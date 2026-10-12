@@ -438,10 +438,11 @@ func (m Model) openPicker() Model {
 		noMatches = "files.none"
 	}
 	texts := picker.Texts{
-		Title:     m.text.Text("files.title", nil),
-		Search:    m.text.Text("files.search", nil),
-		NoMatches: m.text.Text(noMatches, nil),
-		CloseKey:  firstKey(m.keys, keymap.SearchClose),
+		Title:      m.text.Text("files.title", nil),
+		Search:     m.text.Text("files.search", nil),
+		NoMatches:  m.text.Text(noMatches, nil),
+		CloseKey:   firstKey(m.keys, keymap.SearchClose),
+		CloseLabel: m.text.Text("window.close", nil),
 	}
 	keys := picker.Keys{
 		Choose: m.keys.KeysFor(keymap.SearchChoose),

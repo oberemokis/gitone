@@ -38,8 +38,9 @@ type Texts struct {
 	Search string
 	// вместо списка, когда поиск ничего не нашёл
 	NoMatches string
-	// клавиша закрытия в заголовке, как её показывает подвал
-	CloseKey string
+	// клавиша закрытия в заголовке, как её показывает подвал, и подпись к ней
+	CloseKey   string
+	CloseLabel string
 }
 
 // Keys это клавиши действий окна, как их возвращает KeyPressMsg.String().

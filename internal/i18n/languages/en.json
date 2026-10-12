@@ -1,8 +1,6 @@
 {
   "action.branches.switch.hint": "switch",
-  "action.commit.close.hint": "cancel",
   "action.commit.submit.hint": "commit",
-  "action.list.close.hint": "close",
   "action.log.open.hint": "commit diff",
   "action.stash.apply.hint": "apply",
   "action.stash.diff.hint": "diff",
@@ -108,6 +106,7 @@
   "update.noVersion": "cannot find the release version in {url}",
   "update.upToDate": "gitone {version} is the latest version",
   "update.wrongVersion": "the downloaded gitone reports \"{got}\" instead of \"{want}\", nothing was installed",
+  "window.close": "close",
   "worktrees.current": "(current)",
   "worktrees.title": "Worktrees"
 }

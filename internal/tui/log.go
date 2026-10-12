@@ -65,10 +65,11 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 
 	return list{
 		title:  text.Text("log.title", nil),
+		close:  closeHint(colors, keys, text, keymap.ListClose),
 		rows:   rows,
 		cursor: cursor,
-		empty:  []string{"", text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.ListClose),
+		empty:  []string{text.Text("log.empty", nil)},
+		hint:   windowHint(colors, keys, text, keymap.LogOpen),
 		fill:   true,
 	}.view(colors, screenWidth, screenHeight)
 }

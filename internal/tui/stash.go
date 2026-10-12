@@ -90,11 +90,12 @@ func stashBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, stas
 
 	box := list{
 		title:  text.Text("stash.title", nil),
+		close:  closeHint(colors, keys, text, keymap.ListClose),
 		width:  68,
 		rows:   rows,
 		cursor: cursor,
 		empty:  []string{text.Text("stash.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashDrop, keymap.ListClose),
+		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashDrop),
 	}
 	if asking {
 		args := questionArgs(keys)

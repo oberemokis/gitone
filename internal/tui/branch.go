@@ -67,9 +67,10 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 
 	return list{
 		title:  text.Text("branches.title", nil),
+		close:  closeHint(colors, keys, text, keymap.ListClose),
 		width:  60,
 		rows:   rows,
 		cursor: cursor,
-		hint:   windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.ListClose),
+		hint:   windowHint(colors, keys, text, keymap.BranchesSwitch),
 	}.view(colors, screenWidth, screenHeight)
 }

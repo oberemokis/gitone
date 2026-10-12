@@ -25,17 +25,12 @@ func helpBox(colors theme.Theme, text i18n.Dictionary, screenWidth int, keys key
 	// Каждый кусок строки несёт фон сам: Lip Gloss закрывает жирный полным
 	// сбросом стиля, и без этого фон панели гаснет до конца строки.
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	bold := panel.Bold(true)
-	heading := bold.Foreground(colors.Accent)
+	heading := panel.Bold(true).Foreground(colors.Accent)
 	dim := panel.Foreground(colors.TextMuted)
 
-	// клавиши закрытия могли быть отключены: тогда в заголовке их не пишем
-	var closeKey string
-	if closeKeys := keys.KeysFor(keymap.HelpClose); len(closeKeys) > 0 {
-		closeKey = displayKey(closeKeys[0])
-	}
-	// клавиши цветом текста, подписи приглушённые, как в подвале (#89)
-	rows := []string{justify(panel, width, bold.Render(text.Text("help.title", nil)), panel.Render(closeKey))}
+	// заголовок как у всех окон; клавиши цветом текста, подписи
+	// приглушённые, как в подвале (#89)
+	rows := []string{windowTitle(colors, width, text.Text("help.title", nil), closeHint(colors, keys, text, keymap.HelpClose))}
 
 	order, groups := groupByCategory(keys.Bindings())
 	for _, category := range order {
