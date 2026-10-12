@@ -173,6 +173,23 @@ func TestWithoutAndHas(t *testing.T) {
 	}
 }
 
+// Resized задаёт панели размер в любом месте дерева, остальное не трогает:
+// так ширина панели файлов, заданная мышью, ложится в любую раскладку (#121).
+func TestResized(t *testing.T) {
+	nested := layout.Node{Direction: "column", Children: []layout.Node{
+		{Direction: "row", Children: []layout.Node{{Pane: "diff"}, {Pane: "files", Size: layout.Size{Percent: 30}}}},
+	}}
+
+	placed := layout.Split(layout.Resized(nested, "files", layout.Size{Cells: 42}), 100, 20)
+	if width := diffWidth(placed); width != 58 {
+		t.Errorf("дифф шириной %d, want 58: %+v", width, placed)
+	}
+
+	if got := layout.Resized(layout.Focus(), "files", layout.Size{Cells: 42}); got.Pane != "diff" || got.Size != (layout.Size{}) {
+		t.Errorf("focus без панели изменился: %+v", got)
+	}
+}
+
 // diffWidth ищет панель диффа в размещённом дереве.
 func diffWidth(placed layout.Placed) int {
 	if placed.Pane == "diff" {

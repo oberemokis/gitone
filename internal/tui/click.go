@@ -33,8 +33,11 @@ func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
 		m.helpOpen = false
 		return m.press(keymap.Action(action))
 	}
-	if target == picker.CloseTarget {
+	switch target {
+	case picker.CloseTarget:
 		return m.press(keymap.SearchClose)
+	case filesEdgeTarget:
+		return m.startDrag(x), nil
 	}
 
 	return m, nil
