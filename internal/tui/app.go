@@ -360,20 +360,22 @@ func (m Model) applyReload(files []diff.File) Model {
 	return m
 }
 
+// openPicker открывает поиск и без файлов: пустой список с надписью лучше
+// клавиши, которая молча не работает.
 func (m Model) openPicker() Model {
-	if len(m.files) == 0 {
-		return m
-	}
-
 	items := make([]picker.Item, len(m.files))
 	for index, file := range m.files {
 		items[index] = picker.Item{Label: fileTitle(file, m.text), Detail: statusLabel(file.Status, m.text)}
 	}
 
+	noMatches := "files.noMatches"
+	if len(m.files) == 0 {
+		noMatches = "files.none"
+	}
 	texts := picker.Texts{
 		Title:     m.text.Text("files.title", nil),
 		Search:    m.text.Text("files.search", nil),
-		NoMatches: m.text.Text("files.noMatches", nil),
+		NoMatches: m.text.Text(noMatches, nil),
 		CloseKey:  firstKey(m.keys, keymap.SearchClose),
 	}
 	keys := picker.Keys{
@@ -449,9 +451,6 @@ func (m Model) footerLine(counter string) string {
 // дифф остаётся виден по краям.
 func (m Model) body() string {
 	base := lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Left, lipgloss.Top, m.panes(m.placement()))
-	if len(m.files) == 0 {
-		base = lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Center, lipgloss.Center, m.text.Text("screen.noChanges", nil))
-	}
 
 	box := m.windowBox()
 	if box == "" {
@@ -461,12 +460,17 @@ func (m Model) body() string {
 }
 
 // panes рисует дерево размещения: лист это панель, контейнер склеивает детей
-// по своей оси.
+// по своей оси. Без изменений раскладка та же, а панели говорят об этом
+// сами: так видно, что открыто и куда пойдут клавиши.
 func (m Model) panes(placed layout.Placed) string {
-	if len(placed.Children) == 0 {
-		if placed.Pane == "files" {
-			return filespane.View(m.labels(), m.current, m.colors, placed.Width, placed.Height)
-		}
+	noChanges := m.text.Text("screen.noChanges", nil)
+	switch {
+	case len(placed.Children) > 0:
+	case placed.Pane == "files":
+		return filespane.View(m.labels(), m.current, noChanges, m.colors, placed.Width, placed.Height)
+	case len(m.files) == 0:
+		return lipgloss.Place(placed.Width, placed.Height, lipgloss.Center, lipgloss.Center, noChanges)
+	default:
 		return m.view.View()
 	}
 
