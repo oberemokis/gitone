@@ -46,10 +46,10 @@ func (state *parser) headerLine(line string) {
 		state.files = append(state.files, File{OldPath: oldPath, NewPath: newPath, Status: StatusModified})
 	case strings.HasPrefix(line, "diff --cc "), strings.HasPrefix(line, "diff --combined "):
 		_, combinedPath, _ := strings.Cut(strings.TrimPrefix(line, "diff --"), " ")
-		state.files = append(state.files, File{NewPath: path(combinedPath, ""), Status: StatusRaw, Raw: line})
+		state.files = append(state.files, File{NewPath: path(combinedPath, ""), Status: StatusRaw, Raw: clean(line)})
 	case strings.HasPrefix(line, "* Unmerged path "):
 		unmergedPath := strings.TrimPrefix(line, "* Unmerged path ")
-		state.files = append(state.files, File{NewPath: path(unmergedPath, ""), Status: StatusRaw, Raw: line})
+		state.files = append(state.files, File{NewPath: path(unmergedPath, ""), Status: StatusRaw, Raw: clean(line)})
 	case state.inRaw() || !state.fileHeader(line):
 		state.appendRaw(line)
 	}
@@ -143,14 +143,16 @@ func (state *parser) markNoNewline() {
 	}
 }
 
+// appendRaw чистит строку так же, как строки хунков: сырой текст тоже идёт
+// на экран, и escape-код из конфликта слияния иначе красил бы терминал.
 func (state *parser) appendRaw(line string) {
 	if state.inRaw() {
 		file := state.current()
-		file.Raw += "\n" + line
+		file.Raw += "\n" + clean(line)
 		return
 	}
 
-	state.files = append(state.files, File{Status: StatusRaw, Raw: line})
+	state.files = append(state.files, File{Status: StatusRaw, Raw: clean(line)})
 }
 
 func (state *parser) inRaw() bool {

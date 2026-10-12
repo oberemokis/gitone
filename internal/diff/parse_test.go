@@ -359,6 +359,18 @@ func TestParse(t *testing.T) {
 			}},
 		},
 		{
+			name: "управляющие символы в сырой записи тоже становятся значками",
+			input: lines(
+				"diff --cc conflict.txt",
+				"++\x1b[31mred\x1b[0m",
+			),
+			want: []diff.File{{
+				NewPath: "conflict.txt",
+				Status:  diff.StatusRaw,
+				Raw:     "diff --cc conflict.txt\n++␛[31mred␛[0m",
+			}},
+		},
+		{
 			name:  "пустой вывод git значит, что изменений нет",
 			input: "",
 			want:  nil,
