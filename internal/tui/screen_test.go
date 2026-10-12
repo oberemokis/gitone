@@ -15,6 +15,7 @@ import (
 	"gitone/internal/config"
 	"gitone/internal/keymap"
 	"gitone/internal/tui"
+	"gitone/internal/tui/theme"
 )
 
 func TestFirstChangedFileOpensWithPathAndCounts(t *testing.T) {
@@ -257,7 +258,7 @@ func open(t *testing.T, repo string, args []string) tea.Model {
 		t.Fatalf("Load: %v", err)
 	}
 
-	return tui.New(tui.Options{Dir: repo, Args: args, Config: config.Default(), Keys: keymap.Default()}, files)
+	return tui.New(tui.Options{Dir: repo, Args: args, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}, files)
 }
 
 // render задаёт размер окна и возвращает экран построчно без цветов.

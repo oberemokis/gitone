@@ -46,11 +46,12 @@ type Options struct {
 	Args   []string
 	Config config.Config
 	Keys   keymap.Keymap
+	Theme  theme.Theme
 	Notice string
 }
 
 func New(opts Options, files []diff.File) Model {
-	colors := theme.Dark()
+	colors := opts.Theme
 
 	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth)
 	if len(files) > 0 {

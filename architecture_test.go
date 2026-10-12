@@ -12,7 +12,7 @@ import (
 // ошибка: новый пакет сначала получает место в графе.
 var allowedImports = map[string][]string{
 	"gitone":            {},
-	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/keymap"},
+	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/keymap", "gitone/internal/tui/theme"},
 	"gitone/internal/tui": {
 		"gitone/internal/git",
 		"gitone/internal/diff",
@@ -24,7 +24,7 @@ var allowedImports = map[string][]string{
 	},
 	"gitone/internal/tui/diffview": {"gitone/internal/diff", "gitone/internal/tui/theme"},
 	"gitone/internal/tui/picker":   {"gitone/internal/tui/theme"},
-	"gitone/internal/tui/theme":    {},
+	"gitone/internal/tui/theme":    {"gitone/internal/config"},
 	"gitone/internal/config":       {},
 	"gitone/internal/keymap":       {},
 	"gitone/internal/git":          {},

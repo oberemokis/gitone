@@ -31,6 +31,7 @@ func TestLoad(t *testing.T) {
 		{name: "текст после JSON", content: `{} {}`, want: Default(), wantErr: "config.json"},
 		{name: "$schema допустим", content: `{"$schema":"./schemas/config.schema.json","diff":{"mode":"unified"}}`, want: Config{
 			Schema: "./schemas/config.schema.json",
+			Theme:  "dark",
 			Diff:   Diff{Mode: "unified", AutoSplitMinWidth: 120},
 		}},
 	}
