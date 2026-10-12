@@ -5,19 +5,54 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/tui"
 )
 
-func TestGreetingIsCentered(t *testing.T) {
-	model, _ := tui.New().Update(tea.WindowSizeMsg{Width: 21, Height: 5})
-	lines := strings.Split(model.View().Content, "\n")
+func TestScreenLayout(t *testing.T) {
+	model, _ := tui.New().Update(tea.WindowSizeMsg{Width: 60, Height: 10})
+	lines := strings.Split(ansi.Strip(model.View().Content), "\n")
 
-	if len(lines) != 5 {
-		t.Fatalf("строк %d, ожидалось 5", len(lines))
+	if len(lines) != 10 {
+		t.Fatalf("строк %d, ожидалось 10", len(lines))
 	}
-	if want := "     hello world     "; lines[2] != want {
-		t.Fatalf("средняя строка %q, ожидалось %q", lines[2], want)
+
+	hints := "q quit   ctrl p files   ? help"
+	margin := strings.Repeat(" ", (60-len(hints))/2)
+	if footer := lines[len(lines)-1]; footer != margin+hints+margin {
+		t.Errorf("подвал не по центру: %q", footer)
+	}
+
+	// тело идёт со строки 0 по 8, его середина строка 4
+	if got := strings.TrimSpace(lines[4]); got != "hello world" {
+		t.Errorf("в середине тела %q, ожидалось hello world", got)
+	}
+}
+
+func TestHelpToggle(t *testing.T) {
+	var model tea.Model = tui.New()
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
+
+	isHelpShown := func() bool {
+		return strings.Contains(ansi.Strip(model.View().Content), "Hotkeys")
+	}
+
+	steps := []struct {
+		key       tea.KeyPressMsg
+		wantShown bool
+	}{
+		{key: tea.KeyPressMsg{Code: '?', Text: "?"}, wantShown: true},
+		{key: tea.KeyPressMsg{Code: '?', Text: "?"}, wantShown: false},
+		{key: tea.KeyPressMsg{Code: '?', Text: "?"}, wantShown: true},
+		{key: tea.KeyPressMsg{Code: tea.KeyEscape}, wantShown: false},
+	}
+
+	for _, step := range steps {
+		model, _ = model.Update(step.key)
+		if isHelpShown() != step.wantShown {
+			t.Fatalf("после %s справка видна: %v, ожидалось %v", step.key, isHelpShown(), step.wantShown)
+		}
 	}
 }
 

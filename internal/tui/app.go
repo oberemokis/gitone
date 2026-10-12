@@ -8,8 +8,9 @@ import (
 const greeting = "hello world"
 
 type Model struct {
-	width  int
-	height int
+	width    int
+	height   int
+	helpOpen bool
 }
 
 func New() Model {
@@ -25,10 +26,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case tea.KeyPressMsg:
-		// ponytail: клавиши выхода зашиты, переедут в keymap вместе с keybinds.json
-		switch msg.String() {
-		case "q", "ctrl+c":
+		switch actionFor(msg.String()) {
+		case actionQuit:
 			return m, tea.Quit
+		case actionHelp:
+			m.helpOpen = !m.helpOpen
+		case actionCloseHelp:
+			m.helpOpen = false
 		}
 	}
 
@@ -36,9 +40,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() tea.View {
-	content := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, greeting)
-
-	view := tea.NewView(content)
+	view := tea.NewView("")
 	view.AltScreen = true
+
+	// до первого WindowSizeMsg ширина неизвестна, раскладывать не по чему
+	if m.width == 0 {
+		return view
+	}
+
+	// ponytail: справка заменяет тело, а не ложится поверх. Поверх через слои
+	// Lip Gloss, когда в теле появится дифф
+	content := greeting
+	if m.helpOpen {
+		content = helpBox()
+	}
+
+	bodyHeight := max(m.height-footerHeight, 0)
+	body := lipgloss.Place(m.width, bodyHeight, lipgloss.Center, lipgloss.Center, content)
+
+	view.Content = lipgloss.JoinVertical(lipgloss.Left, body, footer(m.width))
 	return view
 }
