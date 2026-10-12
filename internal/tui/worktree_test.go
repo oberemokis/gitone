@@ -53,7 +53,7 @@ func TestWorktreeSwitchShowsItsDiff(t *testing.T) {
 	if screen := screenText(model); !strings.Contains(screen, "side-edit") || strings.Contains(screen, "main-edit") {
 		t.Fatalf("после переключения не дифф side-tree:\n%s", screen)
 	}
-	if footer := footerOf(model); !strings.HasPrefix(footer, " side  side-tree") {
+	if footer := footerOf(model); !strings.HasPrefix(footer, " B side   W side-tree") {
 		t.Fatalf("подвал %q, want side-tree слева", footer)
 	}
 }

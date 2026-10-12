@@ -515,7 +515,7 @@ func (m Model) footerLine() string {
 		hints = keyHints(m.colors, m.text, m.keys.Bindings())
 	}
 
-	return footer(m.width, locationLabel(m.location, m.colors), center, hints)
+	return footer(m.width, locationLabel(m.location, m.colors, m.keys), center, hints)
 }
 
 // body складывает панели по раскладке и кладёт окна поверх, как opencode:

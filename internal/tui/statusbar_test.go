@@ -25,13 +25,38 @@ func TestFooterHintsOnTheRight(t *testing.T) {
 	}
 }
 
-// Слева ветка и имя каталога worktree.
+// Слева ветка и имя каталога worktree, каждое со своей клавишей, как
+// подсказки справа (#108).
 func TestFooterShowsBranchAndWorktree(t *testing.T) {
 	repo, model := threeFileRepo(t)
 
-	want := " main  " + filepath.Base(repo)
+	want := " B main   W " + filepath.Base(repo)
 	if footer := footerOf(model); !strings.HasPrefix(footer, want) {
 		t.Fatalf("подвал %q, want начало %q", footer, want)
+	}
+}
+
+// Клавиши из keymap: переназначенная видна, отключённая не пишется.
+func TestFooterLocationKeysFollowKeymap(t *testing.T) {
+	repo, _ := threeFileRepo(t)
+	model := openWithKeybinds(t, repo, `{"keybinds":{"app.branches":"v","app.worktrees":"none"}}`, 100)
+
+	want := " v main   " + filepath.Base(repo)
+	if footer := footerOf(model); !strings.HasPrefix(footer, want) {
+		t.Fatalf("подвал %q, want начало %q", footer, want)
+	}
+}
+
+// Клавиша яркая, имя приглушённое, как в подсказках справа.
+func TestFooterLocationKeyStandsOut(t *testing.T) {
+	raw := mutedTheme(t).View().Content
+
+	// в сыром выводе «q» и « quit» разделены кодами цвета
+	if code := styleBefore(t, raw, " quit", "B"); strings.Contains(code, mutedFg) {
+		t.Errorf("клавиша B приглушена: %q", code)
+	}
+	if code := styleBefore(t, raw, " quit", "main"); !strings.Contains(code, mutedFg) {
+		t.Errorf("ветка не приглушена: %q", code)
 	}
 }
 
@@ -42,7 +67,7 @@ func TestReloadSpinnerKeepsEdges(t *testing.T) {
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 
 	footer := footerOf(model)
-	for _, want := range []string{"⠋ loading", "main  " + filepath.Base(repo), "q quit"} {
+	for _, want := range []string{"⠋ loading", "main   W " + filepath.Base(repo), "q quit"} {
 		if !strings.Contains(footer, want) {
 			t.Errorf("подвал при загрузке %q, want %q", footer, want)
 		}
@@ -80,7 +105,7 @@ func TestTickUpdatesBranch(t *testing.T) {
 	runGit(t, repo, "switch", "-q", "-c", "other")
 	model = settle(model, model.Init(), 3)
 
-	if footer := footerOf(model); !strings.HasPrefix(footer, " other  ") {
+	if footer := footerOf(model); !strings.HasPrefix(footer, " B other   W ") {
 		t.Fatalf("подвал %q, want ветка other слева", footer)
 	}
 }
