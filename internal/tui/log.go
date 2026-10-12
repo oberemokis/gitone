@@ -3,7 +3,6 @@ package tui
 import (
 	"image/color"
 	"strings"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -33,22 +32,14 @@ func logCmd(dir string) tea.Cmd {
 }
 
 // logKey отдаёт клавиши окну лога. log.open показывает диф коммита в этом же
-// экране, log.search открывает поле поиска, list.close закрывает окно и
-// снимает фильтр. Пока поле открыто, клавиши идут в него.
+// экране, list.search открывает поле поиска, list.close закрывает окно.
 func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.logSearching {
-		return m.typeLogSearch(key)
-	}
-	if m.keys.Is(keymap.LogSearch, key.String()) {
-		m.logSearching, m.logQuery, m.cursor = true, "", 0
-		return m, nil
+	if next, cmd, handled := m.searchKey(key); handled {
+		return next, cmd
 	}
 
 	shown := m.logShown()
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
-		if next.active == noWindow {
-			next.logQuery = ""
-		}
 		next.cursor = commitRow(shown, m.cursor, next.cursor)
 		return next, cmd
 	}
@@ -57,7 +48,7 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	entry := shown[m.cursor]
-	m.active, m.logQuery = noWindow, ""
+	m.active = noWindow
 	if entry.Root {
 		m.notice = m.text.Text("log.firstCommitHidden", nil)
 		return m, nil
@@ -83,48 +74,13 @@ func commitRow(entries []git.LogEntry, from, to int) int {
 	return from
 }
 
-// typeLogSearch отдаёт клавиши полю поиска, как полю темы коммита: набранное
-// идёт в запрос, logSearch.done оставляет фильтр, logSearch.cancel снимает
-// его. Выйти из приложения можно по зашитому ctrl+c, стереть символ по
-// зашитому backspace. Курсор после каждой правки запроса встаёт на первую
-// найденную строку.
-func (m Model) typeLogSearch(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	pressed := key.String()
-	switch {
-	case pressed == "ctrl+c":
-		return m, tea.Quit
-	case m.keys.Is(keymap.LogSearchCancel, pressed):
-		m.logSearching, m.logQuery = false, ""
-	case m.keys.Is(keymap.LogSearchDone, pressed):
-		m.logSearching = false
-		return m, nil
-	case pressed == "backspace":
-		_, size := utf8.DecodeLastRuneInString(m.logQuery)
-		m.logQuery = m.logQuery[:len(m.logQuery)-size]
-	default:
-		m.logQuery += key.Text
-	}
-
-	m.cursor = 0
-	return m, nil
-}
-
-// logShown это коммиты под фильтром поиска: подстрока без учёта регистра в
-// хэше, теме или авторе. Ищется по загруженным коммитам, без вызова git.
+// logShown это коммиты под фильтром поиска: запрос в хэше, теме или авторе.
+// Ищется по загруженным коммитам, без вызова git. У строк соединения графа
+// текста нет, под фильтром они уходят.
 func (m Model) logShown() []git.LogEntry {
-	if m.logQuery == "" {
-		return m.logEntries
-	}
-
-	query := strings.ToLower(m.logQuery)
-	var shown []git.LogEntry
-	for _, entry := range m.logEntries {
-		text := strings.ToLower(entry.Hash + "\x00" + entry.Subject + "\x00" + entry.Author)
-		if strings.Contains(text, query) {
-			shown = append(shown, entry)
-		}
-	}
-	return shown
+	return matching(m.logEntries, m.query, func(entry git.LogEntry) string {
+		return entry.Hash + "\x00" + entry.Subject + "\x00" + entry.Author
+	})
 }
 
 // Ширина столбцов лога: граф и хэш короткие, автор и дата по самому длинному
@@ -151,20 +107,12 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:  closeHint(colors, keys, text, keymap.ListClose),
 		cursor: cursor,
 		empty:  []string{text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogSearch),
+		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.ListSearch),
 		fill:   true,
-	}
+	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	muted := panel.Foreground(colors.TextMuted)
-	if typing || query != "" {
-		box.search = muted.Render("/ ") + panel.Render(query)
-		if typing {
-			box.search += panel.Background(colors.Primary).Render(" ")
-			box.hint = windowHint(colors, keys, text, keymap.LogSearchDone, keymap.LogSearchCancel)
-		}
-		box.empty = []string{text.Text("log.noMatches", nil)}
-	}
 
 	titles := []string{text.Text("log.column.commit", nil), text.Text("log.column.message", nil), text.Text("log.column.author", nil), text.Text("log.column.date", nil)}
 	authorWidth, dateWidth := ansi.StringWidth(titles[2]), ansi.StringWidth(titles[3])

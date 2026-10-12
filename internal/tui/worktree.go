@@ -32,18 +32,24 @@ func currentWorktree(worktrees []git.Worktree) int {
 }
 
 // worktreeKey отдаёт клавиши окну worktree: worktrees.switch переводит gitone
-// на выбранное дерево, list.close закрывает. Выбор текущего ничего не делает.
-// Аргументы запуска относятся к прежнему дереву, поэтому после переключения
-// показывается дифф рабочего дерева, и b возвращает к нему же.
+// на выбранное дерево, list.search открывает поиск, list.close закрывает.
+// Выбор текущего ничего не делает. Аргументы запуска относятся к прежнему
+// дереву, поэтому после переключения показывается дифф рабочего дерева, и b
+// возвращает к нему же.
 func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.navigate(key, len(m.worktrees)); handled {
+	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
 	}
-	if !m.keys.Is(keymap.WorktreesSwitch, key.String()) || len(m.worktrees) == 0 {
+
+	shown := m.worktreesShown()
+	if next, cmd, handled := m.navigate(key, len(shown)); handled {
+		return next, cmd
+	}
+	if !m.keys.Is(keymap.WorktreesSwitch, key.String()) || len(shown) == 0 {
 		return m, nil
 	}
 
-	worktree := m.worktrees[m.cursor]
+	worktree := shown[m.cursor]
 	m.active = noWindow
 	if worktree.Current {
 		return m, nil
@@ -54,11 +60,19 @@ func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
+// worktreesShown это деревья под фильтром поиска по ветке и пути, имя
+// каталога входит в путь.
+func (m Model) worktreesShown() []git.Worktree {
+	return matching(m.worktrees, m.query, func(worktree git.Worktree) string {
+		return worktree.Branch + "\x00" + worktree.Path
+	})
+}
+
 // worktreeBox рисует список деревьев: имя каталога, ветка цветом accent и
 // приглушённый путь (#109). Текущее помечено словом, как ветка в окне веток.
 // Отметка стоит до пути: длинный путь обрезается по краю окна и унёс бы её с
 // собой. Каждый кусок несёт фон окна сам.
-func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, worktrees []git.Worktree, cursor, screenWidth, screenHeight int) string {
+func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, worktrees []git.Worktree, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	branch := panel.Foreground(colors.Accent)
 	muted := panel.Foreground(colors.TextMuted)
@@ -78,6 +92,6 @@ func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, w
 		width:  90,
 		rows:   rows,
 		cursor: cursor,
-		hint:   windowHint(colors, keys, text, keymap.WorktreesSwitch),
-	}.view(colors, screenWidth, screenHeight)
+		hint:   windowHint(colors, keys, text, keymap.WorktreesSwitch, keymap.ListSearch),
+	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil)).view(colors, screenWidth, screenHeight)
 }

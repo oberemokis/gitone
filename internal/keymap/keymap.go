@@ -73,10 +73,11 @@ const (
 	SearchDown      Action = "search.down"
 	CommitSubmit    Action = "commit.submit"
 	CommitClose     Action = "commit.close"
-	// поиск в логе: / открывает поле, done оставляет фильтр, cancel снимает
-	LogSearch       Action = "log.search"
-	LogSearchDone   Action = "logSearch.done"
-	LogSearchCancel Action = "logSearch.cancel"
+	// поиск в логе, ветках и worktree: / открывает поле, done оставляет
+	// фильтр, cancel снимает
+	ListSearch       Action = "list.search"
+	ListSearchDone   Action = "listSearch.done"
+	ListSearchCancel Action = "listSearch.cancel"
 )
 
 // Группа в справке. Порядок групп задаёт первое появление категории в
@@ -147,14 +148,14 @@ func (k Keymap) Is(action Action, key string) bool {
 func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
-		append([]Action{LogOpen, LogSearch}, list...),
-		append([]Action{BranchesSwitch}, list...),
-		append([]Action{WorktreesSwitch}, list...),
+		append([]Action{LogOpen, ListSearch}, list...),
+		append([]Action{BranchesSwitch, ListSearch}, list...),
+		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashDrop}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
 		{CommitSubmit, CommitClose},
-		{LogSearchDone, LogSearchCancel},
+		{ListSearchDone, ListSearchCancel},
 	}
 }
 
@@ -167,7 +168,7 @@ func inWindow(action Action) bool {
 // inField: действие поля ввода, где остальные клавиши набирают текст.
 func inField(action Action) bool {
 	switch action {
-	case SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitClose, LogSearchDone, LogSearchCancel:
+	case SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitClose, ListSearchDone, ListSearchCancel:
 		return true
 	}
 	return false
@@ -177,7 +178,7 @@ func inField(action Action) bool {
 // закрыв приложение.
 func closes(action Action) bool {
 	switch action {
-	case ListClose, SearchClose, CommitClose, LogSearchCancel:
+	case ListClose, SearchClose, CommitClose, ListSearchCancel:
 		return true
 	}
 	return false
@@ -394,7 +395,7 @@ func defaults() []Binding {
 		{Action: ListDown, Keys: []string{"j", "down"}},
 		{Action: ListClose, Keys: []string{"esc"}},
 		{Action: LogOpen, Keys: []string{"enter"}},
-		{Action: LogSearch, Keys: []string{"/"}},
+		{Action: ListSearch, Keys: []string{"/"}},
 		{Action: BranchesSwitch, Keys: []string{"enter"}},
 		{Action: WorktreesSwitch, Keys: []string{"enter"}},
 		{Action: StashDiff, Keys: []string{"enter"}},
@@ -407,7 +408,7 @@ func defaults() []Binding {
 		{Action: SearchDown, Keys: []string{"down", "ctrl+n"}},
 		{Action: CommitSubmit, Keys: []string{"enter"}},
 		{Action: CommitClose, Keys: []string{"esc"}},
-		{Action: LogSearchDone, Keys: []string{"enter"}},
-		{Action: LogSearchCancel, Keys: []string{"esc"}},
+		{Action: ListSearchDone, Keys: []string{"enter"}},
+		{Action: ListSearchCancel, Keys: []string{"esc"}},
 	}
 }
