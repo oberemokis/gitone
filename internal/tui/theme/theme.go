@@ -27,6 +27,10 @@ type Theme struct {
 	DiffRemovedBg     color.Color
 	DiffAddedWordBg   color.Color
 	DiffRemovedWordBg color.Color
+	SyntaxKeyword     color.Color
+	SyntaxString      color.Color
+	SyntaxComment     color.Color
+	SyntaxNumber      color.Color
 	Error             color.Color
 }
 
@@ -44,6 +48,10 @@ func Dark() Theme {
 		DiffRemovedBg:     lipgloss.Color("#2d1214"),
 		DiffAddedWordBg:   lipgloss.Color("#1c4a2f"),
 		DiffRemovedWordBg: lipgloss.Color("#5a1d22"),
+		SyntaxKeyword:     lipgloss.Color("#ff7b72"),
+		SyntaxString:      lipgloss.Color("#a5d6ff"),
+		SyntaxComment:     lipgloss.Color("#6e7681"),
+		SyntaxNumber:      lipgloss.Color("#79c0ff"),
 		Error:             lipgloss.Color("#f85149"),
 	}
 }
@@ -114,6 +122,10 @@ func (t *Theme) fields() map[string]*color.Color {
 		"diffRemovedBg":     &t.DiffRemovedBg,
 		"diffAddedWordBg":   &t.DiffAddedWordBg,
 		"diffRemovedWordBg": &t.DiffRemovedWordBg,
+		"syntaxKeyword":     &t.SyntaxKeyword,
+		"syntaxString":      &t.SyntaxString,
+		"syntaxComment":     &t.SyntaxComment,
+		"syntaxNumber":      &t.SyntaxNumber,
 		"error":             &t.Error,
 	}
 }

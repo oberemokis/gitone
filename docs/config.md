@@ -143,7 +143,7 @@
 - статус файла: `statusAdded`, `statusModified`, `statusDeleted`, `statusRenamed`, `statusUntracked`, `statusConflict`
 - дифф: `diffAdded`, `diffRemoved`, `diffContext`, `diffHunkHeader`, `diffLineNumber`, `diffAddedBg`, `diffRemovedBg`, `diffAddedWordBg`, `diffRemovedWordBg`
 
-Ключи подсветки синтаксиса (`syntaxKeyword`, `syntaxString` и им подобные) резервируем под вторую очередь.
+Ключи подсветки синтаксиса `syntaxKeyword`, `syntaxString`, `syntaxComment` и `syntaxNumber` читаются: язык файла определяется по имени, по содержимому не угадываем. Решения в задаче #19.
 
 Ключ, которого нет в пользовательской теме, берётся из встроенной `dark`. Так пользователю достаточно перечислить только изменённые цвета. Цвета понижаются под возможности терминала автоматически, это делает Bubble Tea.
 

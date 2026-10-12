@@ -3,12 +3,14 @@ package diffview
 import (
 	"fmt"
 	"image/color"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/diff"
+	"gitone/internal/syntax"
 )
 
 // Таб раскрывается до обрезки: ширину строки иначе не посчитать, а Lip Gloss
@@ -98,26 +100,25 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, c
 		prefix = strings.Join(columns, " ") + " " + marker + " "
 	}
 
-	return base.Foreground(m.colors.TextMuted).Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), base, wordBg, text, changed)
+	code := m.lexer.Tokens(text)
+	return base.Foreground(m.colors.TextMuted).Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), base, wordBg, text, changed, code)
 }
 
 // textCells рисует текст ровно на width клеток. Изменённые слова идут с фоном
-// слов, остальное с фоном строки. Таб раскрывается до обрезки, поэтому отрезки
-// относятся к исходному тексту, а ширина считается по раскрытому.
-func (m Model) textCells(width int, base lipgloss.Style, wordBg color.Color, text string, changed []diff.Span) string {
+// слов, категории синтаксиса с цветом текста, остальное с фоном строки. Таб
+// раскрывается до обрезки, поэтому отрезки относятся к исходному тексту, а
+// ширина считается по раскрытому.
+func (m Model) textCells(width int, base lipgloss.Style, wordBg color.Color, text string, changed []diff.Span, code []syntax.Span) string {
 	var out strings.Builder
 	left := max(width, 0)
 
-	for _, piece := range pieces(text, changed) {
+	for _, piece := range pieces(text, changed, code) {
 		if left == 0 {
 			break
 		}
 
 		content := ansi.Truncate(strings.ReplaceAll(piece.text, "\t", tabSpaces), left, "")
-		style := base
-		if piece.changed {
-			style = base.Background(wordBg)
-		}
+		style := m.pieceStyle(base, piece, wordBg)
 
 		out.WriteString(style.Render(content))
 		left -= ansi.StringWidth(content)
@@ -126,31 +127,86 @@ func (m Model) textCells(width int, base lipgloss.Style, wordBg color.Color, tex
 	return out.String() + base.Render(strings.Repeat(" ", left))
 }
 
-// piece это кусок строки: слово из пары или остальной текст.
+// pieceStyle красит кусок: цвет категории синтаксиса, фон слова, если слово
+// изменено. Фон строки остаётся от base.
+func (m Model) pieceStyle(base lipgloss.Style, piece piece, wordBg color.Color) lipgloss.Style {
+	style := base
+	if foreground := m.syntaxColor(piece.kind); foreground != nil {
+		style = style.Foreground(foreground)
+	}
+	if piece.changed {
+		style = style.Background(wordBg)
+	}
+
+	return style
+}
+
+func (m Model) syntaxColor(kind syntax.Kind) color.Color {
+	switch kind {
+	case syntax.Keyword:
+		return m.colors.SyntaxKeyword
+	case syntax.String:
+		return m.colors.SyntaxString
+	case syntax.Comment:
+		return m.colors.SyntaxComment
+	case syntax.Number:
+		return m.colors.SyntaxNumber
+	}
+
+	return nil
+}
+
+// piece это кусок строки с признаком изменённого слова и категорией синтаксиса.
 type piece struct {
 	text    string
 	changed bool
+	kind    syntax.Kind
 }
 
-// pieces режет текст по отрезкам. Отрезки идут по возрастанию и не
-// пересекаются, как их отдаёт пакет diff.
-func pieces(text string, changed []diff.Span) []piece {
-	var result []piece
-	at := 0
-
+// pieces режет текст по всем границам сразу: отрезков слов и категорий. Внутри
+// одного куска ни слово, ни категория не меняются.
+func pieces(text string, changed []diff.Span, code []syntax.Span) []piece {
+	cuts := []int{0, len(text)}
 	for _, span := range changed {
-		if span.Start > at {
-			result = append(result, piece{text: text[at:span.Start]})
-		}
-		result = append(result, piece{text: text[span.Start:span.End], changed: true})
-		at = span.End
+		cuts = append(cuts, span.Start, span.End)
 	}
+	for _, span := range code {
+		cuts = append(cuts, span.Start, span.End)
+	}
+	slices.Sort(cuts)
+	cuts = slices.Compact(cuts)
 
-	if at < len(text) {
-		result = append(result, piece{text: text[at:]})
+	var result []piece
+	for index := 0; index+1 < len(cuts); index++ {
+		start, end := cuts[index], cuts[index+1]
+		result = append(result, piece{
+			text:    text[start:end],
+			changed: coveredBy(start, changed),
+			kind:    kindAt(start, code),
+		})
 	}
 
 	return result
+}
+
+func coveredBy(at int, spans []diff.Span) bool {
+	for _, span := range spans {
+		if span.Start <= at && at < span.End {
+			return true
+		}
+	}
+
+	return false
+}
+
+func kindAt(at int, spans []syntax.Span) syntax.Kind {
+	for _, span := range spans {
+		if span.Start <= at && at < span.End {
+			return span.Kind
+		}
+	}
+
+	return ""
 }
 
 // noNewline ставит пометку туда, где у строки начинается текст: под колонки
