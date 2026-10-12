@@ -11,6 +11,7 @@ import (
 	"gitone/internal/config"
 	"gitone/internal/keymap"
 	"gitone/internal/tui"
+	"gitone/internal/tui/theme"
 )
 
 // loadKeys читает клавиши из keybinds.json с заданным содержимым.
@@ -33,7 +34,7 @@ func loadKeys(t *testing.T, content string) keymap.Keymap {
 // новую клавишу.
 func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
 	km := loadKeys(t, `{"keybinds":{"app.quit":"x"}}`)
-	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: km}, nil)
+	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: km, Theme: theme.Dark()}, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "x quit") || strings.Contains(footer, "q quit") {
@@ -59,7 +60,7 @@ func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
 // роняют отрисовку: справка без клавиши закрытия остаётся работоспособной.
 func TestDisabledActionsDoNotBreakScreen(t *testing.T) {
 	km := loadKeys(t, `{"keybinds":{"app.help":"none"}}`)
-	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: km}, nil)
+	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: km, Theme: theme.Dark()}, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
@@ -68,7 +69,7 @@ func TestDisabledActionsDoNotBreakScreen(t *testing.T) {
 	}
 
 	km = loadKeys(t, `{"keybinds":{"help.close":"none"}}`)
-	model = tui.New(tui.Options{Config: config.Default(), Keys: km}, nil)
+	model = tui.New(tui.Options{Config: config.Default(), Keys: km, Theme: theme.Dark()}, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 

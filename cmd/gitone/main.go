@@ -12,6 +12,7 @@ import (
 	"gitone/internal/config"
 	"gitone/internal/keymap"
 	"gitone/internal/tui"
+	"gitone/internal/tui/theme"
 )
 
 // Первый git diff на большом репозитории идёт секунды, и пустой терминал
@@ -26,8 +27,8 @@ func main() {
 
 	// Ошибка настроек не останавливает запуск: работают встроенные значения,
 	// а текст ошибки стоит в подвале.
-	settings, keys, settingsErr := loadSettings()
-	opts := tui.Options{Dir: dir, Args: os.Args[1:], Config: settings, Keys: keys}
+	opts, settingsErr := loadSettings()
+	opts.Dir, opts.Args = dir, os.Args[1:]
 	if settingsErr != nil {
 		opts.Notice = settingsErr.Error()
 	}
@@ -42,29 +43,34 @@ func main() {
 	}
 }
 
-// loadSettings читает config.json и keybinds.json. Ошибки обоих файлов
-// склеиваются в одну строку: подвал показывает одну первую строку.
-func loadSettings() (config.Config, keymap.Keymap, error) {
+// loadSettings читает config.json, keybinds.json и тему. Ошибки всех трёх
+// склеиваются в одну строку: подвал показывает одну первую строку. Ошибочный
+// файл заменяется встроенным значением, поэтому opts всегда пригоден.
+func loadSettings() (tui.Options, error) {
+	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return config.Default(), keymap.Default(), err
+		return opts, err
 	}
 
 	dir := config.Dir(os.Getenv("XDG_CONFIG_HOME"), home)
 	settings, settingsErr := config.Load(dir)
 	keys, keysErr := keymap.Load(dir)
+	palette, themeErr := theme.Load(dir, settings.Theme)
+	opts.Config, opts.Keys, opts.Theme = settings, keys, palette
 
 	var problems []string
-	for _, err := range []error{settingsErr, keysErr} {
+	for _, err := range []error{settingsErr, keysErr, themeErr} {
 		if err != nil {
 			problems = append(problems, err.Error())
 		}
 	}
 	if len(problems) == 0 {
-		return settings, keys, nil
+		return opts, nil
 	}
 
-	return settings, keys, errors.New(strings.Join(problems, "; "))
+	return opts, errors.New(strings.Join(problems, "; "))
 }
 
 // Дифф грузится до запуска интерфейса: ошибка git (вне репозитория, неверный
