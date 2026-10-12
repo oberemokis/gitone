@@ -38,7 +38,7 @@ func TestBracketsMoveBetweenFilesAndStopAtEdges(t *testing.T) {
 		if got := openedFile(screen); got != step.wantFile {
 			t.Fatalf("%s: открыт %q, ожидался %q", step.name, got, step.wantFile)
 		}
-		if header := screen[0]; !strings.Contains(header, step.wantCounter) {
+		if header := screen[headerRow]; !strings.Contains(header, step.wantCounter) {
 			t.Fatalf("%s: в заголовке нет %q: %q", step.name, step.wantCounter, header)
 		}
 	}
@@ -70,7 +70,7 @@ func TestPickerFiltersBySubsequenceAndOpensChoice(t *testing.T) {
 	if got := openedFile(after); got != "internal/tui/app.go" {
 		t.Fatalf("после enter открыт %q", got)
 	}
-	if body := strings.Join(after, "\n"); strings.Contains(body, "Search") || !strings.Contains(after[0], "(2/3)") {
+	if body := strings.Join(after, "\n"); strings.Contains(body, "Search") || !strings.Contains(after[headerRow], "(2/3)") {
 		t.Fatalf("окно не закрылось или счётчик не сменился:\n%s", body)
 	}
 }
@@ -134,7 +134,7 @@ func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 
 	screen := screenOf(model)
-	if !strings.Contains(screen[2], "old a.txt") || !strings.Contains(strings.Join(screen, "\n"), "Search") {
+	if !strings.Contains(screen[bodyRow], "old a.txt") || !strings.Contains(strings.Join(screen, "\n"), "Search") {
 		t.Fatalf("окно не лежит поверх диффа с видимыми краями:\n%s", strings.Join(screen, "\n"))
 	}
 }

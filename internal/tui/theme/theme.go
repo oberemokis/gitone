@@ -18,42 +18,47 @@ import (
 )
 
 type Theme struct {
-	TextMuted         color.Color
-	BackgroundPanel   color.Color
-	Primary           color.Color
-	Accent            color.Color
-	DiffAdded         color.Color
-	DiffRemoved       color.Color
-	DiffAddedBg       color.Color
-	DiffRemovedBg     color.Color
-	DiffAddedWordBg   color.Color
-	DiffRemovedWordBg color.Color
-	SyntaxKeyword     color.Color
-	SyntaxString      color.Color
-	SyntaxComment     color.Color
-	SyntaxNumber      color.Color
-	Error             color.Color
+	TextMuted       color.Color
+	BackgroundPanel color.Color
+	Primary         color.Color
+	Accent          color.Color
+	DiffAdded       color.Color
+	DiffRemoved     color.Color
+	DiffAddedBg     color.Color
+	DiffRemovedBg   color.Color
+	// фон столбца номеров у изменённой строки, светлее фона кода
+	DiffAddedNumberBg   color.Color
+	DiffRemovedNumberBg color.Color
+	DiffAddedWordBg     color.Color
+	DiffRemovedWordBg   color.Color
+	SyntaxKeyword       color.Color
+	SyntaxString        color.Color
+	SyntaxComment       color.Color
+	SyntaxNumber        color.Color
+	Error               color.Color
 }
 
 // Dark встроенная тема. Файлы тем накладываются на неё, поэтому ключ, которого
 // в файле нет, остаётся таким, как здесь.
 func Dark() Theme {
 	return Theme{
-		TextMuted:         lipgloss.Color("8"),
-		BackgroundPanel:   lipgloss.Color("#141414"),
-		Primary:           lipgloss.Color("#fab283"),
-		Accent:            lipgloss.Color("#9d7cd8"),
-		DiffAdded:         lipgloss.Color("#3fb950"),
-		DiffRemoved:       lipgloss.Color("#f85149"),
-		DiffAddedBg:       lipgloss.Color("#12261e"),
-		DiffRemovedBg:     lipgloss.Color("#2d1214"),
-		DiffAddedWordBg:   lipgloss.Color("#1c4a2f"),
-		DiffRemovedWordBg: lipgloss.Color("#5a1d22"),
-		SyntaxKeyword:     lipgloss.Color("#ff7b72"),
-		SyntaxString:      lipgloss.Color("#a5d6ff"),
-		SyntaxComment:     lipgloss.Color("#6e7681"),
-		SyntaxNumber:      lipgloss.Color("#79c0ff"),
-		Error:             lipgloss.Color("#f85149"),
+		TextMuted:           lipgloss.Color("8"),
+		BackgroundPanel:     lipgloss.Color("#141414"),
+		Primary:             lipgloss.Color("#fab283"),
+		Accent:              lipgloss.Color("#9d7cd8"),
+		DiffAdded:           lipgloss.Color("#3fb950"),
+		DiffRemoved:         lipgloss.Color("#f85149"),
+		DiffAddedBg:         lipgloss.Color("#0d1f16"),
+		DiffRemovedBg:       lipgloss.Color("#220e10"),
+		DiffAddedNumberBg:   lipgloss.Color("#1b3d2a"),
+		DiffRemovedNumberBg: lipgloss.Color("#4a1d21"),
+		DiffAddedWordBg:     lipgloss.Color("#1c4a2f"),
+		DiffRemovedWordBg:   lipgloss.Color("#5a1d22"),
+		SyntaxKeyword:       lipgloss.Color("#ff7b72"),
+		SyntaxString:        lipgloss.Color("#a5d6ff"),
+		SyntaxComment:       lipgloss.Color("#6e7681"),
+		SyntaxNumber:        lipgloss.Color("#79c0ff"),
+		Error:               lipgloss.Color("#f85149"),
 	}
 }
 
@@ -113,21 +118,23 @@ func Build(file config.ThemeFile) (Theme, error) {
 // используется и дает ошибку, а не молча пропадает.
 func (t *Theme) fields() map[string]*color.Color {
 	return map[string]*color.Color{
-		"textMuted":         &t.TextMuted,
-		"backgroundPanel":   &t.BackgroundPanel,
-		"primary":           &t.Primary,
-		"accent":            &t.Accent,
-		"diffAdded":         &t.DiffAdded,
-		"diffRemoved":       &t.DiffRemoved,
-		"diffAddedBg":       &t.DiffAddedBg,
-		"diffRemovedBg":     &t.DiffRemovedBg,
-		"diffAddedWordBg":   &t.DiffAddedWordBg,
-		"diffRemovedWordBg": &t.DiffRemovedWordBg,
-		"syntaxKeyword":     &t.SyntaxKeyword,
-		"syntaxString":      &t.SyntaxString,
-		"syntaxComment":     &t.SyntaxComment,
-		"syntaxNumber":      &t.SyntaxNumber,
-		"error":             &t.Error,
+		"textMuted":           &t.TextMuted,
+		"backgroundPanel":     &t.BackgroundPanel,
+		"primary":             &t.Primary,
+		"accent":              &t.Accent,
+		"diffAdded":           &t.DiffAdded,
+		"diffRemoved":         &t.DiffRemoved,
+		"diffAddedBg":         &t.DiffAddedBg,
+		"diffRemovedBg":       &t.DiffRemovedBg,
+		"diffAddedNumberBg":   &t.DiffAddedNumberBg,
+		"diffRemovedNumberBg": &t.DiffRemovedNumberBg,
+		"diffAddedWordBg":     &t.DiffAddedWordBg,
+		"diffRemovedWordBg":   &t.DiffRemovedWordBg,
+		"syntaxKeyword":       &t.SyntaxKeyword,
+		"syntaxString":        &t.SyntaxString,
+		"syntaxComment":       &t.SyntaxComment,
+		"syntaxNumber":        &t.SyntaxNumber,
+		"error":               &t.Error,
 	}
 }
 

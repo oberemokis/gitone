@@ -126,7 +126,7 @@ git получает тот же язык через переменную `LANGU
 
 ## themes/*.json
 
-Читаются ключи `textMuted`, `backgroundPanel`, `primary`, `accent`, `diffAdded`, `diffRemoved`, `diffAddedBg`, `diffRemovedBg`, `diffAddedWordBg`, `diffRemovedWordBg`, `syntaxKeyword`, `syntaxString`, `syntaxComment`, `syntaxNumber` и `error`. Ключ вне этого списка дает ошибку. Файл накладывается поверх `dark`, имя `dark` тоже. Решения в задаче #15.
+Читаются ключи `textMuted`, `backgroundPanel`, `primary`, `accent`, `diffAdded`, `diffRemoved`, `diffAddedBg`, `diffRemovedBg`, `diffAddedNumberBg`, `diffRemovedNumberBg`, `diffAddedWordBg`, `diffRemovedWordBg`, `syntaxKeyword`, `syntaxString`, `syntaxComment`, `syntaxNumber` и `error`. `diffAddedNumberBg` и `diffRemovedNumberBg` это фон номера и знака у изменённой строки, светлее фона кода (#85). Ключ вне этого списка дает ошибку. Файл накладывается поверх `dark`, имя `dark` тоже. Решения в задаче #15.
 
 ```json
 {
@@ -155,7 +155,7 @@ git получает тот же язык через переменную `LANGU
 - основа: `background`, `backgroundPanel`, `text`, `textMuted`, `border`, `borderActive`, `primary`, `accent`
 - состояния: `success`, `warning`, `error`, `info`
 - статус файла: `statusAdded`, `statusModified`, `statusDeleted`, `statusRenamed`, `statusUntracked`, `statusConflict`
-- дифф: `diffAdded`, `diffRemoved`, `diffContext`, `diffHunkHeader`, `diffLineNumber`, `diffAddedBg`, `diffRemovedBg`, `diffAddedWordBg`, `diffRemovedWordBg`
+- дифф: `diffAdded`, `diffRemoved`, `diffContext`, `diffHunkHeader`, `diffLineNumber`, `diffAddedBg`, `diffRemovedBg`, `diffAddedNumberBg`, `diffRemovedNumberBg`, `diffAddedWordBg`, `diffRemovedWordBg`
 
 Для ключей подсветки синтаксиса язык файла определяется по имени, по содержимому не угадываем. Решения в задаче #19.
 

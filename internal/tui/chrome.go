@@ -18,13 +18,14 @@ import (
 )
 
 const (
-	// заголовок и пустая строка под ним
-	headerHeight = 2
+	// заголовок с пустой строкой над и под ним: вплотную к краю экрана он
+	// теряется
+	headerHeight = 3
 	footerHeight = 1
 )
 
 // header показывает путь открытого файла и счётчики строк, как заголовок
-// critique: «examples.ts +6-1», и номер файла в диффе «(2/5)»: другого места,
+// critique: «examples.ts +6 -1», и номер файла в диффе «(2/5)»: другого места,
 // где видно число файлов, на экране нет.
 func header(width int, file diff.File, counter string, colors theme.Theme, text i18n.Dictionary) string {
 	title := fileTitle(file, text)
@@ -32,7 +33,7 @@ func header(width int, file diff.File, counter string, colors theme.Theme, text 
 	if file.Added > 0 || file.Removed > 0 {
 		added := lipgloss.NewStyle().Foreground(colors.DiffAdded).Render(fmt.Sprintf("+%d", file.Added))
 		removed := lipgloss.NewStyle().Foreground(colors.DiffRemoved).Render(fmt.Sprintf("-%d", file.Removed))
-		title += " " + added + removed
+		title += " " + added + " " + removed
 	}
 	title += " " + lipgloss.NewStyle().Foreground(colors.TextMuted).Render(counter)
 

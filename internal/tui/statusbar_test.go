@@ -89,7 +89,7 @@ func TestTickUpdatesBranch(t *testing.T) {
 func TestHeaderShowsFileCounter(t *testing.T) {
 	_, model := threeFileRepo(t)
 
-	if header := screenOf(model)[0]; !strings.Contains(header, "(1/3)") {
+	if header := screenOf(model)[headerRow]; !strings.Contains(header, "(1/3)") {
 		t.Fatalf("заголовок %q, want счётчик (1/3)", header)
 	}
 }

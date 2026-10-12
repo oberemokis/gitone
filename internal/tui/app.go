@@ -446,7 +446,7 @@ func (m Model) View() tea.View {
 
 	var rows []string
 	if m.ui.PaneTitles {
-		rows = append(rows, title, "")
+		rows = append(rows, "", title, "")
 	}
 	rows = append(rows, m.body(), m.footerLine())
 
