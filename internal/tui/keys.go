@@ -10,6 +10,8 @@ type action string
 const (
 	actionQuit      action = "app.quit"
 	actionFiles     action = "files.pick"
+	actionNextFile  action = "files.next"
+	actionPrevFile  action = "files.previous"
 	actionHelp      action = "app.help"
 	actionCloseHelp action = "help.close"
 	actionMode      action = "diff.toggleMode"
@@ -49,6 +51,8 @@ func bindings() []binding {
 		{action: actionQuit, category: categoryGeneral, keys: []string{"q", "ctrl+c"}, label: "quit", description: "Quit"},
 		{action: actionFiles, category: categoryFiles, keys: []string{"ctrl+p"}, label: "files", description: "File list"},
 		{action: actionHelp, category: categoryGeneral, keys: []string{"?"}, label: "help", description: "Toggle this help"},
+		{action: actionNextFile, category: categoryFiles, keys: []string{"]"}, description: "Next file"},
+		{action: actionPrevFile, category: categoryFiles, keys: []string{"["}, description: "Previous file"},
 		{action: actionDown, category: categoryDiff, keys: []string{"j", "down"}, description: "Scroll down"},
 		{action: actionUp, category: categoryDiff, keys: []string{"k", "up"}, description: "Scroll up"},
 		{action: actionHalfDown, category: categoryDiff, keys: []string{"ctrl+d"}, description: "Half page down"},
