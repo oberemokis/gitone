@@ -46,6 +46,13 @@ func (m Model) SetFile(file diff.File) Model {
 	return m.rebuild()
 }
 
+// Reload ставит на место файла его новую версию. Прокрутка остаётся той же,
+// обрезанной по новой длине, а SetFile её сбросил бы.
+func (m Model) Reload(file diff.File) Model {
+	m.file = file
+	return m.rebuild()
+}
+
 // SetSize может сменить вид в режиме auto, поэтому держит на месте верхнюю
 // строку файла, как ToggleMode.
 func (m Model) SetSize(width, height int) Model {

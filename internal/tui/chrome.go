@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/diff"
 	"gitone/internal/tui/theme"
@@ -76,4 +77,12 @@ func footer(width int, colors theme.Theme, fileCounter string) string {
 	}
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, strings.Join(hints, "   "))
+}
+
+// statusFooter заменяет подсказки одной строкой. Текст ошибки git бывает
+// многострочным и длиннее экрана, поэтому идёт первая строка, обрезанная по
+// ширине: иначе подвал выйдет за края и сломает раскладку.
+func statusFooter(width int, style lipgloss.Style, text string) string {
+	first, _, _ := strings.Cut(text, "\n")
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, style.Render(ansi.Truncate(first, width, "…")))
 }
