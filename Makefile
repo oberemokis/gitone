@@ -1,5 +1,10 @@
 .PHONY: build run test lint fmt
 
+# Грамматики tree-sitter для подсветки: сто распространённых языков без
+# грамматик под копилефтом. Без тегов в бинарник уходят все двести, с GPL
+# среди них (решение в #101). Те же теги стоят в .goreleaser.yaml.
+export GOFLAGS := -tags=grammar_set_core,gotreesitter_no_copyleft
+
 build:
 	go build -o bin/gitone ./cmd/gitone
 
