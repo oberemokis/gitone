@@ -1,10 +1,12 @@
 // Package picker это окно выбора из списка с нечётким поиском, в стиле окон
 // opencode. Это поле ввода, поэтому оно получает нажатия напрямую, а не
-// действия: q и ? здесь набираются в поиск. Что делать с выбором, решает
-// корень.
+// действия: q и ? здесь набираются в поиск. Клавиши своих действий (выбрать,
+// закрыть, вверх, вниз) оно получает от корня строками, остальное набирается.
+// Что делать с выбором, решает корень.
 package picker
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -36,10 +38,19 @@ type Texts struct {
 	Search string
 	// вместо списка, когда поиск ничего не нашёл
 	NoMatches string
+	// клавиша закрытия в заголовке, как её показывает подвал
+	CloseKey string
+}
+
+// Keys это клавиши действий окна, как их возвращает KeyPressMsg.String().
+// backspace стирает символ всегда, остальное набирается в поиск.
+type Keys struct {
+	Choose, Close, Up, Down []string
 }
 
 type Model struct {
 	texts   Texts
+	keys    Keys
 	items   []Item
 	query   string
 	matches []int
@@ -48,26 +59,27 @@ type Model struct {
 	colors   theme.Theme
 }
 
-func New(texts Texts, items []Item, colors theme.Theme) Model {
-	return Model{texts: texts, items: items, colors: colors}.filter()
+func New(texts Texts, keys Keys, items []Item, colors theme.Theme) Model {
+	return Model{texts: texts, keys: keys, items: items, colors: colors}.filter()
 }
 
 // HandleKey разбирает нажатие. Chosen значит, что выбран элемент Selected,
 // Closed значит, что окно закрыли без выбора.
 func (m Model) HandleKey(key tea.KeyPressMsg) (Model, Outcome) {
-	switch key.String() {
-	case "esc":
+	pressed := key.String()
+	switch {
+	case slices.Contains(m.keys.Close, pressed):
 		return m, Closed
-	case "enter":
+	case slices.Contains(m.keys.Choose, pressed):
 		if len(m.matches) == 0 {
 			return m, Pending
 		}
 		return m, Chosen
-	case "up", "ctrl+p":
+	case slices.Contains(m.keys.Up, pressed):
 		m.selected = max(m.selected-1, 0)
-	case "down", "ctrl+n":
+	case slices.Contains(m.keys.Down, pressed):
 		m.selected = min(m.selected+1, max(len(m.matches)-1, 0))
-	case "backspace":
+	case pressed == "backspace":
 		if m.query != "" {
 			_, size := utf8.DecodeLastRuneInString(m.query)
 			m.query = m.query[:len(m.query)-size]

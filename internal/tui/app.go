@@ -366,8 +366,15 @@ func (m Model) openPicker() Model {
 		Title:     m.text.Text("files.title", nil),
 		Search:    m.text.Text("files.search", nil),
 		NoMatches: m.text.Text("files.noMatches", nil),
+		CloseKey:  firstKey(m.keys, keymap.SearchClose),
 	}
-	m.picker = picker.New(texts, items, m.colors)
+	keys := picker.Keys{
+		Choose: m.keys.KeysFor(keymap.SearchChoose),
+		Close:  m.keys.KeysFor(keymap.SearchClose),
+		Up:     m.keys.KeysFor(keymap.SearchUp),
+		Down:   m.keys.KeysFor(keymap.SearchDown),
+	}
+	m.picker = picker.New(texts, keys, items, m.colors)
 	m.active = pickerWindow
 	m.helpOpen = false
 	return m

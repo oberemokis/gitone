@@ -8,6 +8,7 @@ import (
 
 	"gitone/internal/diff"
 	"gitone/internal/git"
+	"gitone/internal/keymap"
 )
 
 // actionDoneMsg несёт итог правки индекса или дерева: ошибку git либо nil.
@@ -69,21 +70,21 @@ func (m Model) askDiscard() Model {
 	file := m.files[m.current]
 	m.active = discardWindow
 	m.confirm = pathsOf(file)
-	args := windowKeys()
+	args := questionArgs(m.keys)
 	args["file"] = fileTitle(file, m.text)
 	m.notice = m.text.Text("discard.question", args)
 	return m
 }
 
-// answerDiscard разбирает ответ на вопрос. Выполняет только y: любая другая
-// клавиша отменяет вопрос и не выполняет действие.
+// answerDiscard разбирает ответ на вопрос. Выполняет только question.yes:
+// любая другая клавиша отменяет вопрос и не выполняет действие.
 func (m Model) answerDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	paths := m.confirm
 	m.active = noWindow
 	m.confirm = nil
 	m.notice = ""
 
-	if key.String() != keyYes {
+	if !m.keys.Is(keymap.QuestionYes, key.String()) {
 		return m, nil
 	}
 	return m, discardCmd(m.dir, paths)

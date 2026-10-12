@@ -6,9 +6,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
+	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
 )
 
@@ -29,16 +31,18 @@ func (m Model) openCommit() Model {
 	return m
 }
 
-// typeCommit отдаёт клавиши полю темы: набранное идёт в тему, enter коммитит,
-// esc закрывает без коммита. Выйти из приложения можно по ctrl+c.
+// typeCommit отдаёт клавиши полю темы: набранное идёт в тему, commit.submit
+// коммитит, commit.close закрывает без коммита. Выйти из приложения можно по
+// зашитому ctrl+c, стереть символ по зашитому backspace.
 func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "ctrl+c":
+	pressed := key.String()
+	switch {
+	case pressed == "ctrl+c":
 		return m, tea.Quit
-	case keyEsc:
+	case m.keys.Is(keymap.CommitClose, pressed):
 		m.active = noWindow
 		m.subject = ""
-	case keyEnter:
+	case m.keys.Is(keymap.CommitSubmit, pressed):
 		subject := strings.TrimSpace(m.subject)
 		if subject == "" {
 			return m, nil
@@ -46,7 +50,7 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.active = noWindow
 		m.subject = ""
 		return m, commitCmd(m.dir, subject)
-	case "backspace":
+	case pressed == "backspace":
 		_, size := utf8.DecodeLastRuneInString(m.subject)
 		m.subject = m.subject[:len(m.subject)-size]
 	default:
@@ -57,13 +61,15 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // commitBox рисует поле темы. Ширина ограничена экраном, как у окна справки.
-func commitBox(colors theme.Theme, text i18n.Dictionary, subject string, screenWidth int) string {
+func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, subject string, screenWidth int) string {
 	width := max(min(60, screenWidth-8), 20)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	title := panel.Bold(true).Foreground(colors.Accent).Render(text.Text("commit.title", nil))
 	input := panel.Render("> " + subject + "_")
-	hint := panel.Foreground(colors.TextMuted).Render(text.Text("commit.hint", windowKeys()))
+	// подсказка обрезается: длинная переназначенная клавиша перенесла бы строку
+	hintText := windowHint(keys, text, keymap.CommitSubmit, keymap.CommitClose)
+	hint := panel.Foreground(colors.TextMuted).Render(ansi.Truncate(hintText, width-2*windowPaddingX, "…"))
 
-	return panel.Padding(1, 2).Width(width).Render(strings.Join([]string{title, "", input, "", hint}, "\n"))
+	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join([]string{title, "", input, "", hint}, "\n"))
 }
