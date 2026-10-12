@@ -237,6 +237,22 @@ func Without(root Node, pane string) Node {
 	return root
 }
 
+// Resized задаёт панели размер, где бы она ни стояла в дереве, например
+// ширину панели файлов, которую пользователь вытянул мышью.
+func Resized(root Node, pane string, size Size) Node {
+	if root.Pane == pane {
+		root.Size = size
+		return root
+	}
+
+	children := make([]Node, len(root.Children))
+	for index, child := range root.Children {
+		children[index] = Resized(child, pane, size)
+	}
+	root.Children = children
+	return root
+}
+
 // Load возвращает раскладку по имени из config.json. Встроенные default и focus
 // файла не требуют, остальные имена читаются из layouts/<имя>.json.
 func Load(dir, name string) (Node, error) {

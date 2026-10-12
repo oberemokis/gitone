@@ -69,14 +69,18 @@ type Model struct {
 	layout layout.Node
 	// filesOpen: панель файлов открыта, при запуске она скрыта всегда
 	filesOpen bool
-	width     int
-	height    int
-	helpOpen  bool
-	colors    theme.Theme
-	text      i18n.Dictionary
-	files     []diff.File
-	current   int
-	view      diffview.Model
+	// filesWidth ширина панели файлов, вытянутая мышью (#121), 0 значит
+	// ширина раскладки; drag идущее перетаскивание (drag.go)
+	filesWidth int
+	drag       drag
+	width      int
+	height     int
+	helpOpen   bool
+	colors     theme.Theme
+	text       i18n.Dictionary
+	files      []diff.File
+	current    int
+	view       diffview.Model
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
@@ -151,6 +155,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Button == tea.MouseLeft {
 			return m.click(msg.X, msg.Y)
 		}
+	case tea.MouseMotionMsg, tea.MouseReleaseMsg:
+		m = m.mouseDrag(msg)
 	case tickMsg:
 		return m.ticked()
 	// возврат в терминал из редактора: правка видна сразу, а не к тику
@@ -257,15 +263,21 @@ func (m Model) placement() layout.Placed {
 // arrangement это раскладка с учётом панели файлов. Закрытая панель
 // убирается из дерева, открытая встаёт туда, куда её поставила раскладка, а
 // в раскладке без неё слева, как в default. Открыть панель решает
-// пользователь, поэтому узкий экран её не прячет.
+// пользователь, поэтому узкий экран её не прячет. Ширина, вытянутая мышью,
+// заменяет ширину раскладки.
 func (m Model) arrangement() layout.Node {
+	root := layout.Default()
 	switch {
 	case !m.filesOpen:
 		return layout.Without(m.layout, "files")
 	case layout.Has(m.layout, "files"):
-		return m.layout
+		root = m.layout
 	}
-	return layout.Default()
+
+	if m.filesWidth > 0 {
+		return layout.Resized(root, "files", layout.Size{Cells: m.filesWidth})
+	}
+	return root
 }
 
 // wheel прокручивает дифф колесом: вверх и вниз по строкам, вбок по
@@ -522,6 +534,10 @@ func (m Model) screen() (string, []zone.Zone) {
 		x, y := centered(box, m.width, height)
 		box = scan(box, x, top+y, true)
 		zones = append(zones, zone.Zone{Area: image.Rect(x, top+y, x+lipgloss.Width(box), top+y+lipgloss.Height(box))})
+	}
+	// стык панелей лежит поверх строк панели: за край берутся и по строке
+	if free {
+		zones = append(zones, m.edgeZones()...)
 	}
 
 	body := scan(lipgloss.Place(m.width, height, lipgloss.Left, lipgloss.Top, m.panes(m.placement())), 0, top, free)
