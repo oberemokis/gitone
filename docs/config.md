@@ -109,6 +109,8 @@
 
 ## themes/*.json
 
+Сейчас читаются ключи `textMuted`, `backgroundPanel`, `primary`, `accent`, `diffAdded`, `diffRemoved`, `diffAddedBg`, `diffRemovedBg` и `error`. Ключ вне этого списка дает ошибку «пока не используется». Файл накладывается поверх `dark`, имя `dark` тоже. Решения в задаче #15.
+
 ```json
 {
   "$schema": "../schemas/theme.schema.json",
