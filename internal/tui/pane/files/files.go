@@ -14,8 +14,9 @@ import (
 
 // View рисует список в прямоугольнике width на height. Справа идёт вертикальная
 // черта, отделяющая список от диффа. Текущий файл помечен, а длинный список
-// прокручивается так, чтобы текущий оставался на экране.
-func View(labels []string, current int, colors theme.Theme, width, height int) string {
+// прокручивается так, чтобы текущий оставался на экране. Пустой список
+// показывает empty: панель без файлов иначе выглядит сломанной.
+func View(labels []string, current int, empty string, colors theme.Theme, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -30,6 +31,10 @@ func View(labels []string, current int, colors theme.Theme, width, height int) s
 	accent := lipgloss.NewStyle().Foreground(colors.Primary)
 
 	rows := make([]string, 0, height)
+	if len(labels) == 0 {
+		text := ansi.Truncate("  "+empty, contentWidth, "…")
+		rows = append(rows, muted.Render(text+strings.Repeat(" ", max(contentWidth-ansi.StringWidth(text), 0))))
+	}
 	for index := start; index < len(labels) && len(rows) < height; index++ {
 		text, style := "  "+labels[index], lipgloss.NewStyle()
 		if index == current {

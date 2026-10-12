@@ -44,6 +44,7 @@
   "diff.noNewline": "No newline at end of file",
   "discard.question": "Discard changes in \"{file}\"? {yes} yes, any other key no",
   "files.noMatches": "No matching files",
+  "files.none": "No files",
   "files.search": "Search",
   "files.title": "Files",
   "git.nothingToStash": "no changes to save in stash",
