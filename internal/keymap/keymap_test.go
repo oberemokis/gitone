@@ -20,11 +20,11 @@ func TestLoad(t *testing.T) {
 		wantErr string
 	}{
 		{name: "нет файла", missing: true, want: defaultQuit},
-		{name: "переназначение", content: `{"keybinds":{"app.quit":"z"}}`, want: []string{"z"}},
-		{name: "массив", content: `{"keybinds":{"app.quit":["z","y"]}}`, want: []string{"z", "y"}},
+		{name: "переназначение", content: `{"keybinds":{"app.quit":"w"}}`, want: []string{"w"}},
+		{name: "массив", content: `{"keybinds":{"app.quit":["w","y"]}}`, want: []string{"w", "y"}},
 		{name: "none отключает", content: `{"keybinds":{"app.quit":"none"}}`, want: nil},
 		{name: "false отключает", content: `{"keybinds":{"app.quit":false}}`, want: nil},
-		{name: "неизвестное действие", content: `{"keybinds":{"app.quitt":"z"}}`, want: defaultQuit, wantErr: "app.quitt"},
+		{name: "неизвестное действие", content: `{"keybinds":{"app.quitt":"w"}}`, want: defaultQuit, wantErr: "app.quitt"},
 		{name: "конфликт клавиш", content: `{"keybinds":{"files.pick":"q"}}`, want: defaultQuit, wantErr: "files.pick"},
 		{name: "число вместо клавиши", content: `{"keybinds":{"app.quit":5}}`, want: defaultQuit, wantErr: "app.quit"},
 		{name: "пустая клавиша", content: `{"keybinds":{"app.quit":""}}`, want: defaultQuit, wantErr: "app.quit"},
@@ -67,7 +67,7 @@ func TestLoad(t *testing.T) {
 // Клавиша из файла ведёт к своему действию, а не к встроенному.
 func TestActionForFollowsOverride(t *testing.T) {
 	dir := t.TempDir()
-	content := `{"keybinds":{"app.quit":"z"}}`
+	content := `{"keybinds":{"app.quit":"w"}}`
 	if err := os.WriteFile(filepath.Join(dir, "keybinds.json"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestActionForFollowsOverride(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if got := km.ActionFor("z"); got != AppQuit {
+	if got := km.ActionFor("w"); got != AppQuit {
 		t.Fatalf("x ведёт к %q, ожидался %q", got, AppQuit)
 	}
 	if got := km.ActionFor("q"); got != "" {
