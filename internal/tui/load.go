@@ -54,3 +54,23 @@ func reload(dir string, args []string) tea.Cmd {
 		return reloadMsg{files: files, staged: staged, err: err}
 	}
 }
+
+// reloaded ставит перечитанный дифф на экран, а ошибку git в подвал. Если за
+// время загрузки что-то изменилось, загрузка идёт ещё раз.
+func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
+	m.loading = false
+	// ponytail: окно поиска, открытое во время загрузки, показывает список
+	// до перечитывания, выбор при этом ищется по имени в новом. Открыть
+	// окно заново обновит список.
+	if msg.err != nil {
+		m = m.say(msg.err.Error())
+	} else {
+		m = m.applyReload(msg.files)
+		m.staged = msg.staged
+	}
+
+	if m.stale {
+		return m.startReload()
+	}
+	return m, nil
+}
