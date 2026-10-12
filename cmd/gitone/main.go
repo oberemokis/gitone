@@ -43,6 +43,12 @@ func main() {
 	// стали текстом: они выйдут на выбранном языке.
 	text, languageErr := i18n.Choose(opts.Config.Language, os.Getenv("LC_ALL"), os.Getenv("LC_MESSAGES"), os.Getenv("LANG"))
 	opts.Text = text
+
+	// ошибки настроек обновлению не мешают: битая тема не повод не обновиться
+	if isUpdateCommand(os.Args) {
+		runUpdate(text)
+		return
+	}
 	opts.Notice = addNotice(text, "", append(settingsErrs, languageErr)...)
 
 	// git отвечает на языке интерфейса, если у него есть такой перевод.
