@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/diff"
+	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
 )
 
@@ -60,20 +61,22 @@ func statusLabel(status diff.Status) string {
 // footer показывает подсказки клавиш. fileCounter вида «(2/5)» встаёт у
 // подсказки списка файлов: это единственное место, где видно, сколько
 // файлов в диффе.
-func footer(width int, colors theme.Theme, fileCounter string) string {
+// Подпись показывает первую клавишу действия, так переназначение видно сразу.
+// Действие без клавиш в подвал не выводится.
+func footer(width int, colors theme.Theme, fileCounter string, bindings []keymap.Binding) string {
 	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
 
 	var hints []string
-	for _, binding := range bindings() {
-		if binding.label == "" {
+	for _, binding := range bindings {
+		if binding.Label == "" || len(binding.Keys) == 0 {
 			continue
 		}
 
-		label := binding.label
-		if binding.action == actionFiles && fileCounter != "" {
+		label := binding.Label
+		if binding.Action == keymap.FilesPick && fileCounter != "" {
 			label += " " + fileCounter
 		}
-		hints = append(hints, displayKey(binding.keys[0])+" "+muted.Render(label))
+		hints = append(hints, displayKey(binding.Keys[0])+" "+muted.Render(label))
 	}
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, strings.Join(hints, "   "))

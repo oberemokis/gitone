@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/config"
+	"gitone/internal/keymap"
 	"gitone/internal/tui"
 )
 
@@ -43,7 +44,7 @@ func TestSettingsReachTheDiffScreen(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load: %v", err)
 			}
-			model, _ := tui.New(tui.Options{Config: tc.settings}, files).Update(tea.WindowSizeMsg{Width: tc.width, Height: 20})
+			model, _ := tui.New(tui.Options{Config: tc.settings, Keys: keymap.Default()}, files).Update(tea.WindowSizeMsg{Width: tc.width, Height: 20})
 
 			if got := isSplit(screenOf(model), "two", "TWO"); got != tc.wantSplit {
 				t.Fatalf("split %v, ожидалось %v\n%s", got, tc.wantSplit, strings.Join(screenOf(model), "\n"))
@@ -56,7 +57,7 @@ func TestSettingsReachTheDiffScreen(t *testing.T) {
 // нажатии. Приложение при этом запускается на встроенных значениях.
 func TestSettingsErrorShowsInFooterUntilKey(t *testing.T) {
 	const notice = "config.json: diff.mode: «wide» не режим"
-	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Notice: notice}, nil)
+	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default(), Notice: notice}, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "«wide»") {

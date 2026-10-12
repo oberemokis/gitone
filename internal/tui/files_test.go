@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/config"
+	"gitone/internal/keymap"
 	"gitone/internal/tui"
 )
 
@@ -140,7 +141,7 @@ func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
 }
 
 func TestHelpShrinksOnNarrowScreen(t *testing.T) {
-	model, _ := tui.New(tui.Options{Config: config.Default()}, nil).Update(tea.WindowSizeMsg{Width: 40, Height: 40})
+	model, _ := tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default()}, nil).Update(tea.WindowSizeMsg{Width: 40, Height: 40})
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
 	screen := screenOf(model)
