@@ -1,10 +1,11 @@
 package tui
 
 import (
-	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
@@ -50,26 +51,63 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
-// logBox рисует лог на весь экран с полями: темы коммитов длинные, и узкое
-// окно их обрезало. Хэш выделен цветом accent, по нему коммит ищут глазами.
-// Каждый кусок строки несёт фон окна сам: вложенный стиль со сбросом иначе
-// погасил бы фон после хэша.
+// Ширина столбцов лога: хэш короткий, автор и дата по самому длинному
+// значению, но не шире предела, чтобы теме оставалось место.
+const (
+	hashColumn      = 7
+	maxAuthorColumn = 20
+	maxDateColumn   = 16
+	columnGap       = 2
+)
+
+// logBox рисует лог на весь экран таблицей: хэш, тема, автор, дата, над ними
+// заголовки столбцов (#109). Ширина столбцов общая для всех строк, тема
+// занимает остаток. Хэш выделен цветом accent, по нему коммит ищут глазами,
+// автор и дата приглушённые. Каждый кусок строки несёт фон окна сам:
+// вложенный стиль со сбросом иначе погасил бы фон.
 func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, cursor, screenWidth, screenHeight int) string {
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	hash := panel.Foreground(colors.Accent)
-
-	rows := make([]string, len(entries))
-	for index, entry := range entries {
-		rows[index] = hash.Render(entry.Hash[:7]) + panel.Render(fmt.Sprintf("  %s  %s · %s", entry.Subject, entry.Author, entry.When))
-	}
-
-	return list{
+	box := list{
 		title:  text.Text("log.title", nil),
 		close:  closeHint(colors, keys, text, keymap.ListClose),
-		rows:   rows,
 		cursor: cursor,
 		empty:  []string{text.Text("log.empty", nil)},
 		hint:   windowHint(colors, keys, text, keymap.LogOpen),
 		fill:   true,
-	}.view(colors, screenWidth, screenHeight)
+	}
+
+	titles := []string{text.Text("log.column.commit", nil), text.Text("log.column.message", nil), text.Text("log.column.author", nil), text.Text("log.column.date", nil)}
+	authorWidth, dateWidth := ansi.StringWidth(titles[2]), ansi.StringWidth(titles[3])
+	for _, entry := range entries {
+		authorWidth = max(authorWidth, ansi.StringWidth(entry.Author))
+		dateWidth = max(dateWidth, ansi.StringWidth(entry.When))
+	}
+	widths := []int{hashColumn, 0, min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
+	widths[1] = max(box.rowWidth(screenWidth)-widths[0]-widths[2]-widths[3]-3*columnGap, 1)
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	muted := panel.Foreground(colors.TextMuted)
+	box.header = tableRow(panel, widths, muted, muted, muted, muted, titles...)
+
+	box.rows = make([]string, len(entries))
+	for index, entry := range entries {
+		box.rows[index] = tableRow(panel, widths, panel.Foreground(colors.Accent), panel, muted, muted, entry.Hash[:7], entry.Subject, entry.Author, entry.When)
+	}
+
+	return box.view(colors, screenWidth, screenHeight)
+}
+
+// tableRow собирает строку таблицы: каждая ячейка своим стилем, обрезана
+// «…» и дополнена пробелами до ширины столбца, между столбцами промежуток.
+func tableRow(panel lipgloss.Style, widths []int, hash, subject, author, date lipgloss.Style, cells ...string) string {
+	styles := []lipgloss.Style{hash, subject, author, date}
+
+	var row strings.Builder
+	for index, cell := range cells {
+		if index > 0 {
+			row.WriteString(panel.Render(strings.Repeat(" ", columnGap)))
+		}
+		cell = ansi.Truncate(cell, widths[index], "…")
+		row.WriteString(styles[index].Render(cell + strings.Repeat(" ", widths[index]-ansi.StringWidth(cell))))
+	}
+	return row.String()
 }

@@ -72,9 +72,9 @@ func TestLogWindowFillsScreenWithMargins(t *testing.T) {
 	}
 
 	// высота окна 34-8: без отступов, заголовка и подсказки, обоих с пустой
-	// строкой, 20 строк
-	if shown := strings.Count(strings.Join(screen, "\n"), " · "); shown != 20 {
-		t.Errorf("строк лога %d, want 20", shown)
+	// строкой, и строки заголовков столбцов 19 строк; в каждой дата «… ago»
+	if shown := strings.Count(strings.Join(screen, "\n"), " ago"); shown != 19 {
+		t.Errorf("строк лога %d, want 19", shown)
 	}
 }
 

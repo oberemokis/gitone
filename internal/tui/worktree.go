@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
@@ -53,17 +54,22 @@ func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
-// worktreeBox рисует список деревьев: имя каталога, ветка и путь. Текущее
-// помечено словом, как ветка в окне веток. Отметка стоит до пути: длинный
-// путь обрезается по краю окна и унёс бы её с собой.
+// worktreeBox рисует список деревьев: имя каталога, ветка цветом accent и
+// приглушённый путь (#109). Текущее помечено словом, как ветка в окне веток.
+// Отметка стоит до пути: длинный путь обрезается по краю окна и унёс бы её с
+// собой. Каждый кусок несёт фон окна сам.
 func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, worktrees []git.Worktree, cursor, screenWidth, screenHeight int) string {
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	branch := panel.Foreground(colors.Accent)
+	muted := panel.Foreground(colors.TextMuted)
+
 	rows := make([]string, len(worktrees))
 	for index, worktree := range worktrees {
-		rows[index] = filepath.Base(worktree.Path) + "  " + worktree.Branch
+		rows[index] = panel.Render(filepath.Base(worktree.Path)+"  ") + branch.Render(worktree.Branch)
 		if worktree.Current {
-			rows[index] += " " + text.Text("worktrees.current", nil)
+			rows[index] += panel.Render(" " + text.Text("worktrees.current", nil))
 		}
-		rows[index] += "  " + worktree.Path
+		rows[index] += muted.Render("  " + worktree.Path)
 	}
 
 	return list{
