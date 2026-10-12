@@ -152,7 +152,12 @@ func run(options call, args ...string) (string, error) {
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
-		return "", errors.New(strings.TrimSpace(string(exitError.Stderr)))
+		// часть сообщений git пишет в stdout: «nothing to commit» идёт туда же
+		message := strings.TrimSpace(string(exitError.Stderr))
+		if message == "" {
+			message = strings.TrimSpace(string(out))
+		}
+		return "", errors.New(message)
 	}
 
 	return string(out), err
