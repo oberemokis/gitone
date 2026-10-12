@@ -46,25 +46,29 @@ const (
 	DiffBottom       Action = "diff.bottom"
 )
 
-// Заголовок группы в справке. Порядок групп задаёт первое появление
-// категории в списке, подряд клавиши одной категории стоять не обязаны.
+// Группа в справке. Порядок групп задаёт первое появление категории в
+// списке, подряд клавиши одной категории стоять не обязаны. Заголовок группы
+// берётся из словаря по ключу category.<категория>.
 type Category string
 
 const (
-	CategoryGeneral Category = "General"
-	CategoryFiles   Category = "Files"
-	CategoryDiff    Category = "Diff"
+	CategoryGeneral Category = "general"
+	CategoryFiles   Category = "files"
+	CategoryDiff    Category = "diff"
 )
 
+// Binding это действие и его клавиши. Тексты подсказок здесь не лежат: подпись
+// в подвале и строка в справке берутся из словаря по ключам
+// action.<действие>.footer и action.<действие>.help.
 type Binding struct {
 	Action   Action
 	Category Category
 	// как их возвращает KeyPressMsg.String(), пустой список значит действие отключено
 	Keys []string
-	// подпись в подвале, пустая значит в подвал не выводить
-	Label string
-	// строка в справке, пустая значит в справку не выводить
-	Description string
+	// Footer: действие с подписью в подвале
+	Footer bool
+	// Help: действие со строкой в справке
+	Help bool
 }
 
 // Keymap это список действий с клавишами. Нулевое значение пустое: клавиш
@@ -217,27 +221,27 @@ func checkConflicts(bindings []Binding) error {
 
 func defaults() []Binding {
 	return []Binding{
-		{Action: AppQuit, Category: CategoryGeneral, Keys: []string{"q", "ctrl+c"}, Label: "quit", Description: "Quit"},
-		{Action: FilesPick, Category: CategoryFiles, Keys: []string{"ctrl+p"}, Label: "files", Description: "File list"},
-		{Action: AppHelp, Category: CategoryGeneral, Keys: []string{"?"}, Label: "help", Description: "Toggle this help"},
-		{Action: FilesNext, Category: CategoryFiles, Keys: []string{"]"}, Description: "Next file"},
-		{Action: FilesPrevious, Category: CategoryFiles, Keys: []string{"["}, Description: "Previous file"},
-		{Action: FilesStage, Category: CategoryFiles, Keys: []string{"space"}, Description: "Stage or unstage file"},
-		{Action: FilesDiscard, Category: CategoryFiles, Keys: []string{"x"}, Description: "Discard file changes"},
-		{Action: FilesCommit, Category: CategoryFiles, Keys: []string{"c"}, Description: "Commit staged changes"},
-		{Action: AppLog, Category: CategoryDiff, Keys: []string{"l"}, Description: "Commit log"},
-		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Description: "Working tree diff"},
-		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Description: "Branches"},
-		{Action: StashPush, Category: CategoryFiles, Keys: []string{"z"}, Description: "Save changes to stash"},
-		{Action: StashList, Category: CategoryFiles, Keys: []string{"Z"}, Description: "Stash list"},
-		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Description: "Scroll down"},
-		{Action: DiffScrollUp, Category: CategoryDiff, Keys: []string{"k", "up"}, Description: "Scroll up"},
-		{Action: DiffHalfPageDown, Category: CategoryDiff, Keys: []string{"ctrl+d"}, Description: "Half page down"},
-		{Action: DiffHalfPageUp, Category: CategoryDiff, Keys: []string{"ctrl+u"}, Description: "Half page up"},
-		{Action: DiffTop, Category: CategoryDiff, Keys: []string{"g"}, Description: "Top"},
-		{Action: DiffBottom, Category: CategoryDiff, Keys: []string{"G"}, Description: "Bottom"},
-		{Action: DiffToggleMode, Category: CategoryDiff, Keys: []string{"m"}, Description: "Split or unified"},
-		{Action: DiffReload, Category: CategoryDiff, Keys: []string{"r"}, Description: "Reload diff"},
+		{Action: AppQuit, Category: CategoryGeneral, Keys: []string{"q", "ctrl+c"}, Footer: true, Help: true},
+		{Action: FilesPick, Category: CategoryFiles, Keys: []string{"ctrl+p"}, Footer: true, Help: true},
+		{Action: AppHelp, Category: CategoryGeneral, Keys: []string{"?"}, Footer: true, Help: true},
+		{Action: FilesNext, Category: CategoryFiles, Keys: []string{"]"}, Help: true},
+		{Action: FilesPrevious, Category: CategoryFiles, Keys: []string{"["}, Help: true},
+		{Action: FilesStage, Category: CategoryFiles, Keys: []string{"space"}, Help: true},
+		{Action: FilesDiscard, Category: CategoryFiles, Keys: []string{"x"}, Help: true},
+		{Action: FilesCommit, Category: CategoryFiles, Keys: []string{"c"}, Help: true},
+		{Action: AppLog, Category: CategoryDiff, Keys: []string{"l"}, Help: true},
+		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Help: true},
+		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Help: true},
+		{Action: StashPush, Category: CategoryFiles, Keys: []string{"z"}, Help: true},
+		{Action: StashList, Category: CategoryFiles, Keys: []string{"Z"}, Help: true},
+		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Help: true},
+		{Action: DiffScrollUp, Category: CategoryDiff, Keys: []string{"k", "up"}, Help: true},
+		{Action: DiffHalfPageDown, Category: CategoryDiff, Keys: []string{"ctrl+d"}, Help: true},
+		{Action: DiffHalfPageUp, Category: CategoryDiff, Keys: []string{"ctrl+u"}, Help: true},
+		{Action: DiffTop, Category: CategoryDiff, Keys: []string{"g"}, Help: true},
+		{Action: DiffBottom, Category: CategoryDiff, Keys: []string{"G"}, Help: true},
+		{Action: DiffToggleMode, Category: CategoryDiff, Keys: []string{"m"}, Help: true},
+		{Action: DiffReload, Category: CategoryDiff, Keys: []string{"r"}, Help: true},
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{Action: HelpClose, Keys: []string{"esc"}},
 	}

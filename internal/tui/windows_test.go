@@ -42,7 +42,7 @@ func TestHelpStaysUnderDiscardQuestion(t *testing.T) {
 	if !strings.Contains(screenText(model), "Hotkeys") {
 		t.Fatalf("справки нет под вопросом discard:\n%s", screenText(model))
 	}
-	if !strings.Contains(footerOf(model), "отменить") {
+	if !strings.Contains(footerOf(model), "Discard changes") {
 		t.Fatalf("подвал = %q, want вопрос discard", footerOf(model))
 	}
 }
@@ -127,7 +127,7 @@ func TestListKeepsFooterMessage(t *testing.T) {
 
 	for _, press := range []tea.KeyPressMsg{key('j'), {Code: tea.KeyEscape}} {
 		model, _ = model.Update(press)
-		if !strings.Contains(footerOf(model), "слежение остановлено") {
+		if !strings.Contains(footerOf(model), "watching stopped") {
 			t.Fatalf("после %s подвал = %q, want сообщение на месте", press, footerOf(model))
 		}
 	}

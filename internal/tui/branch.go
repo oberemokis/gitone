@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 	"gitone/internal/tui/theme"
 )
 
@@ -40,7 +41,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.branches)); handled {
 		return next, cmd
 	}
-	if key.String() != "enter" || len(m.branches) == 0 {
+	if key.String() != keyEnter || len(m.branches) == 0 {
 		return m, nil
 	}
 
@@ -54,20 +55,20 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // branchBox рисует список веток. Текущая помечена словом, а не цветом: так
 // видно и без цветов.
-func branchBox(colors theme.Theme, branches []git.Branch, cursor, screenWidth, screenHeight int) string {
+func branchBox(colors theme.Theme, text i18n.Dictionary, branches []git.Branch, cursor, screenWidth, screenHeight int) string {
 	rows := make([]string, len(branches))
 	for index, branch := range branches {
 		rows[index] = branch.Name
 		if branch.Current {
-			rows[index] += " (текущая)"
+			rows[index] += " " + text.Text("branches.current", nil)
 		}
 	}
 
 	return list{
-		title:  "Branches",
+		title:  text.Text("branches.title", nil),
 		width:  60,
 		rows:   rows,
 		cursor: cursor,
-		hint:   "enter переключить   esc закрыть",
+		hint:   text.Text("branches.hint", windowKeys()),
 	}.view(colors, screenWidth, screenHeight)
 }

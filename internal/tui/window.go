@@ -62,17 +62,17 @@ func (m Model) windowBox() string {
 	case pickerWindow:
 		return m.picker.View(width, height)
 	case commitWindow:
-		return commitBox(m.colors, m.subject, width)
+		return commitBox(m.colors, m.text, m.subject, width)
 	case logWindow:
-		return logBox(m.colors, m.logEntries, m.cursor, width, height)
+		return logBox(m.colors, m.text, m.logEntries, m.cursor, width, height)
 	case branchWindow:
-		return branchBox(m.colors, m.branches, m.cursor, width, height)
+		return branchBox(m.colors, m.text, m.branches, m.cursor, width, height)
 	case stashWindow, stashDropWindow:
-		return stashBox(m.colors, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
+		return stashBox(m.colors, m.text, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
 	}
 
 	if m.helpOpen {
-		return helpBox(m.colors, width, m.keys)
+		return helpBox(m.colors, m.text, width, m.keys)
 	}
 	return ""
 }
@@ -83,7 +83,7 @@ func (m Model) navigate(key tea.KeyPressMsg, count int) (next Model, cmd tea.Cmd
 	switch key.String() {
 	case "ctrl+c":
 		return m, tea.Quit, true
-	case "esc":
+	case keyEsc:
 		m.active = noWindow
 		return m, nil, true
 	case "down", "j":

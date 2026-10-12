@@ -106,7 +106,7 @@ func addNotice(notice string, errs ...error) string {
 func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	printed := make(chan struct{})
 	timer := time.AfterFunc(loadingNoticeDelay, func() {
-		fmt.Fprint(os.Stderr, "Loading diff…")
+		fmt.Fprint(os.Stderr, opts.Text.Text("start.loadingDiff", nil))
 		close(printed)
 	})
 

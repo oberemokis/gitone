@@ -6,6 +6,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
 )
@@ -18,7 +19,7 @@ const (
 
 // helpBox не шире экрана: на узком окно ужимается, а длинные описания
 // обрезаются, иначе окно уходило за край и теряло левые колонки.
-func helpBox(colors theme.Theme, screenWidth int, keys keymap.Keymap) string {
+func helpBox(colors theme.Theme, text i18n.Dictionary, screenWidth int, keys keymap.Keymap) string {
 	width := max(min(helpWidth, screenWidth-2*helpPaddingX), 1)
 
 	// Каждый кусок строки несёт фон сам: Lip Gloss закрывает жирный полным
@@ -33,33 +34,34 @@ func helpBox(colors theme.Theme, screenWidth int, keys keymap.Keymap) string {
 	if closeKeys := keys.KeysFor(keymap.HelpClose); len(closeKeys) > 0 {
 		closeKey = displayKey(closeKeys[0])
 	}
-	rows := []string{justify(panel, width, bold.Render("Hotkeys"), dim.Render(closeKey))}
+	rows := []string{justify(panel, width, bold.Render(text.Text("help.title", nil)), dim.Render(closeKey))}
 
 	order, groups := groupByCategory(keys.Bindings())
-	for _, title := range order {
-		rows = append(rows, "", justify(panel, width, heading.Render(string(title)), ""))
+	for _, category := range order {
+		rows = append(rows, "", justify(panel, width, heading.Render(text.Text(categoryKey(category), nil)), ""))
 
-		for _, binding := range groups[title] {
+		for _, binding := range groups[category] {
 			displayed := make([]string, len(binding.Keys))
 			for index, key := range binding.Keys {
 				displayed[index] = displayKey(key)
 			}
 
-			rows = append(rows, justify(panel, width, panel.Render(binding.Description), dim.Render(strings.Join(displayed, ", "))))
+			description := text.Text(helpKey(binding.Action), nil)
+			rows = append(rows, justify(panel, width, panel.Render(description), dim.Render(strings.Join(displayed, ", "))))
 		}
 	}
 
 	return panel.Padding(1, helpPaddingX).Render(strings.Join(rows, "\n"))
 }
 
-// groupByCategory пропускает действия без описания и без клавиш: им не место
-// в справке.
+// groupByCategory пропускает действия не для справки и без клавиш: им не
+// место в справке.
 func groupByCategory(all []keymap.Binding) ([]keymap.Category, map[keymap.Category][]keymap.Binding) {
 	var order []keymap.Category
 	groups := map[keymap.Category][]keymap.Binding{}
 
 	for _, binding := range all {
-		if binding.Description == "" || len(binding.Keys) == 0 {
+		if !binding.Help || len(binding.Keys) == 0 {
 			continue
 		}
 

@@ -1,6 +1,11 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/i18n"
+	"gitone/internal/keymap"
+)
 
 // changedMsg приходит, когда в рабочей копии что-то изменилось: канал слежения
 // прислал сигнал.
@@ -36,4 +41,14 @@ func (m Model) changed() (tea.Model, tea.Cmd) {
 
 	m, reloadCmd := m.startReload()
 	return m, tea.Batch(reloadCmd, waitChange(m.changes))
+}
+
+// watchStopped подсказывает клавишу перечитывания, если она не отключена.
+func (m Model) watchStopped() string {
+	keys := m.keys.KeysFor(keymap.DiffReload)
+	if len(keys) == 0 {
+		return m.text.Text("watch.stoppedNoKey", nil)
+	}
+
+	return m.text.Text("watch.stopped", i18n.Args{"key": displayKey(keys[0])})
 }

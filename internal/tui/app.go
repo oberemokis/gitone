@@ -10,6 +10,7 @@ import (
 	"gitone/internal/config"
 	"gitone/internal/diff"
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 	"gitone/internal/layout"
 	"gitone/internal/tui/diffview"
@@ -57,6 +58,7 @@ type Model struct {
 	height   int
 	helpOpen bool
 	colors   theme.Theme
+	text     i18n.Dictionary
 	files    []diff.File
 	current  int
 	view     diffview.Model
@@ -77,6 +79,8 @@ type Options struct {
 	Changes <-chan struct{}
 	// Staged пути, уже лежащие в индексе при запуске
 	Staged map[string]bool
+	// Text тексты интерфейса на выбранном языке, нулевое значение английское
+	Text i18n.Dictionary
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -88,7 +92,8 @@ func New(opts Options, files []diff.File) Model {
 	}
 
 	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth).
-		WithoutNumbers(!opts.Config.UI.LineNumbers)
+		WithoutNumbers(!opts.Config.UI.LineNumbers).
+		WithText(opts.Text)
 	if len(files) > 0 {
 		view = view.SetFile(files[0])
 	}
@@ -104,6 +109,7 @@ func New(opts Options, files []diff.File) Model {
 		ui:       opts.Config.UI,
 		layout:   root,
 		colors:   colors,
+		text:     opts.Text,
 		files:    files,
 		view:     view,
 	}
@@ -130,7 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case changedMsg:
 		return m.changed()
 	case watchStoppedMsg:
-		m = m.say("слежение остановлено: нажмите r")
+		m = m.say(m.watchStopped())
 	case reloadMsg:
 		return m.reloaded(msg)
 	case actionDoneMsg:
@@ -306,7 +312,9 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // chosenFile ищет выбранную в окне запись в текущем диффе по подписи и статусу.
 // Окно строилось по списку на момент открытия, а дифф мог перечитаться, пока
-// оно открыто: номер записи тогда указал бы на другой файл.
+// оно открыто: номер записи тогда указал бы на другой файл. Подпись и статус
+// с обеих сторон собраны одним словарём, поэтому сравнение не зависит от
+// языка.
 func (m Model) chosenFile() (int, bool) {
 	item, found := m.picker.SelectedItem()
 	if !found {
@@ -314,7 +322,7 @@ func (m Model) chosenFile() (int, bool) {
 	}
 
 	index := slices.IndexFunc(m.files, func(file diff.File) bool {
-		return fileTitle(file) == item.Label && statusLabel(file.Status) == item.Detail
+		return fileTitle(file, m.text) == item.Label && statusLabel(file.Status, m.text) == item.Detail
 	})
 	return index, index >= 0
 }
@@ -324,9 +332,9 @@ func (m Model) chosenFile() (int, bool) {
 func (m Model) applyReload(files []diff.File) Model {
 	kept := -1
 	if len(m.files) > 0 {
-		title := fileTitle(m.files[m.current])
+		title := fileTitle(m.files[m.current], m.text)
 		kept = slices.IndexFunc(files, func(file diff.File) bool {
-			return fileTitle(file) == title
+			return fileTitle(file, m.text) == title
 		})
 	}
 
@@ -351,10 +359,15 @@ func (m Model) openPicker() Model {
 
 	items := make([]picker.Item, len(m.files))
 	for index, file := range m.files {
-		items[index] = picker.Item{Label: fileTitle(file), Detail: statusLabel(file.Status)}
+		items[index] = picker.Item{Label: fileTitle(file, m.text), Detail: statusLabel(file.Status, m.text)}
 	}
 
-	m.picker = picker.New("Files", items, m.colors)
+	texts := picker.Texts{
+		Title:     m.text.Text("files.title", nil),
+		Search:    m.text.Text("files.search", nil),
+		NoMatches: m.text.Text("files.noMatches", nil),
+	}
+	m.picker = picker.New(texts, items, m.colors)
 	m.active = pickerWindow
 	m.helpOpen = false
 	return m
@@ -386,7 +399,7 @@ func (m Model) View() tea.View {
 
 	title, counter := "", ""
 	if len(m.files) > 0 {
-		title = header(m.width, m.files[m.current], m.colors)
+		title = header(m.width, m.files[m.current], m.colors, m.text)
 		counter = fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
 	}
 
@@ -405,7 +418,7 @@ func (m Model) View() tea.View {
 func (m Model) footerLine(counter string) string {
 	switch {
 	case m.loading:
-		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.TextMuted), "loading")
+		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.TextMuted), m.text.Text("screen.loading", nil))
 	case m.notice != "":
 		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.Error), m.notice)
 	case !m.ui.KeyHints:
@@ -413,7 +426,7 @@ func (m Model) footerLine(counter string) string {
 		return ""
 	}
 
-	return footer(m.width, m.colors, counter, m.keys.Bindings())
+	return footer(m.width, m.colors, m.text, counter, m.keys.Bindings())
 }
 
 // body складывает панели по раскладке и кладёт окна поверх, как opencode:
@@ -421,7 +434,7 @@ func (m Model) footerLine(counter string) string {
 func (m Model) body() string {
 	base := lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Left, lipgloss.Top, m.panes(m.placement()))
 	if len(m.files) == 0 {
-		base = lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Center, lipgloss.Center, "No changes")
+		base = lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Center, lipgloss.Center, m.text.Text("screen.noChanges", nil))
 	}
 
 	box := m.windowBox()
@@ -464,8 +477,8 @@ func (m Model) labels() []string {
 			mark = "● "
 		}
 
-		labels[index] = mark + fileTitle(file)
-		if status := statusLabel(file.Status); status != "" {
+		labels[index] = mark + fileTitle(file, m.text)
+		if status := statusLabel(file.Status, m.text); status != "" {
 			labels[index] += " " + status
 		}
 	}
