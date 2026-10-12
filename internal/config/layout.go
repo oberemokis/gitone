@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gitone/internal/i18n"
 )
 
 // LayoutFile это layouts/<имя>.json как он записан. Проверку дерева делает
@@ -42,14 +44,14 @@ func (s *Size) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	return errors.New("size: размер должен быть строкой или числом")
+	return i18n.New("layout.sizeType", nil)
 }
 
 // ReadLayout читает layouts/<name>.json. Файла нет, значит found false без
 // ошибки. Имя не может содержать путь, как и имя темы.
 func ReadLayout(dir, name string) (LayoutFile, bool, error) {
 	if name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
-		return LayoutFile{}, false, fmt.Errorf("раскладка «%s»: имя не может быть пустым, содержать путь или начинаться с точки", name)
+		return LayoutFile{}, false, i18n.New("layout.badName", i18n.Args{"name": name})
 	}
 
 	data, err := os.ReadFile(filepath.Join(dir, "layouts", name+".json"))
@@ -70,7 +72,7 @@ func ReadLayout(dir, name string) (LayoutFile, bool, error) {
 
 func decodeLayout(data []byte) (LayoutFile, error) {
 	var file LayoutFile
-	if err := decodeStrict(data, &file, "раскладки"); err != nil {
+	if err := decodeStrict(data, &file); err != nil {
 		return LayoutFile{}, err
 	}
 

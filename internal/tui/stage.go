@@ -2,7 +2,6 @@ package tui
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
@@ -70,7 +69,9 @@ func (m Model) askDiscard() Model {
 	file := m.files[m.current]
 	m.active = discardWindow
 	m.confirm = pathsOf(file)
-	m.notice = fmt.Sprintf("отменить правки в «%s»? y да, любая клавиша нет", fileTitle(file))
+	args := windowKeys()
+	args["file"] = fileTitle(file, m.text)
+	m.notice = m.text.Text("discard.question", args)
 	return m
 }
 
@@ -82,7 +83,7 @@ func (m Model) answerDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.confirm = nil
 	m.notice = ""
 
-	if key.String() != "y" {
+	if key.String() != keyYes {
 		return m, nil
 	}
 	return m, discardCmd(m.dir, paths)
@@ -92,7 +93,7 @@ func (m Model) answerDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // удалась: так видно, что на самом деле осталось.
 func (m Model) actionDone(msg actionDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
-		m = m.say(msg.err.Error())
+		m = m.say(m.text.Error(msg.err))
 	}
 
 	m.stale = true

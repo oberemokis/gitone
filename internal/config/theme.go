@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"gitone/internal/i18n"
 )
 
 // ThemeFile это themes/<имя>.json как он записан: цвета строками, без проверки
@@ -29,7 +31,7 @@ type Color string
 // путь, пустое имя и точка в начале отбрасываются.
 func ReadTheme(dir, name string) (ThemeFile, bool, error) {
 	if name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
-		return ThemeFile{}, false, fmt.Errorf("тема «%s»: имя не может быть пустым, содержать путь или начинаться с точки", name)
+		return ThemeFile{}, false, i18n.New("theme.badName", i18n.Args{"name": name})
 	}
 
 	data, err := os.ReadFile(filepath.Join(dir, "themes", name+".json"))
@@ -58,7 +60,7 @@ type themeJSON struct {
 
 func decodeTheme(data []byte) (ThemeFile, error) {
 	var raw themeJSON
-	if err := decodeStrict(data, &raw, "темы"); err != nil {
+	if err := decodeStrict(data, &raw); err != nil {
 		return ThemeFile{}, err
 	}
 
@@ -89,7 +91,7 @@ func colorsOf(section string, raw map[string]json.RawMessage) (map[string]Color,
 			continue
 		}
 
-		return nil, fmt.Errorf("%s.%s: цвет должен быть строкой или числом", section, key)
+		return nil, i18n.New("theme.colorType", i18n.Args{"section": section, "key": key})
 	}
 
 	return colors, nil

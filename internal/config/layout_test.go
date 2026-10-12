@@ -62,7 +62,7 @@ func TestReadLayout(t *testing.T) {
 			name:    "путь в имени раскладки",
 			file:    "../compact",
 			content: `{}`,
-			wantErr: "путь",
+			wantErr: "contain a path",
 		},
 	}
 

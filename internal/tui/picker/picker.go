@@ -28,8 +28,18 @@ const (
 	Closed
 )
 
+// Texts это тексты окна на языке интерфейса: их собирает корень, сам picker
+// словаря не знает.
+type Texts struct {
+	Title string
+	// подсказка в пустом поле поиска
+	Search string
+	// вместо списка, когда поиск ничего не нашёл
+	NoMatches string
+}
+
 type Model struct {
-	title   string
+	texts   Texts
 	items   []Item
 	query   string
 	matches []int
@@ -38,8 +48,8 @@ type Model struct {
 	colors   theme.Theme
 }
 
-func New(title string, items []Item, colors theme.Theme) Model {
-	return Model{title: title, items: items, colors: colors}.filter()
+func New(texts Texts, items []Item, colors theme.Theme) Model {
+	return Model{texts: texts, items: items, colors: colors}.filter()
 }
 
 // HandleKey разбирает нажатие. Chosen значит, что выбран элемент Selected,

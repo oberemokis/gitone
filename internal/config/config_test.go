@@ -40,6 +40,15 @@ func TestLoad(t *testing.T) {
 		{name: "ui: autoReload выключен", content: `{"ui":{"autoReload":false}}`, want: withUI(config.UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: false})},
 		{name: "ui: scrollbar пока не принимается", content: `{"ui":{"scrollbar":true}}`, want: config.Default(), wantErr: "scrollbar"},
 		{name: "ui: statusBar пока не принимается", content: `{"ui":{"statusBar":false}}`, want: config.Default(), wantErr: "statusBar"},
+		// язык проверяет i18n, он знает словари: неизвестный язык не сбрасывает
+		// остальные настройки файла
+		{name: "язык без проверки", content: `{"language":"de","theme":"midnight"}`, want: config.Config{
+			Language: "de",
+			Theme:    "midnight",
+			Layout:   "default",
+			UI:       config.UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
+			Diff:     config.Diff{Mode: "auto", AutoSplitMinWidth: 120},
+		}},
 		{name: "$schema допустим", content: `{"$schema":"./schemas/config.schema.json","diff":{"mode":"unified"}}`, want: config.Config{
 			Schema: "./schemas/config.schema.json",
 			Theme:  "dark",

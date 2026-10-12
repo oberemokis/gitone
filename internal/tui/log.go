@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 	"gitone/internal/tui/theme"
 )
 
@@ -32,14 +33,14 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.logEntries)); handled {
 		return next, cmd
 	}
-	if key.String() != "enter" || len(m.logEntries) == 0 {
+	if key.String() != keyEnter || len(m.logEntries) == 0 {
 		return m, nil
 	}
 
 	entry := m.logEntries[m.cursor]
 	m.active = noWindow
 	if entry.Root {
-		m.notice = "первый коммит не показывается"
+		m.notice = m.text.Text("log.firstCommitHidden", nil)
 		return m, nil
 	}
 
@@ -47,18 +48,18 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
-func logBox(colors theme.Theme, entries []git.LogEntry, cursor, screenWidth, screenHeight int) string {
+func logBox(colors theme.Theme, text i18n.Dictionary, entries []git.LogEntry, cursor, screenWidth, screenHeight int) string {
 	rows := make([]string, len(entries))
 	for index, entry := range entries {
 		rows[index] = fmt.Sprintf("%s  %s  %s · %s", entry.Hash[:7], entry.Subject, entry.Author, entry.When)
 	}
 
 	return list{
-		title:  "Log",
+		title:  text.Text("log.title", nil),
 		width:  72,
 		rows:   rows,
 		cursor: cursor,
-		empty:  []string{"", "No commits"},
-		hint:   "enter диф коммита   esc закрыть",
+		empty:  []string{"", text.Text("log.empty", nil)},
+		hint:   text.Text("log.hint", windowKeys()),
 	}.view(colors, screenWidth, screenHeight)
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"gitone/internal/diff"
+	"gitone/internal/i18n"
 	"gitone/internal/syntax"
 	"gitone/internal/tui/theme"
 )
@@ -38,10 +39,18 @@ type Model struct {
 	numberWidth int
 	// колонка номеров скрыта: флаг меняет только рисунок, строки те же
 	hideNumbers bool
+	// служебные строки на языке интерфейса
+	text i18n.Dictionary
 }
 
 func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
 	return Model{colors: colors, mode: mode, autoSplitMinWidth: autoSplitMinWidth}
+}
+
+// WithText задаёт язык служебных строк. Без него они английские.
+func (m Model) WithText(text i18n.Dictionary) Model {
+	m.text = text
+	return m
 }
 
 // WithoutNumbers прячет колонку номеров (ui.lineNumbers в config.json).
@@ -177,7 +186,7 @@ func (m Model) effectiveMode() Mode {
 }
 
 func (m Model) rebuild() Model {
-	m.lines = notices(m.file)
+	m.lines = m.notices()
 	largest := 0
 
 	if m.effectiveMode() == ModeSplit {
@@ -193,7 +202,7 @@ func (m Model) rebuild() Model {
 	}
 
 	if len(m.lines) == 0 {
-		m.lines = []line{{notice: &notice{text: "No content changes"}}}
+		m.lines = []line{{notice: &notice{text: m.text.Text("diff.noContent", nil)}}}
 	}
 
 	m.numberWidth = len(strconv.Itoa(largest))
@@ -202,9 +211,10 @@ func (m Model) rebuild() Model {
 
 // notices это служебные строки над строками файла. Нераспознанный блок git
 // показывается целиком как есть: лучше сырой текст, чем пропавший файл.
-func notices(file diff.File) []line {
+func (m Model) notices() []line {
 	var lines []line
 
+	file := m.file
 	if file.Status == diff.StatusRaw {
 		for _, text := range strings.Split(file.Raw, "\n") {
 			lines = append(lines, line{notice: &notice{text: text, plain: true}})
@@ -213,10 +223,10 @@ func notices(file diff.File) []line {
 	}
 
 	if file.Binary {
-		lines = append(lines, line{notice: &notice{text: "Binary or large file"}})
+		lines = append(lines, line{notice: &notice{text: m.text.Text("diff.binary", nil)}})
 	}
 	if file.OldMode != "" && file.NewMode != "" && file.OldMode != file.NewMode {
-		text := "mode " + shortMode(file.OldMode) + " → " + shortMode(file.NewMode)
+		text := m.text.Text("diff.mode", i18n.Args{"old": shortMode(file.OldMode), "new": shortMode(file.NewMode)})
 		lines = append(lines, line{notice: &notice{text: text}})
 	}
 

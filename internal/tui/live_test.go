@@ -53,7 +53,7 @@ func TestStoppedWatchShowsNotice(t *testing.T) {
 		model, _ = model.Update(msg)
 	}
 
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "слежение остановлено") {
+	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "watching stopped") {
 		t.Fatalf("в подвале %q, ожидалось сообщение об остановке", footer)
 	}
 }

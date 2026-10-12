@@ -13,10 +13,9 @@ const (
 	paddingX       = 4
 	paddingY       = 1
 	// заголовок, пустая строка, поиск, пустая строка
-	chromeRows   = 4
-	maxListRows  = 10
-	minListRows  = 1
-	searchPrompt = "Search"
+	chromeRows  = 4
+	maxListRows = 10
+	minListRows = 1
 )
 
 // View рисует окно не шире width и не выше height: на узком экране оно
@@ -30,7 +29,7 @@ func (m Model) View(width, height int) string {
 	dim := panel.Foreground(m.colors.TextMuted)
 
 	rows := []string{
-		justify(panel, contentWidth, panel.Bold(true).Render(m.title), dim.Render("esc")),
+		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), dim.Render("esc")),
 		justify(panel, contentWidth, "", ""),
 		justify(panel, contentWidth, m.search(panel, dim), ""),
 		justify(panel, contentWidth, "", ""),
@@ -45,7 +44,7 @@ func (m Model) View(width, height int) string {
 func (m Model) search(panel, dim lipgloss.Style) string {
 	cursor := panel.Background(m.colors.Primary).Render(" ")
 	if m.query == "" {
-		return cursor + dim.Render(searchPrompt)
+		return cursor + dim.Render(m.texts.Search)
 	}
 
 	return panel.Render(m.query) + cursor
@@ -55,7 +54,7 @@ func (m Model) search(panel, dim lipgloss.Style) string {
 // уходило за край списка.
 func (m Model) list(panel, dim lipgloss.Style, width, listRows int) []string {
 	if len(m.matches) == 0 {
-		return []string{justify(panel, width, dim.Render("No matching files"), "")}
+		return []string{justify(panel, width, dim.Render(m.texts.NoMatches), "")}
 	}
 
 	first := max(min(m.selected-listRows+1, len(m.matches)-listRows), 0)

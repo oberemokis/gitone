@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 	"gitone/internal/tui/theme"
 )
 
@@ -34,10 +35,10 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "ctrl+c":
 		return m, tea.Quit
-	case "esc":
+	case keyEsc:
 		m.active = noWindow
 		m.subject = ""
-	case "enter":
+	case keyEnter:
 		subject := strings.TrimSpace(m.subject)
 		if subject == "" {
 			return m, nil
@@ -56,13 +57,13 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // commitBox рисует поле темы. Ширина ограничена экраном, как у окна справки.
-func commitBox(colors theme.Theme, subject string, screenWidth int) string {
+func commitBox(colors theme.Theme, text i18n.Dictionary, subject string, screenWidth int) string {
 	width := max(min(60, screenWidth-8), 20)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	title := panel.Bold(true).Foreground(colors.Accent).Render("Commit")
+	title := panel.Bold(true).Foreground(colors.Accent).Render(text.Text("commit.title", nil))
 	input := panel.Render("> " + subject + "_")
-	hint := panel.Foreground(colors.TextMuted).Render("enter коммит   esc отмена")
+	hint := panel.Foreground(colors.TextMuted).Render(text.Text("commit.hint", windowKeys()))
 
 	return panel.Padding(1, 2).Width(width).Render(strings.Join([]string{title, "", input, "", hint}, "\n"))
 }

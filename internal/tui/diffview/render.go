@@ -19,8 +19,6 @@ import (
 // текст по колонкам.
 const tabSpaces = "    "
 
-const noNewlineText = "No newline at end of file"
-
 func (m Model) render(line line) string {
 	switch {
 	case line.notice != nil:
@@ -218,7 +216,7 @@ func (m Model) noNewline(width, numberColumns int) string {
 	}
 
 	indent := strings.Repeat(" ", numbersWidth+2)
-	return lipgloss.NewStyle().Foreground(m.colors.TextMuted).Render(fill(width, indent+noNewlineText))
+	return lipgloss.NewStyle().Foreground(m.colors.TextMuted).Render(fill(width, indent+m.text.Text("diff.noNewline", nil)))
 }
 
 // formatNumber выравнивает номер по правому краю. Ноль значит, что строки с
