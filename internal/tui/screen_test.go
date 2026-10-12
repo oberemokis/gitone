@@ -255,7 +255,7 @@ func open(t *testing.T, repo string, args []string) tea.Model {
 		t.Fatalf("Load: %v", err)
 	}
 
-	return tui.New(files)
+	return tui.New(repo, args, files)
 }
 
 // render задаёт размер окна и возвращает экран построчно без цветов.

@@ -15,6 +15,7 @@ const (
 	actionHelp      action = "app.help"
 	actionCloseHelp action = "help.close"
 	actionMode      action = "diff.toggleMode"
+	actionReload    action = "diff.reload"
 	actionDown      action = "diff.scrollDown"
 	actionUp        action = "diff.scrollUp"
 	actionHalfDown  action = "diff.halfPageDown"
@@ -60,6 +61,7 @@ func bindings() []binding {
 		{action: actionTop, category: categoryDiff, keys: []string{"g"}, description: "Top"},
 		{action: actionBottom, category: categoryDiff, keys: []string{"G"}, description: "Bottom"},
 		{action: actionMode, category: categoryDiff, keys: []string{"m"}, description: "Split or unified"},
+		{action: actionReload, category: categoryDiff, keys: []string{"r"}, description: "Reload diff"},
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{action: actionCloseHelp, keys: []string{"esc"}},
 	}

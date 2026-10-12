@@ -47,7 +47,7 @@ func loadWithNotice(dir string, args []string) (tea.Model, error) {
 		fmt.Fprint(os.Stderr, "\r\x1b[K")
 	}
 
-	return tui.New(files), err
+	return tui.New(dir, args, files), err
 }
 
 func exit(err error) {

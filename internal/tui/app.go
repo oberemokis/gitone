@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -17,6 +18,12 @@ import (
 const wheelStep = 3
 
 type Model struct {
+	// dir и args нужны для перечитывания по r: тот же git diff, что при запуске
+	dir     string
+	args    []string
+	loading bool
+	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
+	notice     string
 	width      int
 	height     int
 	helpOpen   bool
@@ -28,7 +35,7 @@ type Model struct {
 	view       diffview.Model
 }
 
-func New(files []diff.File) Model {
+func New(dir string, args []string, files []diff.File) Model {
 	colors := theme.Dark()
 
 	view := diffview.New(colors)
@@ -36,7 +43,7 @@ func New(files []diff.File) Model {
 		view = view.SetFile(files[0])
 	}
 
-	return Model{colors: colors, files: files, view: view}
+	return Model{dir: dir, args: args, colors: colors, files: files, view: view}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -49,6 +56,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.view = m.view.SetSize(m.width, m.bodyHeight())
 	case tea.KeyPressMsg:
+		m.notice = ""
 		if m.pickerOpen {
 			return m.pickerKey(msg)
 		}
@@ -59,6 +67,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.view = m.view.ScrollBy(wheelStep)
 		case tea.MouseWheelUp:
 			m.view = m.view.ScrollBy(-wheelStep)
+		}
+	case reloadMsg:
+		m.loading = false
+		// ponytail: окно поиска, открытое во время загрузки, покажет список
+		// до перечитывания. Открыть его заново обновит список.
+		if msg.err != nil {
+			m.notice = msg.err.Error()
+		} else {
+			m = m.applyReload(msg.files)
 		}
 	}
 
@@ -81,6 +98,12 @@ func (m Model) handleAction(action action) (tea.Model, tea.Cmd) {
 		m = m.openFile(m.current - 1)
 	case actionMode:
 		m.view = m.view.ToggleMode()
+	case actionReload:
+		if m.loading {
+			return m, nil
+		}
+		m.loading = true
+		return m, reload(m.dir, m.args)
 	case actionDown:
 		m.view = m.view.ScrollBy(1)
 	case actionUp:
@@ -117,6 +140,31 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// applyReload ставит новый дифф на место старого. Открытый файл остаётся
+// открытым, если он ещё в диффе, иначе открывается первый.
+func (m Model) applyReload(files []diff.File) Model {
+	kept := -1
+	if len(m.files) > 0 {
+		title := fileTitle(m.files[m.current])
+		kept = slices.IndexFunc(files, func(file diff.File) bool {
+			return fileTitle(file) == title
+		})
+	}
+
+	m.files = files
+	if kept >= 0 {
+		m.current = kept
+		m.view = m.view.Reload(files[kept])
+		return m
+	}
+
+	m.current = 0
+	if len(files) > 0 {
+		m.view = m.view.SetFile(files[0])
+	}
+	return m
 }
 
 func (m Model) openPicker() Model {
@@ -165,8 +213,21 @@ func (m Model) View() tea.View {
 		counter = fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
 	}
 
-	view.Content = lipgloss.JoinVertical(lipgloss.Left, title, "", m.body(), footer(m.width, m.colors, counter))
+	view.Content = lipgloss.JoinVertical(lipgloss.Left, title, "", m.body(), m.footerLine(counter))
 	return view
+}
+
+// footerLine показывает подсказки, а пока идёт перечитывание или висит ошибка
+// git, вместо них одну строку статуса.
+func (m Model) footerLine(counter string) string {
+	switch {
+	case m.loading:
+		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.TextMuted), "loading")
+	case m.notice != "":
+		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.Error), m.notice)
+	}
+
+	return footer(m.width, m.colors, counter)
 }
 
 // body кладёт окна поверх диффа, как opencode: дифф остаётся виден по краям.

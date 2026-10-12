@@ -139,7 +139,7 @@ func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
 }
 
 func TestHelpShrinksOnNarrowScreen(t *testing.T) {
-	model, _ := tui.New(nil).Update(tea.WindowSizeMsg{Width: 40, Height: 40})
+	model, _ := tui.New("", nil, nil).Update(tea.WindowSizeMsg{Width: 40, Height: 40})
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
 	screen := screenOf(model)

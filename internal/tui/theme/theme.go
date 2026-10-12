@@ -18,6 +18,7 @@ type Theme struct {
 	DiffRemoved     color.Color
 	DiffAddedBg     color.Color
 	DiffRemovedBg   color.Color
+	Error           color.Color
 }
 
 // ponytail: тема зашита в код, из themes/*.json она начнёт читаться в #15.
@@ -31,5 +32,6 @@ func Dark() Theme {
 		DiffRemoved:     lipgloss.Color("#f85149"),
 		DiffAddedBg:     lipgloss.Color("#12261e"),
 		DiffRemovedBg:   lipgloss.Color("#2d1214"),
+		Error:           lipgloss.Color("#f85149"),
 	}
 }
