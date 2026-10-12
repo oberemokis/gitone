@@ -37,6 +37,9 @@ func Start(root string, maxDirs int, done <-chan struct{}) (<-chan struct{}, err
 		watcher.Close()
 		return nil, err
 	}
+	// строгость нужна только стартовому обходу: дальше каталог, который
+	// пропал или не открылся, пропускается, а обход идёт к соседям
+	tree.strict = false
 
 	signals := make(chan struct{}, 1)
 	go tree.loop(signals, done)
