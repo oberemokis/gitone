@@ -34,3 +34,17 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # goreleaser создаёт черновик (.goreleaser.yaml) и грузит в него файлы.
+      # Публикуется он здесь, когда все файлы на месте: install.sh, install.ps1
+      # и gitone update берут «последний релиз», и релиз без файлов сломал бы
+      # установку у всех. Предрелиз последним не становится.
+      - name: публикация
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh release edit "$GITHUB_REF_NAME" --draft=false
+          else
+            gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

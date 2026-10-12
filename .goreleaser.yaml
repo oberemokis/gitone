@@ -1,5 +1,14 @@
-# Сборка релиза: четыре бинарника (darwin и linux, amd64 и arm64) в архивах и
-# файл контрольных сумм. Запускает workflow release.yml по тегу vX.Y.Z.
+# Сборка релиза: шесть бинарников (darwin, linux и windows, amd64 и arm64).
+# Каждый лежит дважды: в архиве с версией в имени (tar.gz, на Windows zip) для
+# ручной установки и отдельным файлом без версии, gitone_<os>_<arch>[.exe],
+# для install.sh, install.ps1 и gitone update. Такой файл скачивается по
+# прямой ссылке «последний релиз», распаковывать нечего. checksums.txt
+# охватывает все файлы. Запускает workflow release.yml по тегу vX.Y.Z.
+#
+# Релиз создаётся черновиком, а release.yml публикует его после загрузки всех
+# файлов: иначе «последний релиз» какое-то время указывал бы на релиз без
+# файлов, и установка падала бы у всех. Предрелизные теги (v0.4.0-rc.1)
+# последними не становятся.
 #
 # Формулы Homebrew здесь пока нет: нужен отдельный репозиторий-tap и токен для
 # записи в него. Секция brews добавляется вместе с ними.
@@ -16,6 +25,7 @@ builds:
     goos:
       - darwin
       - linux
+      - windows
     goarch:
       - amd64
       - arm64
@@ -24,9 +34,22 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 archives:
-  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: archives
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+  - id: binaries
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - binary
 
 checksum:
   name_template: checksums.txt
+
+release:
+  draft: true
+  prerelease: auto

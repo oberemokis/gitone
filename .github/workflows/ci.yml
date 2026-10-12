@@ -1,5 +1,7 @@
-# Одна работа на всё: линт, тесты и сборка Go идут за секунды, и делить их на
-# параллельные работы значило бы трижды ставить Go ради выигрыша, которого нет.
+# Линт, тесты и сборка идут одной работой: Go проверяется за секунды, и делить
+# их на параллельные работы значило бы трижды ставить Go ради выигрыша,
+# которого нет. Отдельно идёт только проверка скриптов установки: ей нужны
+# три системы.
 #
 # Имя работы «проверки» ждёт защита main: слияние пул-реквеста разрешено только
 # при ней зелёной. Переименование работы снимает защиту молча, поэтому вместе с
@@ -37,3 +39,88 @@ jobs:
       - run: make lint
       - run: make test
       - run: make build
+
+  # install.sh и install.ps1 проверяются на настоящих системах: goreleaser
+  # собирает релиз локально, сервер раздаёт его с раскладкой GitHub
+  # (download/<тег>/ и latest/download/), а скрипт ставит из него. В защиту
+  # main работа не входит: сбой раннера одной системы не должен держать
+  # слияние, но красный крест виден в пул-реквесте.
+  install:
+    name: установка (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+
+      # Те же файлы, что увидит скрипт на GitHub: бинарники без версии в имени
+      # и checksums.txt. Пути в artifacts.json на Windows идут с обратной
+      # косой чертой, а jq там пишет CRLF.
+      - name: релиз на локальном сервере
+        run: |
+          tag="v$(jq -r .version dist/metadata.json)"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          for dir in "site/download/$tag" site/latest/download; do
+            mkdir -p "$dir"
+            cp dist/checksums.txt "$dir/"
+            jq -r '.[] | select(.type == "Binary" and (.name | test("^gitone_[a-z]+_[a-z0-9]+(\\.exe)?$"))) | .name + " " + .path' dist/artifacts.json |
+              tr -d '\r' |
+              while read -r name path; do cp "${path//\\//}" "$dir/$name"; done
+          done
+          ls -R site
+
+      # Сервер живёт в том же шаге, что и установка: фоновый процесс между
+      # шагами переживает не на каждой системе.
+      - name: установка
+        env:
+          GITONE_RELEASES_URL: http://127.0.0.1:8765
+          GITONE_INSTALL_DIR: ${{ runner.temp }}/bin
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            python=python
+            bin="$(cygpath -u "$GITONE_INSTALL_DIR")"
+            gitone="$bin/gitone.exe"
+            # Windows PowerShell 5.1, как у пользователя без PowerShell 7
+            install_gitone() { powershell -NoProfile -Command 'Get-Content install.ps1 -Raw -Encoding UTF8 | Invoke-Expression'; }
+          else
+            python=python3
+            bin="$GITONE_INSTALL_DIR"
+            gitone="$bin/gitone"
+            # через stdin, как в curl | sh
+            install_gitone() { sh < install.sh; }
+          fi
+
+          "$python" -m http.server 8765 --bind 127.0.0.1 --directory site > server.log 2>&1 &
+          server=$!
+          trap 'kill "$server"' EXIT
+          for _ in $(seq 50); do
+            curl -fs "$GITONE_RELEASES_URL/" > /dev/null && break
+            sleep 0.2
+          done
+
+          want="gitone ${TAG#v}"
+
+          install_gitone | tee latest.txt
+          test "$("$gitone" --version | tr -d '\r')" = "$want"
+          grep -q "is not in PATH" latest.txt
+
+          rm -rf "$bin"
+          GITONE_VERSION="${TAG#v}" install_gitone
+          test "$("$gitone" --version | tr -d '\r')" = "$want"
