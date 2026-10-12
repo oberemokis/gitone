@@ -105,10 +105,12 @@ func (m Model) navigate(key tea.KeyPressMsg, count int) (next Model, cmd tea.Cmd
 	return m, nil, false
 }
 
-// list это окно-список поверх диффа: заголовок, строки с курсором и последняя
-// строка с подсказкой или вопросом.
+// list это окно-список поверх диффа: заголовок с закрытием, пустая строка,
+// строки с курсором и последняя строка с подсказкой или вопросом.
 type list struct {
 	title string
+	// close это «esc close» справа от заголовка (closeHint)
+	close string
 	// наибольшая ширина окна, на узком экране оно ужимается
 	width int
 	// строки без маркера курсора
@@ -135,11 +137,12 @@ const (
 // прокручивается так, чтобы курсор оставался видимым.
 func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	width := max(min(l.width, screenWidth-8), 20)
-	shown := max(min(len(l.rows), screenHeight-6), 1)
+	// без отступов окна, заголовка с пустой строкой под ним и подсказки с
+	// пустой строкой над ней
+	shown := max(min(len(l.rows), screenHeight-7), 1)
 	if l.fill {
 		width = max(screenWidth-2*min(fillMarginX, screenWidth/8), 20)
-		// без отступов окна, заголовка и подсказки с пустой строкой над ней
-		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-5, 1)
+		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-6, 1)
 	}
 	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
 	content := width - 2*windowPaddingX
@@ -148,7 +151,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	muted := panel.Foreground(colors.TextMuted)
 
-	lines := []string{panel.Bold(true).Foreground(colors.Accent).Render(l.title)}
+	lines := []string{windowTitle(colors, content, l.title, l.close), ""}
 	if len(l.rows) == 0 {
 		for _, line := range l.empty {
 			if line != "" {
@@ -167,7 +170,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	}
 
 	// окно на весь экран держит высоту и с коротким списком
-	for l.fill && len(lines) < shown+1 {
+	for l.fill && len(lines) < shown+2 {
 		lines = append(lines, "")
 	}
 

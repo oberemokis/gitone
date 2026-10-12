@@ -54,9 +54,9 @@ func TestKeysStandOutInHints(t *testing.T) {
 		marker     string
 		key, label string
 	}{
+		// закрытие стоит в заголовке окна, его проверяет window_titles_test.go
 		{name: "окно лога", open: func(m tea.Model) tea.Model { return openAsync(m, key('l')) }, marker: "commit diff", key: "enter", label: "commit diff"},
-		{name: "закрытие в окне лога", open: func(m tea.Model) tea.Model { return openAsync(m, key('l')) }, marker: "commit diff", key: "esc", label: "close"},
-		{name: "окно коммита", open: func(m tea.Model) tea.Model { m, _ = m.Update(key('c')); return m }, marker: "cancel", key: "enter", label: "commit"},
+		{name: "окно коммита", open: func(m tea.Model) tea.Model { m, _ = m.Update(key('c')); return m }, marker: "enter", key: "enter", label: "commit"},
 		{name: "окно веток", open: func(m tea.Model) tea.Model { return openAsync(m, key('B')) }, marker: "switch", key: "enter", label: "switch"},
 	}
 

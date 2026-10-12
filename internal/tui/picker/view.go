@@ -28,9 +28,14 @@ func (m Model) View(width, height int) string {
 	panel := lipgloss.NewStyle().Background(m.colors.BackgroundPanel)
 	dim := panel.Foreground(m.colors.TextMuted)
 
+	// заголовок как у всех окон: клавиша закрытия цветом текста, подпись
+	// приглушённая; отключённое закрытие не пишется
+	closeHint := ""
+	if m.texts.CloseKey != "" {
+		closeHint = panel.Render(m.texts.CloseKey) + dim.Render(" "+m.texts.CloseLabel)
+	}
 	rows := []string{
-		// клавиша закрытия цветом текста, как все клавиши в подсказках
-		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), panel.Render(m.texts.CloseKey)),
+		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), closeHint),
 		justify(panel, contentWidth, "", ""),
 		justify(panel, contentWidth, m.search(panel, dim), ""),
 		justify(panel, contentWidth, "", ""),

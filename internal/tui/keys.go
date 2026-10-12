@@ -26,9 +26,9 @@ func firstKey(keys keymap.Keymap, action keymap.Action) string {
 }
 
 // windowHint это строка подсказки окна: первая клавиша и подпись каждого
-// действия в заданном порядке, закрытие последним. Отключённое действие в
-// подсказку не идёт, как в подвале. Каждый кусок несёт фон окна сам: вложенный
-// стиль со сбросом иначе погасил бы его.
+// действия в заданном порядке. Закрытие стоит в заголовке окна (closeHint).
+// Отключённое действие в подсказку не идёт, как в подвале. Каждый кусок несёт
+// фон окна сам: вложенный стиль со сбросом иначе погасил бы его.
 func windowHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, actions ...keymap.Action) string {
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 
@@ -46,6 +46,25 @@ func windowHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, ac
 // текста, подпись приглушённая, чтобы клавиша не терялась рядом с ней (#89).
 func keyHint(base lipgloss.Style, colors theme.Theme, key, label string) string {
 	return base.Render(key) + base.Foreground(colors.TextMuted).Render(" "+label)
+}
+
+// closeHint это «esc close» для заголовка окна по его действию закрытия.
+// Отключённое закрытие даёт пустую строку, как в подсказках.
+func closeHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, action keymap.Action) string {
+	key := firstKey(keys, action)
+	if key == "" {
+		return ""
+	}
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	return keyHint(panel, colors, key, text.Text("window.close", nil))
+}
+
+// windowTitle это заголовок окна шириной width, у всех окон как у справки:
+// жирное название слева, закрытие справа (#107).
+func windowTitle(colors theme.Theme, width int, title, close string) string {
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	return justify(panel, width, panel.Bold(true).Render(title), close)
 }
 
 // questionArgs подставляет в вопрос клавишу ответа «да».

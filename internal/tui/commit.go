@@ -65,11 +65,12 @@ func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, sub
 	width := max(min(60, screenWidth-8), 20)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	title := panel.Bold(true).Foreground(colors.Accent).Render(text.Text("commit.title", nil))
+	content := width - 2*windowPaddingX
+	title := windowTitle(colors, content, text.Text("commit.title", nil), closeHint(colors, keys, text, keymap.CommitClose))
 	input := panel.Render("> " + subject + "_")
 	// подсказка обрезается: длинная переназначенная клавиша перенесла бы строку
-	hintText := windowHint(colors, keys, text, keymap.CommitSubmit, keymap.CommitClose)
-	hint := ansi.Truncate(hintText, width-2*windowPaddingX, panel.Foreground(colors.TextMuted).Render("…"))
+	hintText := windowHint(colors, keys, text, keymap.CommitSubmit)
+	hint := ansi.Truncate(hintText, content, panel.Foreground(colors.TextMuted).Render("…"))
 
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join([]string{title, "", input, "", hint}, "\n"))
 }

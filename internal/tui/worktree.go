@@ -68,9 +68,10 @@ func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, w
 
 	return list{
 		title:  text.Text("worktrees.title", nil),
+		close:  closeHint(colors, keys, text, keymap.ListClose),
 		width:  90,
 		rows:   rows,
 		cursor: cursor,
-		hint:   windowHint(colors, keys, text, keymap.WorktreesSwitch, keymap.ListClose),
+		hint:   windowHint(colors, keys, text, keymap.WorktreesSwitch),
 	}.view(colors, screenWidth, screenHeight)
 }
