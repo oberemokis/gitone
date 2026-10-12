@@ -556,18 +556,11 @@ func (m Model) panes(placed layout.Placed) string {
 }
 
 // labels это подписи файлов для панели: имя и статус, если он не просто
-// изменён.
+// изменён. Отметки индекса нет (#99): она загромождала список.
 func (m Model) labels() []string {
 	labels := make([]string, len(m.files))
 	for index, file := range m.files {
-		// отметка занимает ту же ширину, что и её отсутствие, иначе имена
-		// разъедутся по панели
-		mark := "  "
-		if m.staged[stagedKey(file)] {
-			mark = "● "
-		}
-
-		labels[index] = mark + fileTitle(file, m.text)
+		labels[index] = fileTitle(file, m.text)
 		if status := statusLabel(file.Status, m.text); status != "" {
 			labels[index] += " " + status
 		}

@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"gitone/internal/git"
 	"gitone/internal/layout"
 )
 
@@ -49,16 +50,18 @@ func TestTickLeavesFooterAlone(t *testing.T) {
 	}
 }
 
-// git add из другого терминала: отметка индекса появляется без нажатия.
-func TestTickShowsStageFromOutside(t *testing.T) {
-	repo, model := editedRepo(t, oneTick(), layout.Default())
-	model = toggleFiles(model)
+// git add из другого терминала: после тика gitone знает, что файл в индексе,
+// и пробел убирает его оттуда, а не ставит второй раз.
+func TestTickLearnsStageFromOutside(t *testing.T) {
+	repo, model := editedRepo(t, oneTick(), layout.Focus())
 
 	runGit(t, repo, "add", "a.txt")
 	model = settle(model, model.Init(), 3)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	settle(model, cmd, 4)
 
-	if body := screenText(model); !strings.Contains(body, "● a.txt") {
-		t.Fatalf("после тика нет отметки индекса:\n%s", body)
+	if staged, err := git.StagedPaths(repo); err != nil || len(staged) != 0 {
+		t.Fatalf("в индексе %q, ошибка %v, want пробел убрал файл", staged, err)
 	}
 }
 

@@ -72,9 +72,23 @@ func TestFilesPanelHasPanelBackgroundWithoutBorder(t *testing.T) {
 	}
 }
 
-// markedFile узнаёт текущий файл по стрелке на той же строке, что и имя. Между
-// стрелкой и именем может стоять отметка индекса, поэтому точная строка не
-// подходит.
+// Внутри панели отступы, как у окон: сверху пустая строка, слева две колонки.
+func TestFilesPanelPadding(t *testing.T) {
+	screen := screenOf(toggleFiles(openLayout(t, layout.Default(), 100)))
+
+	// панель шириной 20 колонок из 100
+	if top := strings.TrimSpace(screen[bodyRow][:20]); top != "" {
+		t.Errorf("над списком не пустая строка: %q", screen[bodyRow])
+	}
+	if first := screen[bodyRow+1]; !strings.HasPrefix(first, "  › a.txt") {
+		t.Errorf("первая строка списка %q, want «  › a.txt»", first)
+	}
+	if second := screen[bodyRow+2]; !strings.HasPrefix(second, "    b.txt") {
+		t.Errorf("вторая строка списка %q, want «    b.txt»", second)
+	}
+}
+
+// markedFile узнаёт текущий файл по стрелке на той же строке, что и имя.
 func markedFile(screen []string, name string) bool {
 	for _, line := range screen {
 		if strings.Contains(line, "›") && strings.Contains(line, name) {
@@ -118,8 +132,8 @@ func TestFilesPanelSide(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			screen := screenOf(toggleFiles(openLayout(t, tc.root, 100)))
 
-			// первая строка тела: строка панели с текущим файлом
-			line := screen[bodyRow]
+			// вторая строка тела: под отступом панели строка с текущим файлом
+			line := screen[bodyRow+1]
 			marker := strings.Index(line, "›")
 			if marker < 0 {
 				t.Fatalf("панели нет на экране: %q", line)

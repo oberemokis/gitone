@@ -12,6 +12,13 @@ import (
 	"gitone/internal/tui/theme"
 )
 
+// Отступы внутри панели как у окон: пустая строка сверху, две колонки по
+// бокам.
+const (
+	paddingTop = 1
+	paddingX   = 2
+)
+
 // View рисует список в прямоугольнике width на height на фоне окон, без рамки:
 // от диффа панель отделяет цвет, как окна поверх него. Текущий файл помечен,
 // а длинный список прокручивается так, чтобы текущий оставался на экране.
@@ -21,20 +28,26 @@ func View(labels []string, current int, empty string, colors theme.Theme, width,
 		return ""
 	}
 
+	listHeight := max(height-paddingTop, 1)
 	start := 0
-	if current >= height {
-		start = current - height + 1
+	if current >= listHeight {
+		start = current - listHeight + 1
 	}
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	accent := panel.Foreground(colors.Primary)
-	// последняя колонка пустая, чтобы имя не упиралось в дифф
+	pad := strings.Repeat(" ", paddingX)
 	row := func(style lipgloss.Style, text string) string {
-		text = ansi.Truncate(text, max(width-1, 0), "…")
+		if text != "" {
+			text = ansi.Truncate(pad+text, max(width-paddingX, 0), "…")
+		}
 		return style.Render(text + strings.Repeat(" ", max(width-ansi.StringWidth(text), 0)))
 	}
 
 	rows := make([]string, 0, height)
+	for range min(paddingTop, height) {
+		rows = append(rows, row(panel, ""))
+	}
 	if len(labels) == 0 {
 		rows = append(rows, row(panel.Foreground(colors.TextMuted), "  "+empty))
 	}
