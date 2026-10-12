@@ -37,6 +37,7 @@ const (
 	AppLog           Action = "app.log"
 	DiffWorkingTree  Action = "diff.workingTree"
 	AppBranches      Action = "app.branches"
+	AppWorktrees     Action = "app.worktrees"
 	StashPush        Action = "stash.push"
 	StashList        Action = "stash.list"
 	HelpClose        Action = "help.close"
@@ -56,21 +57,22 @@ const (
 // Действия окон. Окно забирает нажатия целиком, поэтому эти действия ищутся
 // только в своём окне, а глобальные внутри окна не действуют.
 const (
-	ListUp         Action = "list.up"
-	ListDown       Action = "list.down"
-	ListClose      Action = "list.close"
-	LogOpen        Action = "log.open"
-	BranchesSwitch Action = "branches.switch"
-	StashDiff      Action = "stash.diff"
-	StashApply     Action = "stash.apply"
-	StashDrop      Action = "stash.drop"
-	QuestionYes    Action = "question.yes"
-	SearchChoose   Action = "search.choose"
-	SearchClose    Action = "search.close"
-	SearchUp       Action = "search.up"
-	SearchDown     Action = "search.down"
-	CommitSubmit   Action = "commit.submit"
-	CommitClose    Action = "commit.close"
+	ListUp          Action = "list.up"
+	ListDown        Action = "list.down"
+	ListClose       Action = "list.close"
+	LogOpen         Action = "log.open"
+	BranchesSwitch  Action = "branches.switch"
+	WorktreesSwitch Action = "worktrees.switch"
+	StashDiff       Action = "stash.diff"
+	StashApply      Action = "stash.apply"
+	StashDrop       Action = "stash.drop"
+	QuestionYes     Action = "question.yes"
+	SearchChoose    Action = "search.choose"
+	SearchClose     Action = "search.close"
+	SearchUp        Action = "search.up"
+	SearchDown      Action = "search.down"
+	CommitSubmit    Action = "commit.submit"
+	CommitClose     Action = "commit.close"
 )
 
 // Группа в справке. Порядок групп задаёт первое появление категории в
@@ -137,12 +139,13 @@ func (k Keymap) Is(action Action, key string) bool {
 
 // windows это действия, которые действуют разом в одном окне. Конфликт
 // клавиш ищется внутри окна: с глобальными действиями окно не конфликтует,
-// потому что забирает нажатия целиком. Навигация общая у трёх списков.
+// потому что забирает нажатия целиком. Навигация общая у всех списков.
 func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
 		append([]Action{LogOpen}, list...),
 		append([]Action{BranchesSwitch}, list...),
+		append([]Action{WorktreesSwitch}, list...),
 		append([]Action{StashDiff, StashApply, StashDrop}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
@@ -364,6 +367,7 @@ func defaults() []Binding {
 		{Action: AppLog, Category: CategoryDiff, Keys: []string{"l"}, Help: true},
 		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Help: true},
 		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Help: true},
+		{Action: AppWorktrees, Category: CategoryGeneral, Keys: []string{"W"}, Help: true},
 		{Action: StashPush, Category: CategoryFiles, Keys: []string{"z"}, Help: true},
 		{Action: StashList, Category: CategoryFiles, Keys: []string{"Z"}, Help: true},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Help: true},
@@ -386,6 +390,7 @@ func defaults() []Binding {
 		{Action: ListClose, Keys: []string{"esc"}},
 		{Action: LogOpen, Keys: []string{"enter"}},
 		{Action: BranchesSwitch, Keys: []string{"enter"}},
+		{Action: WorktreesSwitch, Keys: []string{"enter"}},
 		{Action: StashDiff, Keys: []string{"enter"}},
 		{Action: StashApply, Keys: []string{"a"}},
 		{Action: StashDrop, Keys: []string{"d"}},

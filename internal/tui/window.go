@@ -22,6 +22,7 @@ const (
 	commitWindow
 	logWindow
 	branchWindow
+	worktreeWindow
 	stashWindow
 	// вопросы y/n: любая клавиша отвечает на них, ctrl c тоже это «нет»
 	stashDropWindow
@@ -41,6 +42,8 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.logKey(key)
 	case branchWindow:
 		return m.branchKey(key)
+	case worktreeWindow:
+		return m.worktreeKey(key)
 	case stashWindow:
 		return m.stashKey(key)
 	}
@@ -68,6 +71,8 @@ func (m Model) windowBox() string {
 		return logBox(m.colors, m.text, m.keys, m.logEntries, m.cursor, width, height)
 	case branchWindow:
 		return branchBox(m.colors, m.text, m.keys, m.branches, m.cursor, width, height)
+	case worktreeWindow:
+		return worktreeBox(m.colors, m.text, m.keys, m.worktrees, m.cursor, width, height)
 	case stashWindow, stashDropWindow:
 		return stashBox(m.colors, m.text, m.keys, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
 	}

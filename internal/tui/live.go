@@ -16,9 +16,10 @@ import (
 // tickMsg приходит от таймера опроса.
 type tickMsg struct{}
 
-// polledMsg несёт итог опроса и аргументы, с которыми он читал дифф.
+// polledMsg несёт итог опроса, каталог и аргументы, с которыми он читал дифф.
 type polledMsg struct {
 	reloadMsg
+	dir  string
 	args []string
 }
 
@@ -54,17 +55,17 @@ func (m Model) poll() (Model, tea.Cmd) {
 	m.polling = true
 	dir, args := m.dir, m.args
 	return m, func() tea.Msg {
-		return polledMsg{reloadMsg: readDiff(dir, args), args: args}
+		return polledMsg{reloadMsg: readDiff(dir, args), dir: dir, args: args}
 	}
 }
 
 // polled ставит итог опроса. Ошибку покажет r: опрос повторял бы её каждые
-// две секунды. Опрос со старыми аргументами (пока он шёл, открыли коммит из
-// лога) и одинаковый дифф экран не трогают, подсветка не пересчитывается
-// впустую.
+// две секунды. Опрос со старым каталогом или аргументами (пока он шёл,
+// переключили worktree или открыли коммит из лога) и одинаковый дифф экран не
+// трогают, подсветка не пересчитывается впустую.
 func (m Model) polled(msg polledMsg) Model {
 	m.polling = false
-	if msg.err != nil || m.loading || !slices.Equal(msg.args, m.args) {
+	if msg.err != nil || m.loading || msg.dir != m.dir || !slices.Equal(msg.args, m.args) {
 		return m
 	}
 
