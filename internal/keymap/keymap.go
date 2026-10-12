@@ -27,6 +27,8 @@ const (
 	FilesPick        Action = "files.pick"
 	FilesNext        Action = "files.next"
 	FilesPrevious    Action = "files.previous"
+	FilesStage       Action = "files.stage"
+	FilesDiscard     Action = "files.discard"
 	HelpClose        Action = "help.close"
 	DiffToggleMode   Action = "diff.toggleMode"
 	DiffReload       Action = "diff.reload"
@@ -214,6 +216,8 @@ func defaults() []Binding {
 		{Action: AppHelp, Category: CategoryGeneral, Keys: []string{"?"}, Label: "help", Description: "Toggle this help"},
 		{Action: FilesNext, Category: CategoryFiles, Keys: []string{"]"}, Description: "Next file"},
 		{Action: FilesPrevious, Category: CategoryFiles, Keys: []string{"["}, Description: "Previous file"},
+		{Action: FilesStage, Category: CategoryFiles, Keys: []string{"space"}, Description: "Stage or unstage file"},
+		{Action: FilesDiscard, Category: CategoryFiles, Keys: []string{"x"}, Description: "Discard file changes"},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Description: "Scroll down"},
 		{Action: DiffScrollUp, Category: CategoryDiff, Keys: []string{"k", "up"}, Description: "Scroll up"},
 		{Action: DiffHalfPageDown, Category: CategoryDiff, Keys: []string{"ctrl+d"}, Description: "Half page down"},
