@@ -490,7 +490,7 @@ func (m Model) View() tea.View {
 	if m.ui.PaneTitles {
 		rows = append(rows, "", title, "")
 	}
-	rows = append(rows, m.body(), m.footerLine())
+	rows = append(rows, m.body(), "", m.footerLine(), "")
 
 	view.Content = lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return view

@@ -41,7 +41,7 @@ func TestDiscardNeedsYes(t *testing.T) {
 
 	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "Discard changes") {
+	if footer := footerOf(model); !strings.Contains(footer, "Discard changes") {
 		t.Fatalf("вопроса нет в подвале: %q", footer)
 	}
 

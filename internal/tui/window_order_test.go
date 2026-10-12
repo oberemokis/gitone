@@ -62,7 +62,7 @@ func TestLateLogErrorReachesFooter(t *testing.T) {
 	model, _ = model.Update(logCmd())
 
 	screen := screenOf(model)
-	if footer := screen[len(screen)-1]; !strings.Contains(footer, "not a git repository") {
+	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "not a git repository") {
 		t.Fatalf("в подвале %q, ожидалась ошибка git", footer)
 	}
 	if !strings.Contains(strings.Join(screen, "\n"), "> тема") {
@@ -84,9 +84,9 @@ func TestLongStashListUsesCommonMargin(t *testing.T) {
 	model, _ = model.Update(cmd())
 
 	shown := strings.Count(strings.Join(screenOf(model), "\n"), "stash@{")
-	// высота 20: заголовок с пустыми строками над и под ним и подвал
-	// оставляют телу 16 строк
-	if want := 16 - 6; shown != want {
+	// высота 20: заголовок и подвал, оба с пустыми строками над и под ними,
+	// оставляют телу 14 строк
+	if want := 14 - 6; shown != want {
 		t.Fatalf("строк stash на экране %d, ожидалось %d", shown, want)
 	}
 }

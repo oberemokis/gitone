@@ -59,12 +59,12 @@ func TestSettingsErrorShowsInFooterUntilKey(t *testing.T) {
 	opts.Notice = notice
 	model := resize(tui.New(opts, nil), 100, 20)
 
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "«wide»") {
+	if footer := footerOf(model); !strings.Contains(footer, "«wide»") {
 		t.Fatalf("в подвале %q, ожидался текст ошибки настроек", footer)
 	}
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if footer := screenOf(model)[len(screenOf(model))-1]; strings.Contains(footer, "«wide»") || !strings.Contains(footer, "quit") {
+	if footer := footerOf(model); strings.Contains(footer, "«wide»") || !strings.Contains(footer, "quit") {
 		t.Fatalf("после нажатия подвал %q, ожидались подсказки", footer)
 	}
 }

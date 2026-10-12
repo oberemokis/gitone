@@ -49,7 +49,7 @@ func TestPaneTitlesOffFreesThreeRows(t *testing.T) {
 
 	countBody := func(screen []string) int {
 		count := 0
-		for _, line := range screen[:len(screen)-1] {
+		for _, line := range screen[:footerRow(screen)] {
 			if strings.Contains(line, "l") {
 				count++
 			}
@@ -76,12 +76,12 @@ func TestKeyHintsOffKeepsStatusLine(t *testing.T) {
 	cfg := uiSettings(func(ui *config.UI) { ui.KeyHints = false })
 
 	screen := openWithUI(t, repo, cfg, "")
-	if footer := screen[len(screen)-1]; strings.Contains(footer, "quit") {
+	if footer := screen[footerRow(screen)]; strings.Contains(footer, "quit") {
 		t.Fatalf("подсказки остались в подвале: %q", footer)
 	}
 
 	screen = openWithUI(t, repo, cfg, "config.json: ошибка в настройках")
-	if footer := screen[len(screen)-1]; !strings.Contains(footer, "ошибка в настройках") {
+	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "ошибка в настройках") {
 		t.Fatalf("ошибка не видна в подвале: %q", footer)
 	}
 }

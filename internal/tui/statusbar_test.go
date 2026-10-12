@@ -85,6 +85,29 @@ func TestTickUpdatesBranch(t *testing.T) {
 	}
 }
 
+// Над подвалом и под ним пустые строки, даже когда дифф длиннее экрана и
+// когда поверх лежит окно на весь экран.
+func TestFooterHasBlankRowsAround(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", numberedLines(80))
+	commitAll(t, repo)
+	write(t, repo, "a.txt", strings.ReplaceAll(numberedLines(80), "l", "m"))
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+
+	for name, screen := range map[string][]string{
+		"дифф":      screenOf(model),
+		"окно лога": screenOf(openAsync(model, key('l'))),
+	} {
+		last := len(screen) - 1
+		if strings.TrimSpace(screen[last]) != "" || strings.TrimSpace(screen[last-2]) != "" {
+			t.Errorf("%s: вокруг подвала не пустые строки: %q, %q", name, screen[last-2], screen[last])
+		}
+		if !strings.Contains(screen[last-1], "q quit") {
+			t.Errorf("%s: подвал не в предпоследней строке: %q", name, screen[last-1])
+		}
+	}
+}
+
 // Счётчик файлов переехал из подвала в заголовок.
 func TestHeaderShowsFileCounter(t *testing.T) {
 	_, model := threeFileRepo(t)
