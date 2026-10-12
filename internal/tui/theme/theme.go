@@ -35,6 +35,12 @@ type Theme struct {
 	SyntaxString        color.Color
 	SyntaxComment       color.Color
 	SyntaxNumber        color.Color
+	SyntaxFunction      color.Color
+	SyntaxType          color.Color
+	SyntaxConstant      color.Color
+	SyntaxProperty      color.Color
+	SyntaxOperator      color.Color
+	SyntaxTag           color.Color
 	Error               color.Color
 }
 
@@ -58,7 +64,15 @@ func Dark() Theme {
 		SyntaxString:        lipgloss.Color("#a5d6ff"),
 		SyntaxComment:       lipgloss.Color("#6e7681"),
 		SyntaxNumber:        lipgloss.Color("#79c0ff"),
-		Error:               lipgloss.Color("#f85149"),
+		// цвета кода в духе GitHub Dark: функции сиреневым, типы оранжевым,
+		// операторы цветом ключевых слов
+		SyntaxFunction: lipgloss.Color("#d2a8ff"),
+		SyntaxType:     lipgloss.Color("#ffa657"),
+		SyntaxConstant: lipgloss.Color("#79c0ff"),
+		SyntaxProperty: lipgloss.Color("#9cdcfe"),
+		SyntaxOperator: lipgloss.Color("#ff7b72"),
+		SyntaxTag:      lipgloss.Color("#7ee787"),
+		Error:          lipgloss.Color("#f85149"),
 	}
 }
 
@@ -134,6 +148,12 @@ func (t *Theme) fields() map[string]*color.Color {
 		"syntaxString":        &t.SyntaxString,
 		"syntaxComment":       &t.SyntaxComment,
 		"syntaxNumber":        &t.SyntaxNumber,
+		"syntaxFunction":      &t.SyntaxFunction,
+		"syntaxType":          &t.SyntaxType,
+		"syntaxConstant":      &t.SyntaxConstant,
+		"syntaxProperty":      &t.SyntaxProperty,
+		"syntaxOperator":      &t.SyntaxOperator,
+		"syntaxTag":           &t.SyntaxTag,
 		"error":               &t.Error,
 	}
 }

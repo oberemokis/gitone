@@ -24,10 +24,11 @@ const (
 
 type Model struct {
 	file diff.File
-	// язык файла по имени: без него подсветки синтаксиса нет
-	lexer  syntax.Lexer
-	colors theme.Theme
-	mode   Mode
+	// подсветка синтаксиса старой и новой стороны по номеру строки, считается
+	// при открытии файла (highlight.go)
+	oldCode, newCode code
+	colors           theme.Theme
+	mode             Mode
 	// с этой ширины auto выбирает split, по умолчанию 120 (diff.autoSplitMinWidth)
 	autoSplitMinWidth int
 	width             int
@@ -75,11 +76,11 @@ func (m Model) Reload(file diff.File) Model {
 	return m.withFile(file).rebuild()
 }
 
-// withFile ставит файл и выбирает язык по его пути. У удалённого файла путь
-// старый, у переименованного новый.
+// withFile ставит файл и размечает его код. Язык выбирается по пути: у
+// удалённого файла путь старый, у переименованного новый.
 func (m Model) withFile(file diff.File) Model {
 	m.file = file
-	m.lexer = syntax.Detect(cmp.Or(file.NewPath, file.OldPath))
+	m.oldCode, m.newCode = highlight(syntax.Detect(cmp.Or(file.NewPath, file.OldPath)), file)
 	return m
 }
 
