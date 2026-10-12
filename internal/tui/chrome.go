@@ -82,13 +82,23 @@ func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Bindin
 	return strings.Join(hints, "   ")
 }
 
-// locationLabel это ветка и приглушённое имя worktree для левого края.
-func locationLabel(location git.Location, colors theme.Theme) string {
+// locationLabel это ветка и worktree для левого края, каждое со своей
+// клавишей окна, как подсказки справа: «B main   W gitone» (#108). Клавиша
+// берётся из keymap, отключённое окно оставляет одно имя.
+func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap) string {
 	if location.Branch == "" {
 		return ""
 	}
 
-	return location.Branch + "  " + lipgloss.NewStyle().Foreground(colors.TextMuted).Render(location.Worktree)
+	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
+	pair := func(action keymap.Action, name string) string {
+		if key := firstKey(keys, action); key != "" {
+			return keyHint(lipgloss.NewStyle(), colors, key, name)
+		}
+		return muted.Render(name)
+	}
+
+	return pair(keymap.AppBranches, location.Branch) + "   " + pair(keymap.AppWorktrees, location.Worktree)
 }
 
 // spinnerFrames это спиннер из точек Брайля, как у opencode и lazygit.
