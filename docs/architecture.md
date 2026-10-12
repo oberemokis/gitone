@@ -35,15 +35,15 @@ gitone/
 ## Граф зависимостей
 
 ```
-cmd/gitone             → tui
-tui                    → diffview, picker, theme, git, diff
+cmd/gitone             → tui, config
+tui                    → diffview, picker, theme, git, diff, config
 diffview               → diff, theme
 picker                 → theme
 theme                  → ничего из проекта
 config, git, diff      → ничего из проекта
 ```
 
-Дальше добавятся: `tui → pane/*, keymap, layout, config`, `pane/* → keymap, theme, git, diff`, `keymap, layout, theme → config` и `cmd/gitone → config`, когда появятся конфиги.
+Дальше добавятся: `tui → pane/*, keymap, layout`, `pane/* → keymap, theme, git, diff`, `keymap, layout, theme → config`.
 
 Стрелка разрешает импорт, всё, чего нет на схеме, запрещено. Панели не знают друг друга и не знают корня. Листья `config`, `git` и `diff` не знают ни терминала, ни друг друга.
 

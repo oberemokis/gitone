@@ -12,10 +12,11 @@ import (
 // ошибка: новый пакет сначала получает место в графе.
 var allowedImports = map[string][]string{
 	"gitone":            {},
-	"gitone/cmd/gitone": {"gitone/internal/tui"},
+	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config"},
 	"gitone/internal/tui": {
 		"gitone/internal/git",
 		"gitone/internal/diff",
+		"gitone/internal/config",
 		"gitone/internal/tui/diffview",
 		"gitone/internal/tui/picker",
 		"gitone/internal/tui/theme",
