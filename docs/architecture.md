@@ -30,20 +30,20 @@ gitone/
 └── Makefile
 ```
 
-Сейчас существуют `cmd/gitone`, `config`, `keymap`, `git`, `diff`, `tui`, `tui/diffview`, `tui/picker` и `tui/theme`. Остальные пакеты появятся вместе с первым кодом, которому они нужны, и в тот же момент попадут в таблицу `architecture_test.go`.
+Сейчас существуют `cmd/gitone`, `config`, `keymap`, `layout`, `git`, `diff`, `tui`, `tui/diffview`, `tui/pane/files`, `tui/picker` и `tui/theme`. Остальные пакеты появятся вместе с первым кодом, которому они нужны, и в тот же момент попадут в таблицу `architecture_test.go`.
 
 ## Граф зависимостей
 
 ```
-cmd/gitone             → tui, config, keymap
-tui                    → diffview, picker, theme, git, diff, config, keymap
+cmd/gitone             → tui, config, keymap, layout, theme
+tui                    → diffview, pane/files, picker, theme, git, diff, config, keymap, layout
 diffview               → diff, theme
 picker                 → theme
 theme                  → ничего из проекта
 config, keymap, git, diff → ничего из проекта
 ```
 
-Дальше добавятся: `tui → pane/*, keymap, layout`, `pane/* → keymap, theme, git, diff`, `keymap, layout, theme → config`.
+Дальше добавятся: `pane/* → keymap, theme, git, diff`, `keymap, layout, theme → config`.
 
 Стрелка разрешает импорт, всё, чего нет на схеме, запрещено. Панели не знают друг друга и не знают корня. Листья `config`, `git` и `diff` не знают ни терминала, ни друг друга.
 
