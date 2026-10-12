@@ -32,6 +32,7 @@ const (
 	FilesCommit      Action = "files.commit"
 	AppLog           Action = "app.log"
 	DiffWorkingTree  Action = "diff.workingTree"
+	AppBranches      Action = "app.branches"
 	HelpClose        Action = "help.close"
 	DiffToggleMode   Action = "diff.toggleMode"
 	DiffReload       Action = "diff.reload"
@@ -224,6 +225,7 @@ func defaults() []Binding {
 		{Action: FilesCommit, Category: CategoryFiles, Keys: []string{"c"}, Description: "Commit staged changes"},
 		{Action: AppLog, Category: CategoryDiff, Keys: []string{"l"}, Description: "Commit log"},
 		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Description: "Working tree diff"},
+		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Description: "Branches"},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Description: "Scroll down"},
 		{Action: DiffScrollUp, Category: CategoryDiff, Keys: []string{"k", "up"}, Description: "Scroll up"},
 		{Action: DiffHalfPageDown, Category: CategoryDiff, Keys: []string{"ctrl+d"}, Description: "Half page down"},
