@@ -5,5 +5,5 @@ package git
 // или пустой индекс приходят ошибкой git.
 func Commit(dir string, subject string) error {
 	_, err := inRoot(dir, "commit", "-m", subject)
-	return err
+	return failed("commit", err)
 }

@@ -12,7 +12,7 @@ type Branch struct {
 func Branches(dir string) ([]Branch, error) {
 	out, err := inRoot(dir, "for-each-ref", "--format=%(refname:short)%09%(HEAD)", "refs/heads")
 	if err != nil {
-		return nil, err
+		return nil, failed("branch", err)
 	}
 
 	var branches []Branch
@@ -33,5 +33,5 @@ func Branches(dir string) ([]Branch, error) {
 // возвращается ошибкой.
 func Switch(dir string, name string) error {
 	_, err := inRoot(dir, "switch", "--", name)
-	return err
+	return failed("switch", err)
 }
