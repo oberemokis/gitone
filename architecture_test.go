@@ -12,23 +12,27 @@ import (
 // ошибка: новый пакет сначала получает место в графе.
 var allowedImports = map[string][]string{
 	"gitone":            {},
-	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/keymap", "gitone/internal/tui/theme"},
+	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/keymap", "gitone/internal/tui/theme", "gitone/internal/layout"},
 	"gitone/internal/tui": {
 		"gitone/internal/git",
 		"gitone/internal/diff",
 		"gitone/internal/config",
 		"gitone/internal/keymap",
+		"gitone/internal/layout",
 		"gitone/internal/tui/diffview",
+		"gitone/internal/tui/pane/files",
 		"gitone/internal/tui/picker",
 		"gitone/internal/tui/theme",
 	},
-	"gitone/internal/tui/diffview": {"gitone/internal/diff", "gitone/internal/tui/theme"},
-	"gitone/internal/tui/picker":   {"gitone/internal/tui/theme"},
-	"gitone/internal/tui/theme":    {"gitone/internal/config"},
-	"gitone/internal/config":       {},
-	"gitone/internal/keymap":       {},
-	"gitone/internal/git":          {},
-	"gitone/internal/diff":         {},
+	"gitone/internal/tui/diffview":   {"gitone/internal/diff", "gitone/internal/tui/theme"},
+	"gitone/internal/tui/pane/files": {"gitone/internal/tui/theme"},
+	"gitone/internal/tui/picker":     {"gitone/internal/tui/theme"},
+	"gitone/internal/tui/theme":      {"gitone/internal/config"},
+	"gitone/internal/layout":         {"gitone/internal/config"},
+	"gitone/internal/config":         {},
+	"gitone/internal/keymap":         {},
+	"gitone/internal/git":            {},
+	"gitone/internal/diff":           {},
 }
 
 func TestImportDirections(t *testing.T) {
