@@ -2,6 +2,7 @@ package diffview
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -46,7 +47,7 @@ func (m Model) renderUnified(row diff.UnifiedRow) string {
 		return m.noNewline(m.width, 2)
 	}
 
-	return m.cell(m.width, row.Line, []int{row.OldNumber, row.NewNumber}, row.Text)
+	return m.cell(m.width, row.Line, []int{row.OldNumber, row.NewNumber}, row.Text, row.Changed)
 }
 
 // renderSplit делит ширину пополам. Половина без строки остаётся пустой и без
@@ -68,14 +69,15 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell) string {
 		return m.noNewline(width, 1)
 	}
 
-	return m.cell(width, side.Kind, []int{side.Number}, side.Text)
+	return m.cell(width, side.Kind, []int{side.Number}, side.Text, side.Changed)
 }
 
 // cell рисует строку файла шириной ровно width: номера, знак и текст,
 // обрезанный по краю. Каждый кусок несёт фон строки сам: вложенный стиль
 // со сбросом иначе гасит фон до конца строки.
-func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string) string {
+func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, changed []diff.Span) string {
 	base := lipgloss.NewStyle()
+	wordBg := m.colors.DiffAddedWordBg
 	marker := " "
 	switch kind {
 	case diff.LineAdded:
@@ -83,6 +85,7 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string) s
 		marker = "+"
 	case diff.LineRemoved:
 		base = base.Background(m.colors.DiffRemovedBg)
+		wordBg = m.colors.DiffRemovedWordBg
 		marker = "-"
 	}
 
@@ -95,7 +98,59 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string) s
 		prefix = strings.Join(columns, " ") + " " + marker + " "
 	}
 
-	return base.Foreground(m.colors.TextMuted).Render(prefix) + base.Render(fill(width-ansi.StringWidth(prefix), text))
+	return base.Foreground(m.colors.TextMuted).Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), base, wordBg, text, changed)
+}
+
+// textCells рисует текст ровно на width клеток. Изменённые слова идут с фоном
+// слов, остальное с фоном строки. Таб раскрывается до обрезки, поэтому отрезки
+// относятся к исходному тексту, а ширина считается по раскрытому.
+func (m Model) textCells(width int, base lipgloss.Style, wordBg color.Color, text string, changed []diff.Span) string {
+	var out strings.Builder
+	left := max(width, 0)
+
+	for _, piece := range pieces(text, changed) {
+		if left == 0 {
+			break
+		}
+
+		content := ansi.Truncate(strings.ReplaceAll(piece.text, "\t", tabSpaces), left, "")
+		style := base
+		if piece.changed {
+			style = base.Background(wordBg)
+		}
+
+		out.WriteString(style.Render(content))
+		left -= ansi.StringWidth(content)
+	}
+
+	return out.String() + base.Render(strings.Repeat(" ", left))
+}
+
+// piece это кусок строки: слово из пары или остальной текст.
+type piece struct {
+	text    string
+	changed bool
+}
+
+// pieces режет текст по отрезкам. Отрезки идут по возрастанию и не
+// пересекаются, как их отдаёт пакет diff.
+func pieces(text string, changed []diff.Span) []piece {
+	var result []piece
+	at := 0
+
+	for _, span := range changed {
+		if span.Start > at {
+			result = append(result, piece{text: text[at:span.Start]})
+		}
+		result = append(result, piece{text: text[span.Start:span.End], changed: true})
+		at = span.End
+	}
+
+	if at < len(text) {
+		result = append(result, piece{text: text[at:]})
+	}
+
+	return result
 }
 
 // noNewline ставит пометку туда, где у строки начинается текст: под колонки
