@@ -31,6 +31,11 @@ func TestLoad(t *testing.T) {
 	}{
 		{name: "нет файла", missing: true, want: config.Default()},
 		{name: "режим из файла", content: `{"diff":{"mode":"split"}}`, want: withMode("split")},
+		{name: "перенос строк", content: `{"diff":{"wrap":true}}`, want: func() config.Config {
+			cfg := config.Default()
+			cfg.Diff.Wrap = true
+			return cfg
+		}()},
 		{name: "неизвестное поле", content: `{"diff":{"thme":"x"}}`, want: config.Default(), wantErr: "thme"},
 		{name: "неверный тип", content: `{"diff":{"autoSplitMinWidth":"много"}}`, want: config.Default(), wantErr: "autoSplitMinWidth"},
 		{name: "неверный режим", content: `{"diff":{"mode":"wide"}}`, want: config.Default(), wantErr: "wide"},

@@ -33,6 +33,8 @@ type Config struct {
 type Diff struct {
 	Mode              string `json:"mode"`
 	AutoSplitMinWidth int    `json:"autoSplitMinWidth"`
+	// Wrap переносит длинные строки, без него они прокручиваются вбок
+	Wrap bool `json:"wrap"`
 }
 
 // UI выключает служебные элементы: false прячет элемент. Все включены по
