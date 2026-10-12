@@ -19,6 +19,7 @@ type Config struct {
 	Schema string `json:"$schema"`
 	// имя темы: встроенная dark или файл themes/<имя>.json
 	Theme string `json:"theme"`
+	UI    UI     `json:"ui"`
 	Diff  Diff   `json:"diff"`
 }
 
@@ -27,9 +28,18 @@ type Diff struct {
 	AutoSplitMinWidth int    `json:"autoSplitMinWidth"`
 }
 
+// UI выключает служебные элементы: false прячет элемент. Все включены по
+// умолчанию, полоса прокрутки и строка статуса пока не принимаются.
+type UI struct {
+	KeyHints    bool `json:"keyHints"`
+	PaneTitles  bool `json:"paneTitles"`
+	LineNumbers bool `json:"lineNumbers"`
+}
+
 func Default() Config {
 	return Config{
 		Theme: "dark",
+		UI:    UI{KeyHints: true, PaneTitles: true, LineNumbers: true},
 		Diff:  Diff{Mode: "auto", AutoSplitMinWidth: 120},
 	}
 }

@@ -32,10 +32,18 @@ type Model struct {
 	// View: Bubble Tea вызывает View на каждое сообщение.
 	lines       []line
 	numberWidth int
+	// колонка номеров скрыта: флаг меняет только рисунок, строки те же
+	hideNumbers bool
 }
 
 func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
 	return Model{colors: colors, mode: mode, autoSplitMinWidth: autoSplitMinWidth}
+}
+
+// WithoutNumbers прячет колонку номеров (ui.lineNumbers в config.json).
+func (m Model) WithoutNumbers(hide bool) Model {
+	m.hideNumbers = hide
+	return m
 }
 
 func (m Model) SetFile(file diff.File) Model {

@@ -86,11 +86,14 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string) s
 		marker = "-"
 	}
 
-	columns := make([]string, len(numbers))
-	for index, number := range numbers {
-		columns[index] = m.formatNumber(number)
+	prefix := marker + " "
+	if !m.hideNumbers {
+		columns := make([]string, len(numbers))
+		for index, number := range numbers {
+			columns[index] = m.formatNumber(number)
+		}
+		prefix = strings.Join(columns, " ") + " " + marker + " "
 	}
-	prefix := strings.Join(columns, " ") + " " + marker + " "
 
 	return base.Foreground(m.colors.TextMuted).Render(prefix) + base.Render(fill(width-ansi.StringWidth(prefix), text))
 }
@@ -98,7 +101,12 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string) s
 // noNewline ставит пометку туда, где у строки начинается текст: под колонки
 // номеров и знак.
 func (m Model) noNewline(width, numberColumns int) string {
-	indent := strings.Repeat(" ", numberColumns*(m.numberWidth+1)+2)
+	numbersWidth := numberColumns * (m.numberWidth + 1)
+	if m.hideNumbers {
+		numbersWidth = 0
+	}
+
+	indent := strings.Repeat(" ", numbersWidth+2)
 	return lipgloss.NewStyle().Foreground(m.colors.TextMuted).Render(fill(width, indent+noNewlineText))
 }
 
