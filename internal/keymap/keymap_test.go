@@ -94,6 +94,10 @@ func TestLoadWindowKeys(t *testing.T) {
 		{name: "ctrl+c в окне", content: `{"keybinds":{"list.close":"ctrl+c"}}`, wantErr: []string{"reserved", "list.close"}},
 		{name: "backspace в поле", content: `{"keybinds":{"search.close":"backspace"}}`, wantErr: []string{"reserved", "search.close"}},
 		{name: "отключение действия окна", content: `{"keybinds":{"stash.apply":"none"}}`},
+		{name: "поиск в списках", content: `{"keybinds":{"list.search":"s","listSearch.done":"tab"}}`},
+		{name: "старое имя поиска", content: `{"keybinds":{"log.search":"s"}}`, wantErr: []string{"log.search"}},
+		{name: "печатаемая клавиша в поле списка", content: `{"keybinds":{"listSearch.done":"x"}}`, wantErr: []string{"types text", "listSearch.done"}},
+		{name: "сброс поиска отключён", content: `{"keybinds":{"listSearch.cancel":"none"}}`, wantErr: []string{"cannot be disabled", "listSearch.cancel"}},
 	}
 
 	for _, tc := range tests {

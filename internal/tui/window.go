@@ -2,11 +2,13 @@ package tui
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
 )
@@ -68,11 +70,11 @@ func (m Model) windowBox() string {
 	case commitWindow:
 		return commitBox(m.colors, m.text, m.keys, m.subject, width)
 	case logWindow:
-		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.logQuery, m.logSearching, width, height)
+		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.query, m.searching, width, height)
 	case branchWindow:
-		return branchBox(m.colors, m.text, m.keys, m.branches, m.cursor, width, height)
+		return branchBox(m.colors, m.text, m.keys, m.branchesShown(), m.cursor, m.query, m.searching, width, height)
 	case worktreeWindow:
-		return worktreeBox(m.colors, m.text, m.keys, m.worktrees, m.cursor, width, height)
+		return worktreeBox(m.colors, m.text, m.keys, m.worktreesShown(), m.cursor, m.query, m.searching, width, height)
 	case stashWindow, stashDropWindow:
 		return stashBox(m.colors, m.text, m.keys, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
 	}
@@ -103,6 +105,65 @@ func (m Model) navigate(key tea.KeyPressMsg, count int) (next Model, cmd tea.Cmd
 	}
 
 	return m, nil, false
+}
+
+// searchKey разбирает поиск в списке лога, веток и worktree (#110, #118):
+// пока поле открыто, клавиши идут в него, list.search его открывает.
+// handled false значит, что клавиша остаётся окну.
+func (m Model) searchKey(key tea.KeyPressMsg) (next Model, cmd tea.Cmd, handled bool) {
+	if m.searching {
+		next, cmd = m.typeSearch(key)
+		return next, cmd, true
+	}
+	if m.keys.Is(keymap.ListSearch, key.String()) {
+		m.searching, m.query, m.cursor = true, "", 0
+		return m, nil, true
+	}
+
+	return m, nil, false
+}
+
+// typeSearch отдаёт клавиши полю поиска, как полю темы коммита: набранное
+// идёт в запрос, listSearch.done оставляет фильтр, listSearch.cancel снимает
+// его. Выйти из приложения можно по зашитому ctrl+c, стереть символ по
+// зашитому backspace. Курсор после каждой правки запроса встаёт на первую
+// найденную строку.
+func (m Model) typeSearch(key tea.KeyPressMsg) (Model, tea.Cmd) {
+	pressed := key.String()
+	switch {
+	case pressed == "ctrl+c":
+		return m, tea.Quit
+	case m.keys.Is(keymap.ListSearchCancel, pressed):
+		m.searching, m.query = false, ""
+	case m.keys.Is(keymap.ListSearchDone, pressed):
+		m.searching = false
+		return m, nil
+	case pressed == "backspace":
+		_, size := utf8.DecodeLastRuneInString(m.query)
+		m.query = m.query[:len(m.query)-size]
+	default:
+		m.query += key.Text
+	}
+
+	m.cursor = 0
+	return m, nil
+}
+
+// matching оставляет элементы, в тексте которых есть запрос без учёта
+// регистра. Без запроса список как есть.
+func matching[T any](items []T, query string, text func(T) string) []T {
+	if query == "" {
+		return items
+	}
+
+	query = strings.ToLower(query)
+	var shown []T
+	for _, item := range items {
+		if strings.Contains(strings.ToLower(text(item)), query) {
+			shown = append(shown, item)
+		}
+	}
+	return shown
 }
 
 // list это окно-список поверх диффа: заголовок с закрытием, пустая строка,
@@ -136,6 +197,24 @@ const (
 	fillMarginX = 12
 	fillMarginY = 5
 )
+
+// withSearch ставит над строками поле поиска, пока оно открыто или фильтр не
+// снят: «/ запрос», при наборе с курсором и подсказкой поля. Пустой список под
+// фильтром говорит noMatches.
+func (l list) withSearch(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, query string, typing bool, noMatches string) list {
+	if !typing && query == "" {
+		return l
+	}
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	l.search = panel.Foreground(colors.TextMuted).Render("/ ") + panel.Render(query)
+	if typing {
+		l.search += panel.Background(colors.Primary).Render(" ")
+		l.hint = windowHint(colors, keys, text, keymap.ListSearchDone, keymap.ListSearchCancel)
+	}
+	l.empty = []string{noMatches}
+	return l
+}
 
 // windowWidth это ширина окна на экране шириной screenWidth: на весь экран с
 // полями или по l.width, но не шире экрана.

@@ -53,13 +53,14 @@ type Model struct {
 	confirm    []string
 	subject    string
 	logEntries []git.LogEntry
-	// поиск в логе: запрос и открытое поле (log.go)
-	logQuery     string
-	logSearching bool
-	branches     []git.Branch
-	worktrees    []git.Worktree
-	stashes      []git.Stash
-	picker       picker.Model
+	// поиск в логе, ветках и worktree: запрос и открытое поле (window.go).
+	// Окно открыто одно, поэтому поиск общий, открытие окна его сбрасывает.
+	query     string
+	searching bool
+	branches  []git.Branch
+	worktrees []git.Worktree
+	stashes   []git.Stash
+	picker    picker.Model
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice string
 	keys   keymap.Keymap
@@ -179,6 +180,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
+			m.query, m.searching = "", false
 		}
 	case worktreesMsg:
 		switch {
@@ -186,6 +188,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.worktrees, m.cursor, m.active = msg.worktrees, currentWorktree(msg.worktrees), worktreeWindow
+			m.query, m.searching = "", false
 		}
 	case logMsg:
 		switch {
@@ -193,7 +196,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.logEntries, m.cursor, m.active = msg.entries, 0, logWindow
-			m.logQuery, m.logSearching = "", false
+			m.query, m.searching = "", false
 		}
 	}
 
