@@ -34,14 +34,15 @@ func TestLoad(t *testing.T) {
 		{name: "неверный режим", content: `{"diff":{"mode":"wide"}}`, want: Default(), wantErr: "wide"},
 		{name: "не JSON", content: `{"diff":`, want: Default(), wantErr: "config.json"},
 		{name: "текст после JSON", content: `{} {}`, want: Default(), wantErr: "config.json"},
-		{name: "ui: одно поле", content: `{"ui":{"paneTitles":false}}`, want: withUI(UI{KeyHints: true, PaneTitles: false, LineNumbers: true})},
+		{name: "ui: одно поле", content: `{"ui":{"paneTitles":false}}`, want: withUI(UI{KeyHints: true, PaneTitles: false, LineNumbers: true, AutoReload: true})},
+		{name: "ui: autoReload выключен", content: `{"ui":{"autoReload":false}}`, want: withUI(UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: false})},
 		{name: "ui: scrollbar пока не принимается", content: `{"ui":{"scrollbar":true}}`, want: Default(), wantErr: "scrollbar"},
 		{name: "ui: statusBar пока не принимается", content: `{"ui":{"statusBar":false}}`, want: Default(), wantErr: "statusBar"},
 		{name: "$schema допустим", content: `{"$schema":"./schemas/config.schema.json","diff":{"mode":"unified"}}`, want: Config{
 			Schema: "./schemas/config.schema.json",
 			Theme:  "dark",
 			Layout: "default",
-			UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true},
+			UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
 			Diff:   Diff{Mode: "unified", AutoSplitMinWidth: 120},
 		}},
 	}

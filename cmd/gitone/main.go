@@ -14,11 +14,16 @@ import (
 	"gitone/internal/layout"
 	"gitone/internal/tui"
 	"gitone/internal/tui/theme"
+	"gitone/internal/watch"
 )
 
 // Первый git diff на большом репозитории идёт секунды, и пустой терминал
 // всё это время выглядит зависшим. Короткая загрузка надписи не показывает.
 const loadingNoticeDelay = 200 * time.Millisecond
+
+// maxWatchedDirs ограничивает слежение: каждый каталог держит дескриптор, и
+// большой репозиторий или node_modules без лимита съедают их все.
+const maxWatchedDirs = 1000
 
 func main() {
 	dir, err := os.Getwd()
@@ -32,6 +37,18 @@ func main() {
 	opts.Dir, opts.Args = dir, os.Args[1:]
 	if settingsErr != nil {
 		opts.Notice = settingsErr.Error()
+	}
+
+	// слежение живёт до конца программы, поэтому канал закрывается здесь
+	done := make(chan struct{})
+	defer close(done)
+	if opts.Config.UI.AutoReload {
+		changes, watchErr := watch.Start(dir, maxWatchedDirs, done)
+		if watchErr != nil {
+			opts.Notice = joinNotices(opts.Notice, watchErr.Error())
+		} else {
+			opts.Changes = changes
+		}
 	}
 
 	model, err := loadWithNotice(opts)
@@ -73,6 +90,18 @@ func loadSettings() (tui.Options, error) {
 	}
 
 	return opts, errors.New(strings.Join(problems, "; "))
+}
+
+// joinNotices склеивает тексты ошибок в одну строку подвала.
+func joinNotices(notices ...string) string {
+	var present []string
+	for _, notice := range notices {
+		if notice != "" {
+			present = append(present, notice)
+		}
+	}
+
+	return strings.Join(present, "; ")
 }
 
 // Дифф грузится до запуска интерфейса: ошибка git (вне репозитория, неверный

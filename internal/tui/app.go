@@ -30,6 +30,9 @@ type Model struct {
 	dir     string
 	args    []string
 	loading bool
+	// stale: изменение пришло во время загрузки, после неё нужно перечитать ещё раз
+	stale   bool
+	changes <-chan struct{}
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
 	keys       keymap.Keymap
@@ -57,6 +60,8 @@ type Options struct {
 	Theme  theme.Theme
 	Layout layout.Node
 	Notice string
+	// Changes присылает сигнал при изменении файлов, nil значит без слежения
+	Changes <-chan struct{}
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -74,20 +79,21 @@ func New(opts Options, files []diff.File) Model {
 	}
 
 	return Model{
-		dir:    opts.Dir,
-		args:   opts.Args,
-		notice: opts.Notice,
-		keys:   opts.Keys,
-		ui:     opts.Config.UI,
-		layout: root,
-		colors: colors,
-		files:  files,
-		view:   view,
+		dir:     opts.Dir,
+		args:    opts.Args,
+		changes: opts.Changes,
+		notice:  opts.Notice,
+		keys:    opts.Keys,
+		ui:      opts.Config.UI,
+		layout:  root,
+		colors:  colors,
+		files:   files,
+		view:    view,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return waitChange(m.changes)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -108,6 +114,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.MouseWheelUp:
 			m.view = m.view.ScrollBy(-wheelStep)
 		}
+	case changedMsg:
+		// сигнал съеден, ожидание возобновляется сразу: следующее изменение не должно ждать
+		if m.loading {
+			m.stale = true
+			return m, waitChange(m.changes)
+		}
+		var reloadCmd tea.Cmd
+		m, reloadCmd = m.startReload()
+		return m, tea.Batch(reloadCmd, waitChange(m.changes))
+	case watchStoppedMsg:
+		m.notice = "слежение остановлено: нажмите r"
 	case reloadMsg:
 		m.loading = false
 		// ponytail: окно поиска, открытое во время загрузки, покажет список
@@ -117,9 +134,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m = m.applyReload(msg.files)
 		}
+		if m.stale {
+			return m.startReload()
+		}
 	}
 
 	return m, nil
+}
+
+// startReload запускает перечитывание, если оно не идёт. Повтор во время загрузки
+// не нужен: загрузка уже читает актуальный дифф, а лишний запуск только мигает подвалом.
+func (m Model) startReload() (Model, tea.Cmd) {
+	if m.loading {
+		return m, nil
+	}
+
+	m.loading = true
+	m.stale = false
+	return m, reload(m.dir, m.args)
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать
@@ -173,11 +205,7 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 	case keymap.DiffToggleMode:
 		m.view = m.view.ToggleMode()
 	case keymap.DiffReload:
-		if m.loading {
-			return m, nil
-		}
-		m.loading = true
-		return m, reload(m.dir, m.args)
+		return m.startReload()
 	case keymap.DiffScrollDown:
 		m.view = m.view.ScrollBy(1)
 	case keymap.DiffScrollUp:

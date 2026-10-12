@@ -36,13 +36,15 @@ type UI struct {
 	KeyHints    bool `json:"keyHints"`
 	PaneTitles  bool `json:"paneTitles"`
 	LineNumbers bool `json:"lineNumbers"`
+	// перечитывание при изменении файлов в рабочей копии
+	AutoReload bool `json:"autoReload"`
 }
 
 func Default() Config {
 	return Config{
 		Theme:  "dark",
 		Layout: "default",
-		UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true},
+		UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
 		Diff:   Diff{Mode: "auto", AutoSplitMinWidth: 120},
 	}
 }
