@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -49,6 +50,10 @@ func rowWith(t *testing.T, screen []string, text string) string {
 	return ""
 }
 
+// relativeDate это дата коммита в строке лога: «0 seconds ago» или «1 second
+// ago», если коммит попал на границу секунды.
+var relativeDate = regexp.MustCompile(`\d+ \S+ ago`)
+
 // Заголовки столбцов стоят над началом своих столбцов, а автор и дата
 // начинаются с одной колонки при разной длине тем (#109).
 func TestLogColumnsLineUp(t *testing.T) {
@@ -60,7 +65,7 @@ func TestLogColumnsLineUp(t *testing.T) {
 	for _, pair := range []struct{ title, text, other string }{
 		{title: "Message", text: "short", other: "a much longer"},
 		{title: "Author", text: "ann", other: "bob"},
-		{title: "Date", text: "0 seconds", other: "0 seconds"},
+		{title: "Date", text: relativeDate.FindString(short), other: relativeDate.FindString(long)},
 	} {
 		want := column(header, pair.title)
 		if want < 0 {
