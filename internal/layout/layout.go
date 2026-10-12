@@ -197,7 +197,7 @@ func Default() Node {
 	return Node{
 		Direction: "row",
 		Children: []Node{
-			{Pane: "files", Size: Size{Percent: 30}},
+			{Pane: "files", Size: Size{Percent: 20}},
 			{Pane: "diff"},
 		},
 	}
@@ -205,6 +205,36 @@ func Default() Node {
 
 func Focus() Node {
 	return Node{Pane: "diff"}
+}
+
+// Has говорит, стоит ли панель где-то в дереве.
+func Has(root Node, pane string) bool {
+	if root.Pane == pane {
+		return true
+	}
+
+	return slices.ContainsFunc(root.Children, func(child Node) bool { return Has(child, pane) })
+}
+
+// Without убирает панель из дерева, например закрытую панель файлов.
+// Контейнер, оставшийся без детей, уходит вместе с ней: пустой контейнер
+// отнял бы у остальных место.
+func Without(root Node, pane string) Node {
+	if len(root.Children) == 0 {
+		return root
+	}
+
+	var children []Node
+	for _, child := range root.Children {
+		child = Without(child, pane)
+		if child.Pane == pane || (child.Pane == "" && len(child.Children) == 0) {
+			continue
+		}
+		children = append(children, child)
+	}
+
+	root.Children = children
+	return root
 }
 
 // Load возвращает раскладку по имени из config.json. Встроенные default и focus

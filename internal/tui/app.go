@@ -25,10 +25,6 @@ import (
 // десятки щелчков на жест.
 const wheelStep = 3
 
-// Уже этой ширины список файлов не помещается рядом с диффом, поэтому на
-// узком экране его скрывает раскладка focus.
-const narrowWidth = 80
-
 type Model struct {
 	// dir и args нужны для перечитывания по r: тот же git diff, что при запуске
 	dir     string
@@ -58,18 +54,20 @@ type Model struct {
 	stashes    []git.Stash
 	picker     picker.Model
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
-	notice   string
-	keys     keymap.Keymap
-	ui       config.UI
-	layout   layout.Node
-	width    int
-	height   int
-	helpOpen bool
-	colors   theme.Theme
-	text     i18n.Dictionary
-	files    []diff.File
-	current  int
-	view     diffview.Model
+	notice string
+	keys   keymap.Keymap
+	ui     config.UI
+	layout layout.Node
+	// filesOpen: панель файлов открыта, при запуске она скрыта всегда
+	filesOpen bool
+	width     int
+	height    int
+	helpOpen  bool
+	colors    theme.Theme
+	text      i18n.Dictionary
+	files     []diff.File
+	current   int
+	view      diffview.Model
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
@@ -232,15 +230,23 @@ func (m Model) resize() Model {
 	return m
 }
 
-// placement считает размеры панелей для текущего экрана. На узком экране
-// раскладка заменяется одним диффом.
+// placement считает размеры панелей для текущего экрана.
 func (m Model) placement() layout.Placed {
-	root := m.layout
-	if m.width < narrowWidth {
-		root = layout.Focus()
-	}
+	return layout.Split(m.arrangement(), m.width, m.bodyHeight())
+}
 
-	return layout.Split(root, m.width, m.bodyHeight())
+// arrangement это раскладка с учётом панели файлов. Закрытая панель
+// убирается из дерева, открытая встаёт туда, куда её поставила раскладка, а
+// в раскладке без неё слева, как в default. Открыть панель решает
+// пользователь, поэтому узкий экран её не прячет.
+func (m Model) arrangement() layout.Node {
+	switch {
+	case !m.filesOpen:
+		return layout.Without(m.layout, "files")
+	case layout.Has(m.layout, "files"):
+		return m.layout
+	}
+	return layout.Default()
 }
 
 func findPane(placed layout.Placed, pane string) (layout.Placed, bool) {
@@ -267,6 +273,9 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m.helpOpen = false
 	case keymap.FilesPick:
 		m = m.openPicker()
+	case keymap.FilesToggle:
+		m.filesOpen = !m.filesOpen
+		m = m.resize()
 	case keymap.FilesNext:
 		m = m.openFile(m.current + 1)
 	case keymap.FilesPrevious:
