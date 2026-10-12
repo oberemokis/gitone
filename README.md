@@ -24,7 +24,29 @@
 
 ## Установка
 
-Готовые архивы под macOS и Linux (amd64 и arm64) лежат в разделе Releases. Версия печатается командой `gitone --version`. Из исходников: `make build`, бинарник появится в `bin/gitone`. Формулы Homebrew пока нет, она появится вместе с отдельным репозиторием-tap.
+macOS и Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/oberemokis/gitone/main/install.sh | sh
+```
+
+Windows, в PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/oberemokis/gitone/main/install.ps1 | iex
+```
+
+Скрипт берёт последний релиз под систему и процессор, сверяет его с `checksums.txt` и кладёт в `~/.local/bin`, на Windows в `%LOCALAPPDATA%\Programs\gitone`. PATH он не меняет: если каталога там нет, скрипт напишет, что добавить. Другой каталог задаёт переменная `GITONE_INSTALL_DIR`, определённую версию `GITONE_VERSION`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/oberemokis/gitone/main/install.sh | GITONE_VERSION=v0.4.0 sh
+```
+
+Так же делается откат на прежнюю версию. Если gitone стоит не в каталоге по умолчанию, укажите и его в `GITONE_INSTALL_DIR`, иначе появится вторая копия.
+
+`gitone update` ставит последний релиз поверх себя. Если каталог закрыт на запись, команда подскажет запуск через `sudo`. В gitone до v0.4.0 этой команды нет, и обновляется он тем же скриптом; скрипты ставят релизы начиная с v0.4.0.
+
+Архивы под все системы лежат в разделе Releases для ручной установки. Версия печатается командой `gitone --version`. Из исходников: `make build`, бинарник появится в `bin/gitone`; такую сборку `gitone update` не трогает, она обновляется через `git pull` и `make build`. Формулы Homebrew пока нет, она появится вместе с отдельным репозиторием-tap.
 
 ## Подробнее
 
