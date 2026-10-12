@@ -10,12 +10,7 @@ type Branch struct {
 
 // Branches возвращает локальные ветки по имени. Текущая помечена.
 func Branches(dir string) ([]Branch, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := run(call{dir: root}, "for-each-ref", "--format=%(refname:short)%09%(HEAD)", "refs/heads")
+	out, err := inRoot(dir, "for-each-ref", "--format=%(refname:short)%09%(HEAD)", "refs/heads")
 	if err != nil {
 		return nil, err
 	}
@@ -37,11 +32,6 @@ func Branches(dir string) ([]Branch, error) {
 // мешает, git отвергает сам: тогда ветка остаётся прежней, а текст отказа
 // возвращается ошибкой.
 func Switch(dir string, name string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	_, err = run(call{dir: root}, "switch", "--", name)
+	_, err := inRoot(dir, "switch", "--", name)
 	return err
 }

@@ -13,12 +13,7 @@ type Stash struct {
 
 // Stashes возвращает stash от новых к старым.
 func Stashes(dir string) ([]Stash, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := run(call{dir: root}, "stash", "list", "--format=%gd%x1f%gs")
+	out, err := inRoot(dir, "stash", "list", "--format=%gd%x1f%gs")
 	if err != nil {
 		return nil, err
 	}
@@ -56,23 +51,13 @@ func StashPush(dir string) error {
 
 // StashApply применяет stash и оставляет его в списке.
 func StashApply(dir string, ref string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	_, err = run(call{dir: root}, "stash", "apply", ref)
+	_, err := inRoot(dir, "stash", "apply", ref)
 	return err
 }
 
 // StashDrop удаляет stash без применения. Вернуть его можно только через
 // reflog, поэтому удаление спрашивается заранее.
 func StashDrop(dir string, ref string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	_, err = run(call{dir: root}, "stash", "drop", ref)
+	_, err := inRoot(dir, "stash", "drop", ref)
 	return err
 }

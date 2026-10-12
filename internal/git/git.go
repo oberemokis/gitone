@@ -1,6 +1,7 @@
 package git
 
 import (
+	"cmp"
 	"errors"
 	"io/fs"
 	"os"
@@ -31,12 +32,12 @@ func Diff(dir string, args []string) (string, error) {
 		return run(call{dir: dir}, diffCommand(args...)...)
 	}
 
-	root, err := run(call{dir: dir}, "rev-parse", "--show-toplevel")
+	root, err := topLevel(dir)
 	if err != nil {
 		return "", err
 	}
 
-	index, cleanup, err := indexWithUntracked(strings.TrimSuffix(root, "\n"))
+	index, cleanup, err := indexWithUntracked(root)
 	if err != nil {
 		return "", err
 	}
@@ -146,15 +147,51 @@ func withoutDirectories(listed string) string {
 	return strings.Join(kept, "\x00")
 }
 
+// topLevel возвращает корень репозитория, в котором лежит dir. Пути в diff идут
+// от корня, а gitone может быть запущен из подкаталога, поэтому команды правки
+// идут из корня: иначе относительный путь указывал бы не на тот файл.
+func topLevel(dir string) (string, error) {
+	root, err := run(call{dir: dir}, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSuffix(root, "\n"), nil
+}
+
+// inRoot запускает одну команду git из корня репозитория, в котором лежит dir.
+func inRoot(dir string, args ...string) (string, error) {
+	root, err := topLevel(dir)
+	if err != nil {
+		return "", err
+	}
+
+	return run(call{dir: root}, args...)
+}
+
 type call struct {
 	dir   string
 	env   []string
 	stdin string
 }
 
-// run запускает git и возвращает его вывод. Ошибка несёт текст из stderr git,
-// а не код выхода: пользователю нужно «not a git repository», а не
-// «exit status 128».
+// gitError это отказ git. Текст из вывода git нужен пользователю: «not a git
+// repository», а не «exit status 128». Исходная ошибка процесса остаётся в
+// цепочке, и код выхода находится через errors.As.
+type gitError struct {
+	message string
+	exit    *exec.ExitError
+}
+
+func (e *gitError) Error() string {
+	return e.message
+}
+
+func (e *gitError) Unwrap() error {
+	return e.exit
+}
+
+// run запускает git и возвращает его вывод. Отказ git приходит как *gitError.
 func run(options call, args ...string) (string, error) {
 	command := exec.Command("git", append(append([]string{}, configFlags...), args...)...)
 	command.Dir = options.dir
@@ -170,11 +207,8 @@ func run(options call, args ...string) (string, error) {
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
 		// часть сообщений git пишет в stdout: «nothing to commit» идёт туда же
-		message := strings.TrimSpace(string(exitError.Stderr))
-		if message == "" {
-			message = strings.TrimSpace(string(out))
-		}
-		return "", errors.New(message)
+		message := cmp.Or(strings.TrimSpace(string(exitError.Stderr)), strings.TrimSpace(string(out)))
+		return "", &gitError{message: message, exit: exitError}
 	}
 
 	return string(out), err

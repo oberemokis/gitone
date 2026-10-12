@@ -8,37 +8,15 @@ import (
 	"strings"
 )
 
-// Пути в diff идут от корня репозитория, а gitone может быть запущен из
-// подкаталога. Поэтому все команды правки идут из корня, иначе относительный
-// путь указывал бы не на тот файл.
-func topLevel(dir string) (string, error) {
-	root, err := run(call{dir: dir}, "rev-parse", "--show-toplevel")
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSuffix(root, "\n"), nil
-}
-
 // Stage добавляет пути в индекс. Удалённый файл тоже: add -A берёт и удаление.
 func Stage(dir string, paths []string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	_, err = run(call{dir: root}, append([]string{"add", "-A", "--"}, paths...)...)
+	_, err := inRoot(dir, append([]string{"add", "-A", "--"}, paths...)...)
 	return err
 }
 
 // Unstage убирает пути из индекса. Правка в рабочем дереве остаётся на месте.
 func Unstage(dir string, paths []string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	_, err = run(call{dir: root}, append([]string{"restore", "--staged", "--"}, paths...)...)
+	_, err := inRoot(dir, append([]string{"restore", "--staged", "--"}, paths...)...)
 	return err
 }
 
@@ -73,12 +51,7 @@ func Discard(dir string, paths []string) error {
 
 // StagedPaths возвращает пути, у которых индекс отличается от HEAD.
 func StagedPaths(dir string) ([]string, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := run(call{dir: root}, "diff", "--cached", "--name-only", "-z")
+	out, err := inRoot(dir, "diff", "--cached", "--name-only", "-z")
 	if err != nil {
 		return nil, err
 	}
