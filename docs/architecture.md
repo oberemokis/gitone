@@ -30,17 +30,17 @@ gitone/
 └── Makefile
 ```
 
-Сейчас существуют `cmd/gitone`, `config`, `keymap`, `layout`, `git`, `diff`, `tui`, `tui/diffview`, `tui/pane/files`, `tui/picker` и `tui/theme`. Остальные пакеты появятся вместе с первым кодом, которому они нужны, и в тот же момент попадут в таблицу `architecture_test.go`.
+Сейчас существуют `cmd/gitone`, `config`, `keymap`, `layout`, `syntax`, `git`, `diff`, `tui`, `tui/diffview`, `tui/pane/files`, `tui/picker` и `tui/theme`. Остальные пакеты появятся вместе с первым кодом, которому они нужны, и в тот же момент попадут в таблицу `architecture_test.go`.
 
 ## Граф зависимостей
 
 ```
 cmd/gitone             → tui, config, keymap, layout, theme
 tui                    → diffview, pane/files, picker, theme, git, diff, config, keymap, layout
-diffview               → diff, theme
+diffview               → diff, theme, syntax
 picker                 → theme
 theme                  → ничего из проекта
-config, keymap, git, diff → ничего из проекта
+config, keymap, syntax, git, diff → ничего из проекта
 ```
 
 Дальше добавятся: `pane/* → keymap, theme, git, diff`, `keymap, layout, theme → config`.
@@ -154,6 +154,6 @@ type Pane interface {
 
 ## Что ещё не выбрано
 
-- Подсветка синтаксиса в диффе: кандидат Chroma, берём после базового диффа.
+- Подсветка синтаксиса: Chroma v2, язык по имени файла, строка лексится отдельно. Решения в задаче #19.
 - Разбор JSON с комментариями, если ответите «да» на вопрос 3 из [product.md](product.md): кандидаты `hujson` и `tidwall/jsonc`.
 - Релизы и установка (goreleaser, Homebrew): после первого рабочего прототипа.

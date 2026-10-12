@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"gitone/internal/diff"
+	"gitone/internal/syntax"
 	"gitone/internal/tui/theme"
 )
 
@@ -20,7 +21,9 @@ const (
 )
 
 type Model struct {
-	file   diff.File
+	file diff.File
+	// язык файла по имени: без него подсветки синтаксиса нет
+	lexer  syntax.Lexer
 	colors theme.Theme
 	mode   Mode
 	// с этой ширины auto выбирает split, по умолчанию 120 (diff.autoSplitMinWidth)
@@ -47,16 +50,27 @@ func (m Model) WithoutNumbers(hide bool) Model {
 }
 
 func (m Model) SetFile(file diff.File) Model {
-	m.file = file
 	m.scroll = 0
-	return m.rebuild()
+	return m.withFile(file).rebuild()
 }
 
 // Reload ставит на место файла его новую версию. Прокрутка остаётся той же,
 // обрезанной по новой длине, а SetFile её сбросил бы.
 func (m Model) Reload(file diff.File) Model {
+	return m.withFile(file).rebuild()
+}
+
+// withFile ставит файл и выбирает язык по его пути. У удалённого файла путь
+// старый, у переименованного новый.
+func (m Model) withFile(file diff.File) Model {
 	m.file = file
-	return m.rebuild()
+	path := file.NewPath
+	if path == "" {
+		path = file.OldPath
+	}
+	m.lexer = syntax.Detect(path)
+
+	return m
 }
 
 // SetSize может сменить вид в режиме auto, поэтому держит на месте верхнюю
