@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
+	"gitone/internal/i18n"
 )
 
 // debounce схлопывает события в одном окне в один сигнал: при сохранении
@@ -20,7 +22,7 @@ const debounce = 200 * time.Millisecond
 // ErrTooManyDirs значит, что каталогов больше лимита. На macOS каждый
 // наблюдаемый каталог держит дескриптор, поэтому большой репозиторий или
 // node_modules слежение не тянет.
-var ErrTooManyDirs = errors.New("слежение выключено: много каталогов")
+var ErrTooManyDirs = i18n.New("watch.tooManyDirs", nil)
 
 // Start наблюдает каталоги root рекурсивно и присылает сигнал после каждой пачки
 // изменений. Каталог .git и скрытые каталоги не наблюдаются. Если каталогов

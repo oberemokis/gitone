@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 
 	"gitone/internal/diff"
 	"gitone/internal/i18n"
@@ -97,4 +98,22 @@ func TestMessageKeysExist(t *testing.T) {
 			t.Errorf("ключа %q нет в en.json", key)
 		}
 	}
+}
+
+// Строка с кириллицей в коде это текст мимо словаря: так интерфейс и
+// смешивал языки (#64). Комментарии не в счёт, только строковые литералы.
+func TestNoCyrillicLiterals(t *testing.T) {
+	for path, file := range sources(t) {
+		ast.Inspect(file, func(node ast.Node) bool {
+			literal, ok := node.(*ast.BasicLit)
+			if ok && literal.Kind == token.STRING && strings.ContainsFunc(literal.Value, isCyrillic) {
+				t.Errorf("%s: строка с кириллицей %s, текст должен идти через словарь", path, literal.Value)
+			}
+			return true
+		})
+	}
+}
+
+func isCyrillic(r rune) bool {
+	return unicode.Is(unicode.Cyrillic, r)
 }

@@ -63,7 +63,7 @@ func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
 	// до перечитывания, выбор при этом ищется по имени в новом. Открыть
 	// окно заново обновит список.
 	if msg.err != nil {
-		m = m.say(msg.err.Error())
+		m = m.say(m.text.Error(msg.err))
 	} else {
 		m = m.applyReload(msg.files)
 		m.staged = msg.staged

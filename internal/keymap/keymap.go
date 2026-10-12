@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"gitone/internal/i18n"
 )
 
 const fileName = "keybinds.json"
@@ -138,7 +140,7 @@ func decode(data []byte) (Keymap, error) {
 		return Keymap{}, err
 	}
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return Keymap{}, errors.New("лишний текст после клавиш")
+		return Keymap{}, i18n.New("json.extraText", nil)
 	}
 
 	bindings := defaults()
@@ -147,7 +149,7 @@ func decode(data []byte) (Keymap, error) {
 	for _, name := range slices.Sorted(maps.Keys(f.Keybinds)) {
 		index := slices.IndexFunc(bindings, func(b Binding) bool { return string(b.Action) == name })
 		if index < 0 {
-			return Keymap{}, fmt.Errorf("неизвестное действие «%s»", name)
+			return Keymap{}, i18n.New("keymap.unknownAction", i18n.Args{"action": name})
 		}
 
 		keys, err := parseKeys(f.Keybinds[name])
@@ -186,16 +188,16 @@ func parseKeys(raw json.RawMessage) ([]string, error) {
 		return nil, nil
 	}
 
-	return nil, errors.New("ожидалась клавиша, массив клавиш, «none» или false")
+	return nil, i18n.New("keymap.badKeys", nil)
 }
 
 func checkKeys(keys []string) ([]string, error) {
 	for _, key := range keys {
 		if key == "" {
-			return nil, errors.New("пустая клавиша")
+			return nil, i18n.New("keymap.emptyKey", nil)
 		}
 		if strings.HasPrefix(key, "<leader>") {
-			return nil, errors.New("<leader> пока не поддерживается")
+			return nil, i18n.New("keymap.leader", nil)
 		}
 	}
 
@@ -210,7 +212,7 @@ func checkConflicts(bindings []Binding) error {
 	for _, binding := range bindings {
 		for _, key := range binding.Keys {
 			if other, taken := owner[key]; taken {
-				return fmt.Errorf("клавиша «%s» назначена на %s и %s", key, other, binding.Action)
+				return i18n.New("keymap.conflict", i18n.Args{"key": key, "first": other, "second": binding.Action})
 			}
 			owner[key] = binding.Action
 		}

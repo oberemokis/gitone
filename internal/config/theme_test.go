@@ -69,7 +69,7 @@ func TestReadTheme(t *testing.T) {
 			name:    "путь в имени темы",
 			file:    "../midnight",
 			content: `{}`,
-			wantErr: "путь",
+			wantErr: "contain a path",
 		},
 	}
 

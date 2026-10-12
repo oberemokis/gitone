@@ -1,8 +1,9 @@
 package git
 
 import (
-	"errors"
 	"strings"
+
+	"gitone/internal/i18n"
 )
 
 // Stash это запись stash: ссылка вида stash@{N} и её подпись git.
@@ -46,7 +47,7 @@ func stashPush(dir string) error {
 	}
 
 	if _, err := run(call{dir: root}, "diff", "--quiet", "HEAD", "--"); err == nil {
-		return errors.New("нет правок, которые можно сохранить в stash")
+		return i18n.New("git.nothingToStash", nil)
 	}
 
 	_, err = run(call{dir: root}, "stash", "push")

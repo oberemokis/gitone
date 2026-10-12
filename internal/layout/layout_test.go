@@ -27,12 +27,12 @@ func TestBuildChecksTree(t *testing.T) {
 		{
 			name:    "неизвестная панель",
 			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{files, {Pane: "branchs"}}},
-			wantErr: `root.children[1].pane: неизвестная панель «branchs»`,
+			wantErr: `root.children[1].pane: unknown pane "branchs"`,
 		},
 		{
 			name:    "панель повторилась",
 			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{diff, diff}},
-			wantErr: "панель «diff» уже есть",
+			wantErr: `pane "diff" is already in the layout`,
 		},
 		{
 			name:    "пустые дети",
@@ -52,7 +52,7 @@ func TestBuildChecksTree(t *testing.T) {
 		{
 			name:    "сумма процентов больше ста",
 			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: "60%"}, {Pane: "diff", Size: "50%"}}},
-			wantErr: "больше 100",
+			wantErr: "more than 100",
 		},
 		{
 			name:    "размер не похож на размер",

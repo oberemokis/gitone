@@ -31,11 +31,12 @@ var (
 	word   = regexp.MustCompile(`\p{L}{2,}`)
 )
 
-// notOurs это слова, которые на экран кладём не мы: имена клавиш и ответы git
-// (ссылка stash, подпись stash, относительная дата коммита).
+// notOurs это слова, которые на экран кладём не мы и не переводим: имена
+// клавиш, имена операций git в префиксе ошибки и ответы git (ссылка stash,
+// подпись stash, относительная дата коммита).
 var notOurs = map[string]bool{
 	"ctrl": true, "space": true, "up": true, "down": true, "esc": true, "enter": true,
-	"stash": true, "WIP": true, "on": true,
+	"stash": true, "push": true, "WIP": true, "on": true,
 	"year": true, "years": true, "month": true, "months": true, "ago": true,
 }
 
@@ -152,6 +153,11 @@ func TestScreensUseDictionary(t *testing.T) {
 			model := openAsync(openPseudo(t, repo, nil), key('Z'))
 			model, _ = model.Update(key('d'))
 			return model
+		}},
+		{name: "своя ошибка в подвале", screen: func(t *testing.T) tea.Model {
+			model := openPseudo(t, pseudoRepo(t), nil)
+			model, cmd := model.Update(key('z'))
+			return settle(model, cmd, 4)
 		}},
 		{name: "нет изменений", screen: func(t *testing.T) tea.Model {
 			return openPseudo(t, pseudoRepo(t), nil)

@@ -9,6 +9,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"gitone/internal/i18n"
 )
 
 const fileName = "config.json"
@@ -72,30 +74,30 @@ func Load(dir string) (Config, error) {
 
 func decode(data []byte) (Config, error) {
 	cfg := Default()
-	if err := decodeStrict(data, &cfg, "настроек"); err != nil {
+	if err := decodeStrict(data, &cfg); err != nil {
 		return Config{}, err
 	}
 
 	switch cfg.Diff.Mode {
 	case "auto", "split", "unified":
 	default:
-		return Config{}, fmt.Errorf("diff.mode: «%s» не режим, допустимы auto, split, unified", cfg.Diff.Mode)
+		return Config{}, i18n.New("config.badMode", i18n.Args{"mode": cfg.Diff.Mode})
 	}
 
 	return cfg, nil
 }
 
 // decodeStrict читает ровно один объект JSON. Неизвестное поле и текст после
-// объекта это ошибка: опечатка в ключе иначе молча ничего не делает. what
-// называет содержимое в сообщении о лишнем тексте.
-func decodeStrict(data []byte, target any, what string) error {
+// объекта это ошибка: опечатка в ключе иначе молча ничего не делает. Какой
+// файл, говорит префикс ошибки у вызывающего.
+func decodeStrict(data []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("лишний текст после %s", what)
+		return i18n.New("json.extraText", nil)
 	}
 
 	return nil

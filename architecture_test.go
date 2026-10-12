@@ -12,7 +12,7 @@ import (
 // ошибка: новый пакет сначала получает место в графе.
 var allowedImports = map[string][]string{
 	"gitone":            {},
-	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/keymap", "gitone/internal/tui/theme", "gitone/internal/layout", "gitone/internal/watch"},
+	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/i18n", "gitone/internal/keymap", "gitone/internal/tui/theme", "gitone/internal/layout", "gitone/internal/watch"},
 	"gitone/internal/tui": {
 		"gitone/internal/git",
 		"gitone/internal/diff",
@@ -28,14 +28,14 @@ var allowedImports = map[string][]string{
 	"gitone/internal/tui/diffview":   {"gitone/internal/diff", "gitone/internal/i18n", "gitone/internal/syntax", "gitone/internal/tui/theme"},
 	"gitone/internal/tui/pane/files": {"gitone/internal/tui/theme"},
 	"gitone/internal/tui/picker":     {"gitone/internal/tui/theme"},
-	"gitone/internal/tui/theme":      {"gitone/internal/config"},
-	"gitone/internal/layout":         {"gitone/internal/config"},
-	"gitone/internal/config":         {},
+	"gitone/internal/tui/theme":      {"gitone/internal/config", "gitone/internal/i18n"},
+	"gitone/internal/layout":         {"gitone/internal/config", "gitone/internal/i18n"},
+	"gitone/internal/config":         {"gitone/internal/i18n"},
 	"gitone/internal/i18n":           {},
-	"gitone/internal/keymap":         {},
+	"gitone/internal/keymap":         {"gitone/internal/i18n"},
 	"gitone/internal/syntax":         {},
-	"gitone/internal/watch":          {},
-	"gitone/internal/git":            {},
+	"gitone/internal/watch":          {"gitone/internal/i18n"},
+	"gitone/internal/git":            {"gitone/internal/i18n"},
 	"gitone/internal/diff":           {},
 }
 

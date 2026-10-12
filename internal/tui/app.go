@@ -147,21 +147,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stashesMsg:
 		switch {
 		case msg.err != nil:
-			m = m.say(msg.err.Error())
+			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.stashes, m.cursor, m.active = msg.stashes, 0, stashWindow
 		}
 	case branchesMsg:
 		switch {
 		case msg.err != nil:
-			m = m.say(msg.err.Error())
+			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
 		}
 	case logMsg:
 		switch {
 		case msg.err != nil:
-			m = m.say(msg.err.Error())
+			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.logEntries, m.cursor, m.active = msg.entries, 0, logWindow
 		}

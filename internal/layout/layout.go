@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"gitone/internal/config"
+	"gitone/internal/i18n"
 )
 
 // Панели первой версии. Список растёт вместе с панелями.
@@ -49,7 +50,7 @@ func Build(file config.LayoutFile) (Node, error) {
 
 func build(node config.LayoutNode, path string, seen map[string]bool) (Node, error) {
 	if node.Pane != "" && len(node.Children) > 0 {
-		return Node{}, fmt.Errorf("%s: узел не может быть панелью и контейнером одновременно", path)
+		return Node{}, i18n.New("layout.paneAndContainer", i18n.Args{"path": path})
 	}
 
 	size, err := parseSize(node.Size, path+".size")
@@ -66,10 +67,10 @@ func build(node config.LayoutNode, path string, seen map[string]bool) (Node, err
 // buildPane проверяет лист: панель известна и стоит в раскладке один раз.
 func buildPane(pane string, size Size, path string, seen map[string]bool) (Node, error) {
 	if !slices.Contains(panes, pane) {
-		return Node{}, fmt.Errorf("%s.pane: неизвестная панель «%s», есть %s", path, pane, strings.Join(panes, ", "))
+		return Node{}, i18n.New("layout.unknownPane", i18n.Args{"path": path, "pane": pane, "panes": strings.Join(panes, ", ")})
 	}
 	if seen[pane] {
-		return Node{}, fmt.Errorf("%s.pane: панель «%s» уже есть в раскладке", path, pane)
+		return Node{}, i18n.New("layout.paneTwice", i18n.Args{"path": path, "pane": pane})
 	}
 
 	seen[pane] = true
@@ -80,10 +81,10 @@ func buildPane(pane string, size Size, path string, seen map[string]bool) (Node,
 // больше 100: иначе им не хватит места.
 func buildContainer(node config.LayoutNode, size Size, path string, seen map[string]bool) (Node, error) {
 	if node.Direction != "row" && node.Direction != "column" {
-		return Node{}, fmt.Errorf("%s.direction: «%s» не направление, допустимы row и column", path, node.Direction)
+		return Node{}, i18n.New("layout.badDirection", i18n.Args{"path": path, "direction": node.Direction})
 	}
 	if len(node.Children) == 0 {
-		return Node{}, fmt.Errorf("%s.children: пусто, контейнер нужен с детьми", path)
+		return Node{}, i18n.New("layout.noChildren", i18n.Args{"path": path})
 	}
 
 	result := Node{Direction: node.Direction, Size: size}
@@ -98,7 +99,7 @@ func buildContainer(node config.LayoutNode, size Size, path string, seen map[str
 	}
 
 	if percent > 100 {
-		return Node{}, fmt.Errorf("%s.children: проценты в сумме %d, больше 100", path, percent)
+		return Node{}, i18n.New("layout.percentOver", i18n.Args{"path": path, "percent": percent})
 	}
 
 	return result, nil
@@ -111,18 +112,18 @@ func parseSize(text config.Size, path string) (Size, error) {
 	case percentSize.MatchString(string(text)):
 		value, _ := strconv.Atoi(strings.TrimSuffix(string(text), "%"))
 		if value < 1 || value > 100 {
-			return Size{}, fmt.Errorf("%s: «%s» вне диапазона 1%%-100%%", path, text)
+			return Size{}, i18n.New("layout.percentRange", i18n.Args{"path": path, "size": text})
 		}
 		return Size{Percent: value}, nil
 	case cellSize.MatchString(string(text)):
 		value, _ := strconv.Atoi(string(text))
 		if value < 1 {
-			return Size{}, fmt.Errorf("%s: ячейки должны быть больше нуля", path)
+			return Size{}, i18n.New("layout.cellsPositive", i18n.Args{"path": path})
 		}
 		return Size{Cells: value}, nil
 	}
 
-	return Size{}, fmt.Errorf("%s: «%s» не размер, допустимы «30%%» или число ячеек", path, text)
+	return Size{}, i18n.New("layout.badSize", i18n.Args{"path": path, "size": text})
 }
 
 // Split раскладывает дерево в прямоугольник width на height. Размер с
@@ -221,7 +222,7 @@ func Load(dir, name string) (Node, error) {
 		case "focus":
 			return Focus(), nil
 		}
-		return Node{}, fmt.Errorf("раскладка «%s» не найдена: нет layouts/%s.json", name, name)
+		return Node{}, i18n.New("layout.notFound", i18n.Args{"name": name})
 	}
 
 	root, err := Build(file)

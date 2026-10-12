@@ -14,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"gitone/internal/config"
+	"gitone/internal/i18n"
 )
 
 type Theme struct {
@@ -75,7 +76,7 @@ func Load(dir, name string) (Theme, error) {
 		if name == "dark" {
 			return Dark(), nil
 		}
-		return Dark(), fmt.Errorf("тема «%s» не найдена: нет themes/%s.json", name, name)
+		return Dark(), i18n.New("theme.notFound", i18n.Args{"name": name})
 	}
 
 	palette, err := Build(file)
@@ -95,7 +96,7 @@ func Build(file config.ThemeFile) (Theme, error) {
 	for _, key := range slices.Sorted(maps.Keys(file.Colors)) {
 		field, known := fields[key]
 		if !known {
-			return Dark(), fmt.Errorf("colors.%s: ключ пока не используется", key)
+			return Dark(), i18n.New("theme.unusedKey", i18n.Args{"key": key})
 		}
 
 		value, err := resolve(file, file.Colors[key])
@@ -149,5 +150,5 @@ func resolve(file config.ThemeFile, value config.Color) (color.Color, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("«%s» не цвет: #rrggbb, число 0-255, имя из defs или none", value)
+	return nil, i18n.New("theme.badColor", i18n.Args{"value": value})
 }
