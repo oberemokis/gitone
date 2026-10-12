@@ -1,13 +1,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/config"
+	"gitone/internal/keymap"
 	"gitone/internal/tui"
 )
 
@@ -23,8 +26,8 @@ func main() {
 
 	// Ошибка настроек не останавливает запуск: работают встроенные значения,
 	// а текст ошибки стоит в подвале.
-	settings, settingsErr := loadSettings()
-	opts := tui.Options{Dir: dir, Args: os.Args[1:], Config: settings}
+	settings, keys, settingsErr := loadSettings()
+	opts := tui.Options{Dir: dir, Args: os.Args[1:], Config: settings, Keys: keys}
 	if settingsErr != nil {
 		opts.Notice = settingsErr.Error()
 	}
@@ -39,13 +42,29 @@ func main() {
 	}
 }
 
-func loadSettings() (config.Config, error) {
+// loadSettings читает config.json и keybinds.json. Ошибки обоих файлов
+// склеиваются в одну строку: подвал показывает одну первую строку.
+func loadSettings() (config.Config, keymap.Keymap, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return config.Default(), err
+		return config.Default(), keymap.Default(), err
 	}
 
-	return config.Load(config.Dir(os.Getenv("XDG_CONFIG_HOME"), home))
+	dir := config.Dir(os.Getenv("XDG_CONFIG_HOME"), home)
+	settings, settingsErr := config.Load(dir)
+	keys, keysErr := keymap.Load(dir)
+
+	var problems []string
+	for _, err := range []error{settingsErr, keysErr} {
+		if err != nil {
+			problems = append(problems, err.Error())
+		}
+	}
+	if len(problems) == 0 {
+		return settings, keys, nil
+	}
+
+	return settings, keys, errors.New(strings.Join(problems, "; "))
 }
 
 // Дифф грузится до запуска интерфейса: ошибка git (вне репозитория, неверный

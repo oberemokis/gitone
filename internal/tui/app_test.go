@@ -8,11 +8,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/config"
+	"gitone/internal/keymap"
 	"gitone/internal/tui"
 )
 
 func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
-	model, _ := tui.New(tui.Options{Config: config.Default()}, nil).Update(tea.WindowSizeMsg{Width: 60, Height: 10})
+	model, _ := tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default()}, nil).Update(tea.WindowSizeMsg{Width: 60, Height: 10})
 	lines := strings.Split(ansi.Strip(model.View().Content), "\n")
 
 	if len(lines) != 10 {
@@ -33,7 +34,7 @@ func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
 }
 
 func TestHelpToggle(t *testing.T) {
-	var model tea.Model = tui.New(tui.Options{Config: config.Default()}, nil)
+	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default()}, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 
 	isHelpShown := func() bool {
@@ -59,7 +60,7 @@ func TestHelpToggle(t *testing.T) {
 }
 
 func TestHelpGroupsByCategory(t *testing.T) {
-	var model tea.Model = tui.New(tui.Options{Config: config.Default()}, nil)
+	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default()}, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
@@ -93,7 +94,7 @@ func TestQuitKeys(t *testing.T) {
 	}
 
 	for _, key := range keys {
-		_, cmd := tui.New(tui.Options{Config: config.Default()}, nil).Update(key)
+		_, cmd := tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default()}, nil).Update(key)
 		if cmd == nil {
 			t.Fatalf("%s: команды нет, ожидался выход", key)
 		}

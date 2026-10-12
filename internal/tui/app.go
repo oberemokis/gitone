@@ -9,6 +9,7 @@ import (
 
 	"gitone/internal/config"
 	"gitone/internal/diff"
+	"gitone/internal/keymap"
 	"gitone/internal/tui/diffview"
 	"gitone/internal/tui/picker"
 	"gitone/internal/tui/theme"
@@ -25,6 +26,7 @@ type Model struct {
 	loading bool
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
+	keys       keymap.Keymap
 	width      int
 	height     int
 	helpOpen   bool
@@ -37,11 +39,13 @@ type Model struct {
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
-// перечитывания по r, настройки и текст ошибки их загрузки для подвала.
+// перечитывания по r, настройки, клавиши и текст ошибок их загрузки для
+// подвала.
 type Options struct {
 	Dir    string
 	Args   []string
 	Config config.Config
+	Keys   keymap.Keymap
 	Notice string
 }
 
@@ -57,6 +61,7 @@ func New(opts Options, files []diff.File) Model {
 		dir:    opts.Dir,
 		args:   opts.Args,
 		notice: opts.Notice,
+		keys:   opts.Keys,
 		colors: colors,
 		files:  files,
 		view:   view,
@@ -77,7 +82,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.pickerOpen {
 			return m.pickerKey(msg)
 		}
-		return m.handleAction(actionFor(msg.String()))
+		return m.handleAction(m.keys.ActionFor(msg.String()))
 	case tea.MouseWheelMsg:
 		switch msg.Button {
 		case tea.MouseWheelDown:
@@ -99,39 +104,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleAction(action action) (tea.Model, tea.Cmd) {
+func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 	switch action {
-	case actionQuit:
+	case keymap.AppQuit:
 		return m, tea.Quit
-	case actionHelp:
+	case keymap.AppHelp:
 		m.helpOpen = !m.helpOpen
-	case actionCloseHelp:
+	case keymap.HelpClose:
 		m.helpOpen = false
-	case actionFiles:
+	case keymap.FilesPick:
 		m = m.openPicker()
-	case actionNextFile:
+	case keymap.FilesNext:
 		m = m.openFile(m.current + 1)
-	case actionPrevFile:
+	case keymap.FilesPrevious:
 		m = m.openFile(m.current - 1)
-	case actionMode:
+	case keymap.DiffToggleMode:
 		m.view = m.view.ToggleMode()
-	case actionReload:
+	case keymap.DiffReload:
 		if m.loading {
 			return m, nil
 		}
 		m.loading = true
 		return m, reload(m.dir, m.args)
-	case actionDown:
+	case keymap.DiffScrollDown:
 		m.view = m.view.ScrollBy(1)
-	case actionUp:
+	case keymap.DiffScrollUp:
 		m.view = m.view.ScrollBy(-1)
-	case actionHalfDown:
+	case keymap.DiffHalfPageDown:
 		m.view = m.view.ScrollBy(m.bodyHeight() / 2)
-	case actionHalfUp:
+	case keymap.DiffHalfPageUp:
 		m.view = m.view.ScrollBy(-m.bodyHeight() / 2)
-	case actionTop:
+	case keymap.DiffTop:
 		m.view = m.view.Top()
-	case actionBottom:
+	case keymap.DiffBottom:
 		m.view = m.view.Bottom()
 	}
 
@@ -244,7 +249,7 @@ func (m Model) footerLine(counter string) string {
 		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.Error), m.notice)
 	}
 
-	return footer(m.width, m.colors, counter)
+	return footer(m.width, m.colors, counter, m.keys.Bindings())
 }
 
 // body кладёт окна поверх диффа, как opencode: дифф остаётся виден по краям.
@@ -258,7 +263,7 @@ func (m Model) body() string {
 	case m.pickerOpen:
 		return overlay(base, m.picker.View(m.width, m.bodyHeight()), m.width, m.bodyHeight())
 	case m.helpOpen:
-		return overlay(base, helpBox(m.colors, m.width), m.width, m.bodyHeight())
+		return overlay(base, helpBox(m.colors, m.width, m.keys.Bindings()), m.width, m.bodyHeight())
 	}
 
 	return base
