@@ -21,7 +21,7 @@ type LogEntry struct {
 func Log(dir string, limit int) ([]LogEntry, error) {
 	root, err := topLevel(dir)
 	if err != nil {
-		return nil, err
+		return nil, failed("log", err)
 	}
 
 	if _, err := run(call{dir: root}, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
@@ -30,7 +30,7 @@ func Log(dir string, limit int) ([]LogEntry, error) {
 
 	out, err := run(call{dir: root}, "log", "-n", strconv.Itoa(limit), "--format=%H%x1f%P%x1f%s%x1f%an%x1f%cr")
 	if err != nil {
-		return nil, err
+		return nil, failed("log", err)
 	}
 
 	var commits []LogEntry

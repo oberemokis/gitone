@@ -3,6 +3,7 @@ package git
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -28,6 +29,11 @@ var diffFlags = []string{
 // git как есть (`--staged`, `main..feature`, коммит, пути). Без аргументов
 // это всё незакоммиченное вместе с неотслеженными файлами.
 func Diff(dir string, args []string) (string, error) {
+	text, err := diffText(dir, args)
+	return text, failed("diff", err)
+}
+
+func diffText(dir string, args []string) (string, error) {
 	if len(args) > 0 {
 		return run(call{dir: dir}, diffCommand(args...)...)
 	}
@@ -189,6 +195,17 @@ func (e *gitError) Error() string {
 
 func (e *gitError) Unwrap() error {
 	return e.exit
+}
+
+// failed добавляет к ошибке имя операции git. Вызывают его только
+// экспортируемые функции: внутри пакета ошибка идёт как есть, поэтому имя
+// операции в тексте одно. nil остаётся nil.
+func failed(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("%s: %w", operation, err)
 }
 
 // run запускает git и возвращает его вывод. Отказ git приходит как *gitError.

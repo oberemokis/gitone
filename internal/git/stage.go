@@ -11,13 +11,13 @@ import (
 // Stage добавляет пути в индекс. Удалённый файл тоже: add -A берёт и удаление.
 func Stage(dir string, paths []string) error {
 	_, err := inRoot(dir, append([]string{"add", "-A", "--"}, paths...)...)
-	return err
+	return failed("add", err)
 }
 
 // Unstage убирает пути из индекса. Правка в рабочем дереве остаётся на месте.
 func Unstage(dir string, paths []string) error {
 	_, err := inRoot(dir, append([]string{"restore", "--staged", "--"}, paths...)...)
-	return err
+	return failed("restore", err)
 }
 
 // Discard отменяет правки путей. Файл, который есть в HEAD, возвращается к нему
@@ -25,6 +25,10 @@ func Unstage(dir string, paths []string) error {
 // Ошибка git на файле из HEAD не трогает диск: решается по cat-file, а не по
 // сбою restore, чтобы сбой не стёр правку.
 func Discard(dir string, paths []string) error {
+	return failed("restore", discard(dir, paths))
+}
+
+func discard(dir string, paths []string) error {
 	root, err := topLevel(dir)
 	if err != nil {
 		return err
@@ -53,7 +57,7 @@ func Discard(dir string, paths []string) error {
 func StagedPaths(dir string) ([]string, error) {
 	out, err := inRoot(dir, "diff", "--cached", "--name-only", "-z")
 	if err != nil {
-		return nil, err
+		return nil, failed("diff", err)
 	}
 
 	var paths []string
