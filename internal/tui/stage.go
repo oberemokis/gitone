@@ -93,7 +93,7 @@ func (m Model) answerDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // удалась: так видно, что на самом деле осталось.
 func (m Model) actionDone(msg actionDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
-		m.notice = msg.err.Error()
+		m = m.say(msg.err.Error())
 	}
 
 	m.stale = true

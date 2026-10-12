@@ -166,14 +166,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m, reloadCmd = m.startReload()
 		return m, tea.Batch(reloadCmd, waitChange(m.changes))
 	case watchStoppedMsg:
-		m.notice = "слежение остановлено: нажмите r"
+		m = m.say("слежение остановлено: нажмите r")
 	case reloadMsg:
 		m.loading = false
 		// ponytail: окно поиска, открытое во время загрузки, показывает список
 		// до перечитывания, выбор при этом ищется по имени в новом. Открыть
 		// окно заново обновит список.
 		if msg.err != nil {
-			m.notice = msg.err.Error()
+			m = m.say(msg.err.Error())
 		} else {
 			m = m.applyReload(msg.files)
 			m.staged = msg.staged
@@ -189,14 +189,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stashesMsg:
 		switch {
 		case msg.err != nil:
-			m.notice = msg.err.Error()
+			m = m.say(msg.err.Error())
 		case !m.windowOpen():
 			m.stashes, m.stashCursor, m.stashOpen = msg.stashes, 0, true
 		}
 	case branchesMsg:
 		switch {
 		case msg.err != nil:
-			m.notice = msg.err.Error()
+			m = m.say(msg.err.Error())
 		case !m.windowOpen():
 			m.branches, m.branchOpen = msg.branches, true
 			m.branchCursor = currentIndex(msg.branches)
@@ -204,7 +204,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logMsg:
 		switch {
 		case msg.err != nil:
-			m.notice = msg.err.Error()
+			m = m.say(msg.err.Error())
 		case !m.windowOpen():
 			m.logEntries, m.logCursor, m.logOpen = msg.entries, 0, true
 		}
@@ -219,8 +219,19 @@ func (m Model) windowOpen() bool {
 	return m.pickerOpen || m.committing || m.logOpen || m.branchOpen || m.stashOpen || m.confirm != nil
 }
 
+// say ставит асинхронное сообщение в подвал. Висящий вопрос discard при этом
+// отменяется: его текст затёрт, и y не должен стирать правку, о которой
+// пользователь вопроса уже не видит.
+func (m Model) say(text string) Model {
+	m.notice = text
+	m.confirm = nil
+	return m
+}
+
 // startReload запускает перечитывание, если оно не идёт. Повтор во время загрузки
 // не нужен: загрузка уже читает актуальный дифф, а лишний запуск только мигает подвалом.
+// Висящий вопрос discard отменяется по той же причине, что в say: надпись
+// loading закрывает его в подвале.
 func (m Model) startReload() (Model, tea.Cmd) {
 	if m.loading {
 		return m, nil
@@ -228,6 +239,7 @@ func (m Model) startReload() (Model, tea.Cmd) {
 
 	m.loading = true
 	m.stale = false
+	m.confirm = nil
 	return m, reload(m.dir, m.args)
 }
 
