@@ -49,6 +49,8 @@
 
 ## keybinds.json
 
+Сейчас читаются переназначения действий и `none` или `false` для отключения. Поля `leader` и `leaderTimeout` и клавиши вида `<leader>…` дают ошибку, пока leader не сделан. Одна клавиша на двух действиях тоже ошибка. Решения в задаче #14.
+
 ```json
 {
   "$schema": "./schemas/keybinds.schema.json",
