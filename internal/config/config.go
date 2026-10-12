@@ -17,7 +17,9 @@ const fileName = "config.json"
 // встроенными: Load начинает с Default и поверх читает файл.
 type Config struct {
 	Schema string `json:"$schema"`
-	Diff   Diff   `json:"diff"`
+	// имя темы: встроенная dark или файл themes/<имя>.json
+	Theme string `json:"theme"`
+	Diff  Diff   `json:"diff"`
 }
 
 type Diff struct {
@@ -27,7 +29,8 @@ type Diff struct {
 
 func Default() Config {
 	return Config{
-		Diff: Diff{Mode: "auto", AutoSplitMinWidth: 120},
+		Theme: "dark",
+		Diff:  Diff{Mode: "auto", AutoSplitMinWidth: 120},
 	}
 }
 
