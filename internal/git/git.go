@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Ставятся до подкоманды. Пути в UTF-8 без восьмеричных кавычек. Файл больше
@@ -93,8 +94,12 @@ func indexWithUntracked(root string) (string, func(), error) {
 	// Индекса ещё нет в свежем репозитории без единого add: тогда git
 	// создаст копию сам. Пустой файл вместо него git отвергает.
 	content, err := os.ReadFile(strings.TrimSpace(realIndex))
+	var realTime time.Time
 	switch {
 	case err == nil:
+		if info, statErr := os.Stat(strings.TrimSpace(realIndex)); statErr == nil {
+			realTime = info.ModTime()
+		}
 		err = os.WriteFile(index, content, 0o600)
 	case errors.Is(err, fs.ErrNotExist):
 		err = nil
@@ -107,6 +112,18 @@ func indexWithUntracked(root string) (string, func(), error) {
 	if untracked := withoutDirectories(listed); untracked != "" {
 		addCall := call{dir: root, env: []string{"GIT_INDEX_FILE=" + index}, stdin: untracked}
 		if _, err := run(addCall, "add", "--intent-to-add", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
+			cleanup()
+			return "", nil, err
+		}
+	}
+
+	// git решает по времени записи индекса, какие записи могли измениться в ту же
+	// тику и требуют сверки содержимого (racy git). Копия после add получает
+	// время «сейчас», и правка с тем же размером в ту же тику пропадала. Время
+	// исходного индекса возвращаем копии, тогда git сверяет те же записи, что и
+	// сверил бы настоящий индекс.
+	if !realTime.IsZero() {
+		if err := os.Chtimes(index, realTime, realTime); err != nil {
 			cleanup()
 			return "", nil, err
 		}

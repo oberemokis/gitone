@@ -9,6 +9,7 @@ import (
 
 	"gitone/internal/config"
 	"gitone/internal/diff"
+	"gitone/internal/git"
 	"gitone/internal/keymap"
 	"gitone/internal/layout"
 	"gitone/internal/tui/diffview"
@@ -40,6 +41,12 @@ type Model struct {
 	// committing: открыто поле темы коммита, subject набранная тема
 	committing bool
 	subject    string
+	// baseArgs аргументы запуска: b возвращает к ним дифф рабочего дерева
+	baseArgs []string
+	// лог коммитов поверх диффа: записи, курсор и открыто ли окно
+	logOpen    bool
+	logEntries []git.LogEntry
+	logCursor  int
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
 	keys       keymap.Keymap
@@ -88,17 +95,18 @@ func New(opts Options, files []diff.File) Model {
 	}
 
 	return Model{
-		dir:     opts.Dir,
-		args:    opts.Args,
-		changes: opts.Changes,
-		staged:  opts.Staged,
-		notice:  opts.Notice,
-		keys:    opts.Keys,
-		ui:      opts.Config.UI,
-		layout:  root,
-		colors:  colors,
-		files:   files,
-		view:    view,
+		dir:      opts.Dir,
+		args:     opts.Args,
+		baseArgs: opts.Args,
+		changes:  opts.Changes,
+		staged:   opts.Staged,
+		notice:   opts.Notice,
+		keys:     opts.Keys,
+		ui:       opts.Config.UI,
+		layout:   root,
+		colors:   colors,
+		files:    files,
+		view:     view,
 	}
 }
 
@@ -117,6 +125,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.committing {
 			return m.typeCommit(msg)
+		}
+		if m.logOpen {
+			return m.logKey(msg)
 		}
 		m.notice = ""
 		if m.pickerOpen {
@@ -156,6 +167,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case actionDoneMsg:
 		return m.actionDone(msg)
+	case logMsg:
+		if msg.err != nil {
+			m.notice = msg.err.Error()
+		} else {
+			m.logEntries, m.logCursor, m.logOpen = msg.entries, 0, true
+		}
 	}
 
 	return m, nil
@@ -231,6 +248,11 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m = m.askDiscard()
 	case keymap.FilesCommit:
 		m = m.openCommit()
+	case keymap.AppLog:
+		return m, logCmd(m.dir)
+	case keymap.DiffWorkingTree:
+		m.args = m.baseArgs
+		return m.startReload()
 	case keymap.DiffScrollDown:
 		m.view = m.view.ScrollBy(1)
 	case keymap.DiffScrollUp:
@@ -379,6 +401,8 @@ func (m Model) body() string {
 		return overlay(base, m.picker.View(m.width, m.bodyHeight()), m.width, m.bodyHeight())
 	case m.committing:
 		return overlay(base, commitBox(m.colors, m.subject, m.width), m.width, m.bodyHeight())
+	case m.logOpen:
+		return overlay(base, logBox(m.colors, m.logEntries, m.logCursor, m.width, m.bodyHeight()), m.width, m.bodyHeight())
 	case m.helpOpen:
 		return overlay(base, helpBox(m.colors, m.width, m.keys.Bindings()), m.width, m.bodyHeight())
 	}
