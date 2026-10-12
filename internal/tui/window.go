@@ -173,7 +173,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 
 	// подсказка и вопрос обрезаются, как строки: длинные переназначенные
 	// клавиши иначе перенесли бы строку, и окно вылезло бы за экран
-	last := muted.Render(ansi.Truncate(l.hint, content, "…"))
+	last := ansi.Truncate(l.hint, content, muted.Render("…"))
 	if l.question != "" {
 		last = panel.Foreground(colors.Error).Render(ansi.Truncate(l.question, content, "…"))
 	}

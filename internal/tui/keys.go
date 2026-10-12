@@ -3,8 +3,11 @@ package tui
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
+
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
+	"gitone/internal/tui/theme"
 )
 
 // ctrl+p показываем как «ctrl p», так читается в подвале critique
@@ -24,16 +27,25 @@ func firstKey(keys keymap.Keymap, action keymap.Action) string {
 
 // windowHint это строка подсказки окна: первая клавиша и подпись каждого
 // действия в заданном порядке, закрытие последним. Отключённое действие в
-// подсказку не идёт, как в подвале.
-func windowHint(keys keymap.Keymap, text i18n.Dictionary, actions ...keymap.Action) string {
+// подсказку не идёт, как в подвале. Каждый кусок несёт фон окна сам: вложенный
+// стиль со сбросом иначе погасил бы его.
+func windowHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, actions ...keymap.Action) string {
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+
 	var hints []string
 	for _, action := range actions {
 		if key := firstKey(keys, action); key != "" {
-			hints = append(hints, key+" "+text.Text(hintKey(action), nil))
+			hints = append(hints, keyHint(panel, colors, key, text.Text(hintKey(action), nil)))
 		}
 	}
 
-	return strings.Join(hints, "   ")
+	return strings.Join(hints, panel.Render("   "))
+}
+
+// keyHint это пара «клавиша подпись» для подвала и окон: клавиша цветом
+// текста, подпись приглушённая, чтобы клавиша не терялась рядом с ней (#89).
+func keyHint(base lipgloss.Style, colors theme.Theme, key, label string) string {
+	return base.Render(key) + base.Foreground(colors.TextMuted).Render(" "+label)
 }
 
 // questionArgs подставляет в вопрос клавишу ответа «да».

@@ -34,7 +34,8 @@ func helpBox(colors theme.Theme, text i18n.Dictionary, screenWidth int, keys key
 	if closeKeys := keys.KeysFor(keymap.HelpClose); len(closeKeys) > 0 {
 		closeKey = displayKey(closeKeys[0])
 	}
-	rows := []string{justify(panel, width, bold.Render(text.Text("help.title", nil)), dim.Render(closeKey))}
+	// клавиши цветом текста, подписи приглушённые, как в подвале (#89)
+	rows := []string{justify(panel, width, bold.Render(text.Text("help.title", nil)), panel.Render(closeKey))}
 
 	order, groups := groupByCategory(keys.Bindings())
 	for _, category := range order {
@@ -47,7 +48,7 @@ func helpBox(colors theme.Theme, text i18n.Dictionary, screenWidth int, keys key
 			}
 
 			description := text.Text(helpKey(binding.Action), nil)
-			rows = append(rows, justify(panel, width, panel.Render(description), dim.Render(strings.Join(displayed, ", "))))
+			rows = append(rows, justify(panel, width, dim.Render(description), panel.Render(strings.Join(displayed, ", "))))
 		}
 	}
 
