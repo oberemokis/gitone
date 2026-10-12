@@ -33,6 +33,10 @@ type Model struct {
 	// stale: изменение пришло во время загрузки, после неё нужно перечитать ещё раз
 	stale   bool
 	changes <-chan struct{}
+	// staged: пути с отличием индекса от HEAD, по ним отметка в панели файлов
+	staged map[string]bool
+	// confirm: пути файла, который ждёт подтверждения discard; nil значит вопроса нет
+	confirm []string
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
 	keys       keymap.Keymap
@@ -62,6 +66,8 @@ type Options struct {
 	Notice string
 	// Changes присылает сигнал при изменении файлов, nil значит без слежения
 	Changes <-chan struct{}
+	// Staged пути, уже лежащие в индексе при запуске
+	Staged map[string]bool
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -82,6 +88,7 @@ func New(opts Options, files []diff.File) Model {
 		dir:     opts.Dir,
 		args:    opts.Args,
 		changes: opts.Changes,
+		staged:  opts.Staged,
 		notice:  opts.Notice,
 		keys:    opts.Keys,
 		ui:      opts.Config.UI,
@@ -102,6 +109,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m = m.resize()
 	case tea.KeyPressMsg:
+		if m.confirm != nil {
+			return m.answerDiscard(msg)
+		}
 		m.notice = ""
 		if m.pickerOpen {
 			return m.pickerKey(msg)
@@ -133,10 +143,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.notice = msg.err.Error()
 		} else {
 			m = m.applyReload(msg.files)
+			m.staged = msg.staged
 		}
 		if m.stale {
 			return m.startReload()
 		}
+	case actionDoneMsg:
+		return m.actionDone(msg)
 	}
 
 	return m, nil
@@ -206,6 +219,10 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m.view = m.view.ToggleMode()
 	case keymap.DiffReload:
 		return m.startReload()
+	case keymap.FilesStage:
+		return m.toggleStage()
+	case keymap.FilesDiscard:
+		m = m.askDiscard()
 	case keymap.DiffScrollDown:
 		m.view = m.view.ScrollBy(1)
 	case keymap.DiffScrollUp:
@@ -385,7 +402,14 @@ func (m Model) panes(placed layout.Placed) string {
 func (m Model) labels() []string {
 	labels := make([]string, len(m.files))
 	for index, file := range m.files {
-		labels[index] = fileTitle(file)
+		// отметка занимает ту же ширину, что и её отсутствие, иначе имена
+		// разъедутся по панели
+		mark := "  "
+		if m.staged[stagedKey(file)] {
+			mark = "● "
+		}
+
+		labels[index] = mark + fileTitle(file)
 		if status := statusLabel(file.Status); status != "" {
 			labels[index] += " " + status
 		}

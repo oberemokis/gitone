@@ -115,6 +115,9 @@ func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	})
 
 	files, err := tui.Load(opts.Dir, opts.Args)
+	staged, stagedErr := tui.Staged(opts.Dir)
+	opts.Staged = staged
+	opts.Notice = joinNotices(opts.Notice, errorText(stagedErr))
 
 	if !timer.Stop() {
 		<-printed
@@ -122,6 +125,15 @@ func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	}
 
 	return tui.New(opts, files), err
+}
+
+// errorText нужен там, где ошибки может не быть: nil в тексте стал бы пустой
+// строкой подвала.
+func errorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func exit(err error) {
