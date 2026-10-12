@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
@@ -66,27 +67,45 @@ func (m Model) branchesShown() []git.Branch {
 	return matching(m.branches, m.query, func(branch git.Branch) string { return branch.Name })
 }
 
-// branchBox рисует список веток. Имя цветом accent, как ветка в окне worktree
-// (#117). Текущая помечена словом, а не цветом: так видно и без цветов.
-// Каждый кусок несёт фон окна сам.
+// branchBox рисует ветки таблицей, как лог (#124): имя, отметка текущей,
+// автор и время последнего коммита, над ними заголовки столбцов. Имя цветом
+// accent, как ветка в окне worktree (#117), автор и время приглушённые.
+// Текущая помечена словом, а не цветом: так видно и без цветов. Столбец имени
+// по самому длинному имени, но не шире того, что оставляют остальные.
 func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, branches []git.Branch, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	name := panel.Foreground(colors.Accent)
-
-	rows := make([]string, len(branches))
-	for index, branch := range branches {
-		rows[index] = name.Render(branch.Name)
-		if branch.Current {
-			rows[index] += panel.Render(" " + text.Text("branches.current", nil))
-		}
-	}
-
-	return list{
+	box := list{
 		title:  text.Text("branches.title", nil),
 		close:  closeHint(colors, keys, text, keymap.ListClose),
-		width:  60,
-		rows:   rows,
+		width:  90,
 		cursor: cursor,
 		hint:   windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.ListSearch),
-	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil)).view(colors, screenWidth, screenHeight)
+	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	muted := panel.Foreground(colors.TextMuted)
+	current := text.Text("branches.current", nil)
+
+	titles := []string{text.Text("branches.column.name", nil), "", text.Text("branches.column.author", nil), text.Text("branches.column.date", nil)}
+	nameWidth, authorWidth, dateWidth := ansi.StringWidth(titles[0]), ansi.StringWidth(titles[2]), ansi.StringWidth(titles[3])
+	for _, branch := range branches {
+		nameWidth = max(nameWidth, ansi.StringWidth(branch.Name))
+		authorWidth = max(authorWidth, ansi.StringWidth(branch.Author))
+		dateWidth = max(dateWidth, ansi.StringWidth(branch.When))
+	}
+	widths := []int{0, ansi.StringWidth(current), min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
+	widths[0] = max(min(nameWidth, box.rowWidth(screenWidth)-widths[1]-widths[2]-widths[3]-3*columnGap), 1)
+
+	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
+
+	styles := []lipgloss.Style{panel.Foreground(colors.Accent), panel, muted, muted}
+	box.rows = make([]string, len(branches))
+	for index, branch := range branches {
+		mark := ""
+		if branch.Current {
+			mark = current
+		}
+		box.rows[index] = tableRow(panel, widths, styles, branch.Name, mark, branch.Author, branch.When)
+	}
+
+	return box.view(colors, screenWidth, screenHeight)
 }
