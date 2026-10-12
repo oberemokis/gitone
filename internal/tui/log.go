@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -31,17 +32,30 @@ func logCmd(dir string) tea.Cmd {
 }
 
 // logKey отдаёт клавиши окну лога. log.open показывает диф коммита в этом же
-// экране, list.close закрывает окно.
+// экране, log.search открывает поле поиска, list.close закрывает окно и
+// снимает фильтр. Пока поле открыто, клавиши идут в него.
 func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.navigate(key, len(m.logEntries)); handled {
-		return next, cmd
+	if m.logSearching {
+		return m.typeLogSearch(key)
 	}
-	if !m.keys.Is(keymap.LogOpen, key.String()) || len(m.logEntries) == 0 {
+	if m.keys.Is(keymap.LogSearch, key.String()) {
+		m.logSearching, m.logQuery, m.cursor = true, "", 0
 		return m, nil
 	}
 
-	entry := m.logEntries[m.cursor]
-	m.active = noWindow
+	shown := m.logShown()
+	if next, cmd, handled := m.navigate(key, len(shown)); handled {
+		if next.active == noWindow {
+			next.logQuery = ""
+		}
+		return next, cmd
+	}
+	if !m.keys.Is(keymap.LogOpen, key.String()) || len(shown) == 0 {
+		return m, nil
+	}
+
+	entry := shown[m.cursor]
+	m.active, m.logQuery = noWindow, ""
 	if entry.Root {
 		m.notice = m.text.Text("log.firstCommitHidden", nil)
 		return m, nil
@@ -49,6 +63,50 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	m.args = []string{entry.Hash + "^!"}
 	return m.startReload()
+}
+
+// typeLogSearch отдаёт клавиши полю поиска, как полю темы коммита: набранное
+// идёт в запрос, logSearch.done оставляет фильтр, logSearch.cancel снимает
+// его. Выйти из приложения можно по зашитому ctrl+c, стереть символ по
+// зашитому backspace. Курсор после каждой правки запроса встаёт на первую
+// найденную строку.
+func (m Model) typeLogSearch(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	pressed := key.String()
+	switch {
+	case pressed == "ctrl+c":
+		return m, tea.Quit
+	case m.keys.Is(keymap.LogSearchCancel, pressed):
+		m.logSearching, m.logQuery = false, ""
+	case m.keys.Is(keymap.LogSearchDone, pressed):
+		m.logSearching = false
+		return m, nil
+	case pressed == "backspace":
+		_, size := utf8.DecodeLastRuneInString(m.logQuery)
+		m.logQuery = m.logQuery[:len(m.logQuery)-size]
+	default:
+		m.logQuery += key.Text
+	}
+
+	m.cursor = 0
+	return m, nil
+}
+
+// logShown это коммиты под фильтром поиска: подстрока без учёта регистра в
+// хэше, теме или авторе. Ищется по загруженным коммитам, без вызова git.
+func (m Model) logShown() []git.LogEntry {
+	if m.logQuery == "" {
+		return m.logEntries
+	}
+
+	query := strings.ToLower(m.logQuery)
+	var shown []git.LogEntry
+	for _, entry := range m.logEntries {
+		text := strings.ToLower(entry.Hash + "\x00" + entry.Subject + "\x00" + entry.Author)
+		if strings.Contains(text, query) {
+			shown = append(shown, entry)
+		}
+	}
+	return shown
 }
 
 // Ширина столбцов лога: хэш короткий, автор и дата по самому длинному
@@ -64,15 +122,27 @@ const (
 // заголовки столбцов (#109). Ширина столбцов общая для всех строк, тема
 // занимает остаток. Хэш выделен цветом accent, по нему коммит ищут глазами,
 // автор и дата приглушённые. Каждый кусок строки несёт фон окна сам:
-// вложенный стиль со сбросом иначе погасил бы фон.
-func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, cursor, screenWidth, screenHeight int) string {
+// вложенный стиль со сбросом иначе погасил бы фон. Строка поиска стоит над
+// таблицей, пока поле открыто или фильтр не снят (#110).
+func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
 	box := list{
 		title:  text.Text("log.title", nil),
 		close:  closeHint(colors, keys, text, keymap.ListClose),
 		cursor: cursor,
 		empty:  []string{text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen),
+		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogSearch),
 		fill:   true,
+	}
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	muted := panel.Foreground(colors.TextMuted)
+	if typing || query != "" {
+		box.search = muted.Render("/ ") + panel.Render(query)
+		if typing {
+			box.search += panel.Background(colors.Primary).Render(" ")
+			box.hint = windowHint(colors, keys, text, keymap.LogSearchDone, keymap.LogSearchCancel)
+		}
+		box.empty = []string{text.Text("log.noMatches", nil)}
 	}
 
 	titles := []string{text.Text("log.column.commit", nil), text.Text("log.column.message", nil), text.Text("log.column.author", nil), text.Text("log.column.date", nil)}
@@ -84,8 +154,6 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 	widths := []int{hashColumn, 0, min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
 	widths[1] = max(box.rowWidth(screenWidth)-widths[0]-widths[2]-widths[3]-3*columnGap, 1)
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
 	box.header = tableRow(panel, widths, muted, muted, muted, muted, titles...)
 
 	box.rows = make([]string, len(entries))

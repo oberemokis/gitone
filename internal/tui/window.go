@@ -68,7 +68,7 @@ func (m Model) windowBox() string {
 	case commitWindow:
 		return commitBox(m.colors, m.text, m.keys, m.subject, width)
 	case logWindow:
-		return logBox(m.colors, m.text, m.keys, m.logEntries, m.cursor, width, height)
+		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.logQuery, m.logSearching, width, height)
 	case branchWindow:
 		return branchBox(m.colors, m.text, m.keys, m.branches, m.cursor, width, height)
 	case worktreeWindow:
@@ -125,6 +125,8 @@ type list struct {
 	fill bool
 	// header это строка заголовков столбцов над строками, пустая без них
 	header string
+	// search это строка поиска над заголовками столбцов, пустая без поиска
+	search string
 }
 
 // Поля окна на весь экран около 100 пикселей: ячейка терминала примерно
@@ -147,7 +149,7 @@ func (l list) windowWidth(screenWidth int) int {
 // rowWidth это ширина строки без маркера курсора: по ней таблица лога делит
 // столбцы.
 func (l list) rowWidth(screenWidth int) int {
-	return l.windowWidth(screenWidth) - 2*windowPaddingX - len("› ")
+	return l.windowWidth(screenWidth) - 2*windowPaddingX - ansi.StringWidth("› ")
 }
 
 // view рисует список по центру. Строки обрезаются по ширине, а окно
@@ -157,8 +159,10 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	// без отступов окна, заголовка с пустой строкой под ним и подсказки с
 	// пустой строкой над ней
 	chrome := 7
-	if l.header != "" {
-		chrome++
+	for _, extra := range []string{l.header, l.search} {
+		if extra != "" {
+			chrome++
+		}
 	}
 	shown := max(min(len(l.rows), screenHeight-chrome), 1)
 	if l.fill {
@@ -172,6 +176,9 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	muted := panel.Foreground(colors.TextMuted)
 
 	lines := []string{windowTitle(colors, content, l.title, l.close), ""}
+	if l.search != "" {
+		lines = append(lines, ansi.Truncate(l.search, content, "…"))
+	}
 	if l.header != "" && len(l.rows) > 0 {
 		lines = append(lines, panel.Render(ansi.Truncate("  "+l.header, content, "…")))
 	}

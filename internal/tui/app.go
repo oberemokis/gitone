@@ -53,10 +53,13 @@ type Model struct {
 	confirm    []string
 	subject    string
 	logEntries []git.LogEntry
-	branches   []git.Branch
-	worktrees  []git.Worktree
-	stashes    []git.Stash
-	picker     picker.Model
+	// поиск в логе: запрос и открытое поле (log.go)
+	logQuery     string
+	logSearching bool
+	branches     []git.Branch
+	worktrees    []git.Worktree
+	stashes      []git.Stash
+	picker       picker.Model
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice string
 	keys   keymap.Keymap
@@ -190,6 +193,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.logEntries, m.cursor, m.active = msg.entries, 0, logWindow
+			m.logQuery, m.logSearching = "", false
 		}
 	}
 
