@@ -113,7 +113,7 @@ func TestHeaderSpacing(t *testing.T) {
 	if strings.TrimSpace(screen[0]) != "" {
 		t.Errorf("над заголовком не пусто: %q", screen[0])
 	}
-	if header := strings.TrimSpace(screen[1]); header != "a.txt +1 -1 (1/1)" {
+	if header := headerText(screen); header != "a.txt +1 -1 (1/1)" {
 		t.Errorf("заголовок %q, want %q", header, "a.txt +1 -1 (1/1)")
 	}
 }

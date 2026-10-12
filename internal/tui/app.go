@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"image"
 	"slices"
 	"strings"
@@ -534,8 +533,7 @@ func (m Model) screen() (string, []zone.Zone) {
 	if m.ui.PaneTitles {
 		title := ""
 		if len(m.files) > 0 {
-			counter := fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
-			title = header(m.width, m.files[m.current], counter, m.colors, m.text)
+			title = header(m.width, m.files, m.current, m.colors, m.text)
 		}
 		rows = append(rows, "", scan(title, 0, 1, free), "")
 	}

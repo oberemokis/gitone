@@ -154,9 +154,14 @@ const (
 	bodyRow   = 3
 )
 
+// headerText это строка заголовка без стрелок по краям (#120) и пробелов.
+func headerText(screen []string) string {
+	return strings.TrimSpace(strings.Trim(strings.TrimSpace(screen[headerRow]), "‹›"))
+}
+
 // openedFile читает путь открытого файла из заголовка: первое слово.
 func openedFile(screen []string) string {
-	fields := strings.Fields(screen[headerRow])
+	fields := strings.Fields(headerText(screen))
 	if len(fields) == 0 {
 		return ""
 	}

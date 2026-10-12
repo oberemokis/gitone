@@ -118,8 +118,8 @@ func TestSamePathTwiceIsDistinguishableInPicker(t *testing.T) {
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 
 	var rows []string
-	for _, line := range screenOf(model) {
-		if strings.Contains(line, "link") && !strings.HasPrefix(strings.TrimSpace(line), "link +") {
+	for row, line := range screenOf(model) {
+		if strings.Contains(line, "link") && row != headerRow {
 			rows = append(rows, strings.Join(strings.Fields(line), " "))
 		}
 	}

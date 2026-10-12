@@ -21,7 +21,7 @@ func TestReloadShowsChangedLines(t *testing.T) {
 	write(t, repo, "a.txt", "one\ntwo\nthree\n")
 	screen := screenOf(pressReload(t, model))
 
-	if header := strings.TrimSpace(screen[headerRow]); header != "a.txt +2 -0 (1/1)" {
+	if header := headerText(screen); header != "a.txt +2 -0 (1/1)" {
 		t.Fatalf("заголовок %q, ожидался %q", header, "a.txt +2 -0 (1/1)")
 	}
 	if body := strings.Join(screen, "\n"); !strings.Contains(body, "three") {

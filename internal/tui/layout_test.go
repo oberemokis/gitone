@@ -89,9 +89,10 @@ func TestFilesPanelPadding(t *testing.T) {
 }
 
 // markedFile узнаёт текущий файл по стрелке на той же строке, что и имя.
+// Заголовок не в счёт: там › это стрелка к следующему файлу (#120).
 func markedFile(screen []string, name string) bool {
-	for _, line := range screen {
-		if strings.Contains(line, "›") && strings.Contains(line, name) {
+	for row, line := range screen {
+		if row != headerRow && strings.Contains(line, "›") && strings.Contains(line, name) {
 			return true
 		}
 	}
