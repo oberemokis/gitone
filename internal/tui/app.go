@@ -169,8 +169,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.notice = "слежение остановлено: нажмите r"
 	case reloadMsg:
 		m.loading = false
-		// ponytail: окно поиска, открытое во время загрузки, покажет список
-		// до перечитывания. Открыть его заново обновит список.
+		// ponytail: окно поиска, открытое во время загрузки, показывает список
+		// до перечитывания, выбор при этом ищется по имени в новом. Открыть
+		// окно заново обновит список.
 		if msg.err != nil {
 			m.notice = msg.err.Error()
 		} else {
@@ -317,12 +318,29 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch outcome {
 	case picker.Chosen:
 		m.pickerOpen = false
-		m = m.openFile(m.picker.Selected())
+		if index, found := m.chosenFile(); found {
+			m = m.openFile(index)
+		}
 	case picker.Closed:
 		m.pickerOpen = false
 	}
 
 	return m, nil
+}
+
+// chosenFile ищет выбранную в окне запись в текущем диффе по подписи и статусу.
+// Окно строилось по списку на момент открытия, а дифф мог перечитаться, пока
+// оно открыто: номер записи тогда указал бы на другой файл.
+func (m Model) chosenFile() (int, bool) {
+	item, found := m.picker.SelectedItem()
+	if !found {
+		return 0, false
+	}
+
+	index := slices.IndexFunc(m.files, func(file diff.File) bool {
+		return fileTitle(file) == item.Label && statusLabel(file.Status) == item.Detail
+	})
+	return index, index >= 0
 }
 
 // applyReload ставит новый дифф на место старого. Открытый файл остаётся

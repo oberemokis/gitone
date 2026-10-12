@@ -73,14 +73,15 @@ func (m Model) HandleKey(key tea.KeyPressMsg) (Model, Outcome) {
 	return m, Pending
 }
 
-// Selected это номер выбранного элемента в исходном списке или -1, если
-// под поиск ничего не подошло.
-func (m Model) Selected() int {
+// SelectedItem это выбранный элемент. found false, если под поиск ничего не
+// подошло. Номер в списке не отдаётся: список, по которому строилось окно, у
+// вызывающего мог смениться, пока окно открыто.
+func (m Model) SelectedItem() (item Item, found bool) {
 	if len(m.matches) == 0 {
-		return -1
+		return Item{}, false
 	}
 
-	return m.matches[m.selected]
+	return m.items[m.matches[m.selected]], true
 }
 
 // filter оставляет элементы, в которых символы поиска идут по порядку. Порядок
