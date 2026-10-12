@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -33,6 +34,8 @@ type Model struct {
 	dir     string
 	args    []string
 	loading bool
+	// spin кадр спиннера загрузки в подвале
+	spin int
 	// stale: правка gitone пришла во время загрузки, после неё нужно перечитать ещё раз
 	stale bool
 	// polling: идёт тихий опрос из live.go; ticks таймер опроса, nil без автообновления
@@ -40,6 +43,8 @@ type Model struct {
 	ticks   <-chan time.Time
 	// staged: пути с отличием индекса от HEAD, по ним отметка в панели файлов
 	staged map[string]bool
+	// location ветка и worktree для левого края подвала
+	location git.Location
 	// baseArgs аргументы запуска: b возвращает к ним дифф рабочего дерева
 	baseArgs []string
 	// active окно, которое получает клавиши; cursor курсор открытого списка
@@ -82,6 +87,8 @@ type Options struct {
 	Ticks <-chan time.Time
 	// Staged пути, уже лежащие в индексе при запуске
 	Staged map[string]bool
+	// Location ветка и worktree при запуске, дальше их обновляет перечитывание
+	Location git.Location
 	// Text тексты интерфейса на выбранном языке, нулевое значение английское
 	Text i18n.Dictionary
 }
@@ -107,6 +114,7 @@ func New(opts Options, files []diff.File) Model {
 		baseArgs: opts.Args,
 		ticks:    opts.Ticks,
 		staged:   opts.Staged,
+		location: opts.Location,
 		notice:   opts.Notice,
 		keys:     opts.Keys,
 		ui:       opts.Config.UI,
@@ -145,6 +153,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case polledMsg:
 		m = m.polled(msg)
+	case spinMsg:
+		if m.loading {
+			m.spin++
+			return m, spinTick()
+		}
 	case reloadMsg:
 		return m.reloaded(msg)
 	case actionDoneMsg:
@@ -195,9 +208,9 @@ func (m Model) dropQuestion() Model {
 }
 
 // startReload запускает перечитывание, если оно не идёт. Повтор во время загрузки
-// не нужен: загрузка уже читает актуальный дифф, а лишний запуск только мигает подвалом.
-// Висящий вопрос discard отменяется по той же причине, что в say: надпись
-// loading закрывает его в подвале.
+// не нужен: загрузка уже читает актуальный дифф. Висящий вопрос discard
+// отменяется по той же причине, что в say: спиннер встаёт на его место в
+// центре подвала.
 func (m Model) startReload() (Model, tea.Cmd) {
 	if m.loading {
 		return m, nil
@@ -205,8 +218,9 @@ func (m Model) startReload() (Model, tea.Cmd) {
 
 	m.loading = true
 	m.stale = false
+	m.spin = 0
 	m = m.dropQuestion()
-	return m, reload(m.dir, m.args)
+	return m, tea.Batch(spinTick(), reload(m.dir, m.args))
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать
@@ -415,36 +429,41 @@ func (m Model) View() tea.View {
 		return view
 	}
 
-	title, counter := "", ""
+	title := ""
 	if len(m.files) > 0 {
-		title = header(m.width, m.files[m.current], m.colors, m.text)
-		counter = fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
+		counter := fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
+		title = header(m.width, m.files[m.current], counter, m.colors, m.text)
 	}
 
 	var rows []string
 	if m.ui.PaneTitles {
 		rows = append(rows, title, "")
 	}
-	rows = append(rows, m.body(), m.footerLine(counter))
+	rows = append(rows, m.body(), m.footerLine())
 
 	view.Content = lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return view
 }
 
-// footerLine показывает подсказки, а пока идёт перечитывание или висит ошибка
-// git, вместо них одну строку статуса.
-func (m Model) footerLine(counter string) string {
+// footerLine собирает подвал: ветку слева, статус по центру, подсказки справа.
+// Пока идёт перечитывание, в центре спиннер, а висящая ошибка git ждёт
+// следующего нажатия.
+func (m Model) footerLine() string {
+	center := ""
 	switch {
 	case m.loading:
-		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.TextMuted), m.text.Text("screen.loading", nil))
+		center = spinner(m.spin, m.colors, m.text)
 	case m.notice != "":
-		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.Error), m.notice)
-	case !m.ui.KeyHints:
-		// строка остаётся на месте, чтобы высота тела не менялась
-		return ""
+		first, _, _ := strings.Cut(m.notice, "\n")
+		center = lipgloss.NewStyle().Foreground(m.colors.Error).Render(first)
 	}
 
-	return footer(m.width, m.colors, m.text, counter, m.keys.Bindings())
+	hints := ""
+	if m.ui.KeyHints {
+		hints = keyHints(m.colors, m.text, m.keys.Bindings())
+	}
+
+	return footer(m.width, locationLabel(m.location, m.colors), center, hints)
 }
 
 // body складывает панели по раскладке и кладёт окна поверх, как opencode:

@@ -24,11 +24,11 @@ func TestBracketsMoveBetweenFilesAndStopAtEdges(t *testing.T) {
 		wantFile    string
 		wantCounter string
 	}{
-		{name: "[ на первом", key: previous, wantFile: "a.txt", wantCounter: "files (1/3)"},
-		{name: "]", key: next, wantFile: "b.txt", wantCounter: "files (2/3)"},
-		{name: "второй ]", key: next, wantFile: "c.txt", wantCounter: "files (3/3)"},
-		{name: "] на последнем", key: next, wantFile: "c.txt", wantCounter: "files (3/3)"},
-		{name: "[", key: previous, wantFile: "b.txt", wantCounter: "files (2/3)"},
+		{name: "[ на первом", key: previous, wantFile: "a.txt", wantCounter: "(1/3)"},
+		{name: "]", key: next, wantFile: "b.txt", wantCounter: "(2/3)"},
+		{name: "второй ]", key: next, wantFile: "c.txt", wantCounter: "(3/3)"},
+		{name: "] на последнем", key: next, wantFile: "c.txt", wantCounter: "(3/3)"},
+		{name: "[", key: previous, wantFile: "b.txt", wantCounter: "(2/3)"},
 	}
 
 	for _, step := range steps {
@@ -38,8 +38,8 @@ func TestBracketsMoveBetweenFilesAndStopAtEdges(t *testing.T) {
 		if got := openedFile(screen); got != step.wantFile {
 			t.Fatalf("%s: открыт %q, ожидался %q", step.name, got, step.wantFile)
 		}
-		if footer := screen[len(screen)-1]; !strings.Contains(footer, step.wantCounter) {
-			t.Fatalf("%s: в подвале нет %q: %q", step.name, step.wantCounter, footer)
+		if header := screen[0]; !strings.Contains(header, step.wantCounter) {
+			t.Fatalf("%s: в заголовке нет %q: %q", step.name, step.wantCounter, header)
 		}
 	}
 }
@@ -70,7 +70,7 @@ func TestPickerFiltersBySubsequenceAndOpensChoice(t *testing.T) {
 	if got := openedFile(after); got != "internal/tui/app.go" {
 		t.Fatalf("после enter открыт %q", got)
 	}
-	if body := strings.Join(after, "\n"); strings.Contains(body, "Search") || !strings.Contains(after[len(after)-1], "files (2/3)") {
+	if body := strings.Join(after, "\n"); strings.Contains(body, "Search") || !strings.Contains(after[0], "(2/3)") {
 		t.Fatalf("окно не закрылось или счётчик не сменился:\n%s", body)
 	}
 }

@@ -127,6 +127,9 @@ func open(t *testing.T, opts tui.Options) tea.Model {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+	if opts.Location, err = tui.Locate(opts.Dir); err != nil {
+		t.Fatalf("Locate: %v", err)
+	}
 
 	return tui.New(opts, files)
 }
@@ -195,7 +198,8 @@ func typeText(model tea.Model, text string) tea.Model {
 }
 
 // pressReload нажимает r и доводит перечитывание до конца так же, как Bubble
-// Tea: команда выполняется, её сообщение возвращается в модель.
+// Tea: команда выполняется, её ответы возвращаются в модель. Следующий шаг
+// спиннера не выполняется: после загрузки он ничего не меняет.
 func pressReload(t *testing.T, model tea.Model) tea.Model {
 	t.Helper()
 
@@ -203,7 +207,9 @@ func pressReload(t *testing.T, model tea.Model) tea.Model {
 	if cmd == nil {
 		t.Fatal("r не запустил перечитывание")
 	}
-	model, _ = model.Update(cmd())
+	for _, msg := range runAll(cmd) {
+		model, _ = model.Update(msg)
+	}
 	return model
 }
 

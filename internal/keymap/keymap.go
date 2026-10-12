@@ -349,7 +349,7 @@ func checkConflicts(bindings []Binding) error {
 func defaults() []Binding {
 	return []Binding{
 		{Action: AppQuit, Category: CategoryGeneral, Keys: []string{"q", "ctrl+c"}, Footer: true, Help: true},
-		{Action: FilesPick, Category: CategoryFiles, Keys: []string{"ctrl+p"}, Footer: true, Help: true},
+		{Action: FilesPick, Category: CategoryFiles, Keys: []string{"ctrl+p"}, Help: true},
 		{Action: AppHelp, Category: CategoryGeneral, Keys: []string{"?"}, Footer: true, Help: true},
 		{Action: FilesNext, Category: CategoryFiles, Keys: []string{"]"}, Help: true},
 		{Action: FilesPrevious, Category: CategoryFiles, Keys: []string{"["}, Help: true},

@@ -67,6 +67,8 @@ func (m Model) polled(msg polledMsg) Model {
 	if msg.err != nil || m.loading || !slices.Equal(msg.args, m.args) {
 		return m
 	}
+
+	m.location = msg.location
 	if reflect.DeepEqual(msg.files, m.files) && maps.Equal(msg.staged, m.staged) {
 		return m
 	}

@@ -34,11 +34,17 @@ func Staged(dir string) (map[string]bool, error) {
 	return staged, nil
 }
 
-// reloadMsg несёт итог перечитывания: новый дифф, индекс или ошибку git.
+// Locate называет ветку и worktree для подвала.
+func Locate(dir string) (git.Location, error) {
+	return git.Locate(dir)
+}
+
+// reloadMsg несёт итог перечитывания: новый дифф, индекс, ветку или ошибку git.
 type reloadMsg struct {
-	files  []diff.File
-	staged map[string]bool
-	err    error
+	files    []diff.File
+	staged   map[string]bool
+	location git.Location
+	err      error
 }
 
 // reload читает дифф и индекс в команде, а не в Update, чтобы модель оставалась
@@ -49,7 +55,8 @@ func reload(dir string, args []string) tea.Cmd {
 	}
 }
 
-// readDiff читает дифф и индекс: по r и при опросе одним путём.
+// readDiff читает дифф, индекс и ветку: по r и при опросе одним путём. Ветку
+// могли переключить в другом терминале, поэтому она читается вместе с диффом.
 func readDiff(dir string, args []string) reloadMsg {
 	files, err := Load(dir, args)
 	if err != nil {
@@ -57,7 +64,12 @@ func readDiff(dir string, args []string) reloadMsg {
 	}
 
 	staged, err := Staged(dir)
-	return reloadMsg{files: files, staged: staged, err: err}
+	if err != nil {
+		return reloadMsg{err: err}
+	}
+
+	location, err := Locate(dir)
+	return reloadMsg{files: files, staged: staged, location: location, err: err}
 }
 
 // reloaded ставит перечитанный дифф на экран, а ошибку git в подвал. Если за
@@ -71,7 +83,7 @@ func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
 		m = m.say(m.text.Error(msg.err))
 	} else {
 		m = m.applyReload(msg.files)
-		m.staged = msg.staged
+		m.staged, m.location = msg.staged, msg.location
 	}
 
 	if m.stale {
