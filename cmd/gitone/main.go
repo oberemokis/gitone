@@ -38,7 +38,19 @@ func main() {
 
 	opts, settingsErrs := loadSettings()
 	opts.Dir, opts.Args = dir, os.Args[1:]
-	opts.Notice = addNotice(opts.Text, "", settingsErrs...)
+
+	// Язык выбирается после чтения config.json, поэтому ошибки настроек ещё не
+	// стали текстом: они выйдут на выбранном языке.
+	text, languageErr := i18n.Choose(opts.Config.Language, os.Getenv("LC_ALL"), os.Getenv("LC_MESSAGES"), os.Getenv("LANG"))
+	opts.Text = text
+	opts.Notice = addNotice(text, "", append(settingsErrs, languageErr)...)
+
+	// git отвечает на языке интерфейса, если у него есть такой перевод.
+	// LANGUAGE меняет только язык сообщений и не трогает кодировку, поэтому
+	// хукам пользователя при коммите она безопаснее LC_ALL.
+	if err := os.Setenv("LANGUAGE", text.Lang()); err != nil {
+		opts.Notice = addNotice(text, opts.Notice, err)
+	}
 
 	// слежение живёт до конца программы, поэтому канал закрывается здесь
 	done := make(chan struct{})

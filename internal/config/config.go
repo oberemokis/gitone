@@ -19,6 +19,9 @@ const fileName = "config.json"
 // встроенными: Load начинает с Default и поверх читает файл.
 type Config struct {
 	Schema string `json:"$schema"`
+	// язык интерфейса; пусто значит язык системы. Есть ли для него словарь,
+	// проверяет i18n при выборе языка, а не config
+	Language string `json:"language"`
 	// имя темы: встроенная dark или файл themes/<имя>.json
 	Theme string `json:"theme"`
 	// имя раскладки: встроенная default или focus либо файл layouts/<имя>.json
