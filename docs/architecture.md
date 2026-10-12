@@ -30,17 +30,17 @@ gitone/
 └── Makefile
 ```
 
-Сейчас существуют `cmd/gitone`, `config`, `keymap`, `layout`, `syntax`, `git`, `diff`, `tui`, `tui/diffview`, `tui/pane/files`, `tui/picker` и `tui/theme`. Остальные пакеты появятся вместе с первым кодом, которому они нужны, и в тот же момент попадут в таблицу `architecture_test.go`.
+Сейчас существуют `cmd/gitone`, `config`, `keymap`, `layout`, `syntax`, `watch`, `git`, `diff`, `tui`, `tui/diffview`, `tui/pane/files`, `tui/picker` и `tui/theme`. Остальные пакеты появятся вместе с первым кодом, которому они нужны, и в тот же момент попадут в таблицу `architecture_test.go`.
 
 ## Граф зависимостей
 
 ```
-cmd/gitone             → tui, config, keymap, layout, theme
+cmd/gitone             → tui, config, keymap, layout, theme, watch
 tui                    → diffview, pane/files, picker, theme, git, diff, config, keymap, layout
 diffview               → diff, theme, syntax
 picker                 → theme
 theme                  → ничего из проекта
-config, keymap, syntax, git, diff → ничего из проекта
+config, keymap, syntax, watch, git, diff → ничего из проекта
 ```
 
 Дальше добавятся: `pane/* → keymap, theme, git, diff`, `keymap, layout, theme → config`.
@@ -136,7 +136,7 @@ type Pane interface {
 
 `git.Diff(dir, args)` отдаёт текст диффа, разбирает его пакет `diff`. С аргументами они уходят в `git diff` как есть. Без аргументов это `git diff HEAD --` по временной копии индекса, в которую неотслеженные файлы добавлены через `add -N`: так они видны добавленными, переименование в рабочем дереве видно переименованием, а настоящий индекс не трогается. В репозитории без коммитов базой служит пустое дерево. Файлы больше 10 МБ git отдаёт бинарными. Решения и отвергнутые варианты в задаче #7.
 
-Обновление данных: при запуске и по явному действию. Слежение за файлами через fsnotify оставляем на потом.
+Обновление данных: при запуске, по `r` и по сигналу слежения. Слежение в `internal/watch` на fsnotify: наблюдаются каталоги рабочей копии, `.git` и скрытые каталоги нет, лимит 1000 каталогов. Сигнал ждёт 200 мс тишины и перечитывает тем же путём, что `r`. Решения в задаче #20.
 
 ## Конфигурация
 
