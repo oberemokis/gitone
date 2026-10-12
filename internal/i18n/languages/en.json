@@ -7,12 +7,14 @@
   "action.stash.apply.hint": "apply",
   "action.stash.diff.hint": "diff",
   "action.stash.drop.hint": "drop",
+  "action.worktrees.switch.hint": "switch",
   "action.app.branches.help": "Branches",
   "action.app.help.footer": "help",
   "action.app.help.help": "Toggle this help",
   "action.app.log.help": "Commit log",
   "action.app.quit.footer": "quit",
   "action.app.quit.help": "Quit",
+  "action.app.worktrees.help": "Worktrees",
   "action.diff.bottom.help": "Bottom",
   "action.diff.halfPageDown.help": "Half page down",
   "action.diff.halfPageUp.help": "Half page up",
@@ -105,5 +107,7 @@
   "update.noPermission": "cannot write to {dir}, run: sudo {exe} update",
   "update.noVersion": "cannot find the release version in {url}",
   "update.upToDate": "gitone {version} is the latest version",
-  "update.wrongVersion": "the downloaded gitone reports \"{got}\" instead of \"{want}\", nothing was installed"
+  "update.wrongVersion": "the downloaded gitone reports \"{got}\" instead of \"{want}\", nothing was installed",
+  "worktrees.current": "(current)",
+  "worktrees.title": "Worktrees"
 }

@@ -54,6 +54,7 @@ type Model struct {
 	subject    string
 	logEntries []git.LogEntry
 	branches   []git.Branch
+	worktrees  []git.Worktree
 	stashes    []git.Stash
 	picker     picker.Model
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
@@ -175,6 +176,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
+		}
+	case worktreesMsg:
+		switch {
+		case msg.err != nil:
+			m = m.say(m.text.Error(msg.err))
+		case m.active == noWindow:
+			m.worktrees, m.cursor, m.active = msg.worktrees, currentWorktree(msg.worktrees), worktreeWindow
 		}
 	case logMsg:
 		switch {
@@ -326,6 +334,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m, logCmd(m.dir)
 	case keymap.AppBranches:
 		return m, branchesCmd(m.dir)
+	case keymap.AppWorktrees:
+		return m, worktreesCmd(m.dir)
 	case keymap.StashPush:
 		return m, stashPushCmd(m.dir)
 	case keymap.StashList:
