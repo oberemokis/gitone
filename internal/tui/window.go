@@ -114,15 +114,30 @@ type list struct {
 	hint  string
 	// вопрос вместо подсказки, цветом ошибки
 	question string
+	// fill: окно на весь экран с равными полями, а не по ширине строк
+	fill bool
 }
+
+// Поля окна на весь экран около 100 пикселей: ячейка терминала примерно
+// вдвое выше, чем шире, поэтому колонок вдвое больше, чем строк. На маленьком
+// экране поле не больше восьмой части его стороны.
+const (
+	fillMarginX = 12
+	fillMarginY = 5
+)
 
 // view рисует список по центру. Строки обрезаются по ширине, а окно
 // прокручивается так, чтобы курсор оставался видимым.
 func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	width := max(min(l.width, screenWidth-8), 20)
+	shown := max(min(len(l.rows), screenHeight-6), 1)
+	if l.fill {
+		width = max(screenWidth-2*min(fillMarginX, screenWidth/8), 20)
+		// без отступов окна, заголовка и подсказки с пустой строкой над ней
+		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-5, 1)
+	}
 	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
 	content := width - 2*windowPaddingX
-	shown := max(min(len(l.rows), screenHeight-6), 1)
 	start := max(0, l.cursor-shown+1)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
@@ -144,6 +159,11 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 			marker = "› "
 		}
 		lines = append(lines, panel.Render(ansi.Truncate(marker+l.rows[index], content, "…")))
+	}
+
+	// окно на весь экран держит высоту и с коротким списком
+	for l.fill && len(lines) < shown+1 {
+		lines = append(lines, "")
 	}
 
 	// подсказка и вопрос обрезаются, как строки: длинные переназначенные

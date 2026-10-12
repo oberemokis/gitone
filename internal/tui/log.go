@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
@@ -49,18 +50,25 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
+// logBox рисует лог на весь экран с полями: темы коммитов длинные, и узкое
+// окно их обрезало. Хэш выделен цветом accent, по нему коммит ищут глазами.
+// Каждый кусок строки несёт фон окна сам: вложенный стиль со сбросом иначе
+// погасил бы фон после хэша.
 func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, cursor, screenWidth, screenHeight int) string {
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	hash := panel.Foreground(colors.Accent)
+
 	rows := make([]string, len(entries))
 	for index, entry := range entries {
-		rows[index] = fmt.Sprintf("%s  %s  %s · %s", entry.Hash[:7], entry.Subject, entry.Author, entry.When)
+		rows[index] = hash.Render(entry.Hash[:7]) + panel.Render(fmt.Sprintf("  %s  %s · %s", entry.Subject, entry.Author, entry.When))
 	}
 
 	return list{
 		title:  text.Text("log.title", nil),
-		width:  72,
 		rows:   rows,
 		cursor: cursor,
 		empty:  []string{"", text.Text("log.empty", nil)},
 		hint:   windowHint(keys, text, keymap.LogOpen, keymap.ListClose),
+		fill:   true,
 	}.view(colors, screenWidth, screenHeight)
 }
