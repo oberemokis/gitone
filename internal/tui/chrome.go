@@ -19,13 +19,7 @@ const (
 // header показывает путь открытого файла и счётчики строк, как заголовок
 // critique: «examples.ts +6-1».
 func header(width int, file diff.File, colors theme.Theme) string {
-	title := file.NewPath
-	switch {
-	case file.Status == diff.StatusRenamed || file.Status == diff.StatusCopied:
-		title = file.OldPath + " → " + file.NewPath
-	case title == "":
-		title = file.OldPath
-	}
+	title := fileTitle(file)
 
 	if file.Added > 0 || file.Removed > 0 {
 		added := lipgloss.NewStyle().Foreground(colors.DiffAdded).Render(fmt.Sprintf("+%d", file.Added))
@@ -36,14 +30,49 @@ func header(width int, file diff.File, colors theme.Theme) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, title)
 }
 
-func footer(width int, colors theme.Theme) string {
+// fileTitle это имя файла для заголовка и списка: у переименования оба пути,
+// у удалённого старый.
+func fileTitle(file diff.File) string {
+	switch {
+	case file.Status == diff.StatusRenamed || file.Status == diff.StatusCopied:
+		return file.OldPath + " → " + file.NewPath
+	case file.NewPath != "":
+		return file.NewPath
+	case file.OldPath != "":
+		return file.OldPath
+	}
+
+	return "git output"
+}
+
+// statusLabel пустой у изменённого файла, это обычный случай. У остальных
+// подпись различает записи с одним путём: файл, ставший симлинком, приходит
+// удалённым и добавленным.
+func statusLabel(status diff.Status) string {
+	if status == diff.StatusModified {
+		return ""
+	}
+
+	return string(status)
+}
+
+// footer показывает подсказки клавиш. fileCounter вида «(2/5)» встаёт у
+// подсказки списка файлов: это единственное место, где видно, сколько
+// файлов в диффе.
+func footer(width int, colors theme.Theme, fileCounter string) string {
 	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
 
 	var hints []string
 	for _, binding := range bindings() {
-		if binding.label != "" {
-			hints = append(hints, displayKey(binding.keys[0])+" "+muted.Render(binding.label))
+		if binding.label == "" {
+			continue
 		}
+
+		label := binding.label
+		if binding.action == actionFiles && fileCounter != "" {
+			label += " " + fileCounter
+		}
+		hints = append(hints, displayKey(binding.keys[0])+" "+muted.Render(label))
 	}
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, strings.Join(hints, "   "))

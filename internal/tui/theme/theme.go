@@ -12,6 +12,7 @@ import (
 type Theme struct {
 	TextMuted       color.Color
 	BackgroundPanel color.Color
+	Primary         color.Color
 	Accent          color.Color
 	DiffAdded       color.Color
 	DiffRemoved     color.Color
@@ -24,6 +25,7 @@ func Dark() Theme {
 	return Theme{
 		TextMuted:       lipgloss.Color("8"),
 		BackgroundPanel: lipgloss.Color("#141414"),
+		Primary:         lipgloss.Color("#fab283"),
 		Accent:          lipgloss.Color("#9d7cd8"),
 		DiffAdded:       lipgloss.Color("#3fb950"),
 		DiffRemoved:     lipgloss.Color("#f85149"),
