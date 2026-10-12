@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/tui/theme"
+	"gitone/internal/tui/zone"
 )
 
 // Отступы внутри панели как у окон: пустая строка сверху, две колонки по
@@ -23,6 +24,7 @@ const (
 // от диффа панель отделяет цвет, как окна поверх него. Текущий файл помечен,
 // а длинный список прокручивается так, чтобы текущий оставался на экране.
 // Пустой список показывает empty: панель без файлов иначе выглядит сломанной.
+// Строка файла помечена местом клика zone.Row с его номером (#119).
 func View(labels []string, current int, empty string, colors theme.Theme, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
@@ -52,11 +54,11 @@ func View(labels []string, current int, empty string, colors theme.Theme, width,
 		rows = append(rows, row(panel.Foreground(colors.TextMuted), "  "+empty))
 	}
 	for index := start; index < len(labels) && len(rows) < height; index++ {
+		style, marker := panel, "  "
 		if index == current {
-			rows = append(rows, row(accent, "› "+labels[index]))
-			continue
+			style, marker = accent, "› "
 		}
-		rows = append(rows, row(panel, "  "+labels[index]))
+		rows = append(rows, zone.Mark(zone.Row(index), row(style, marker+labels[index])))
 	}
 
 	for len(rows) < height {

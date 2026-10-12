@@ -68,7 +68,8 @@ func statusKey(status diff.Status) string {
 
 // keyHints собирает подсказки клавиш для правого края подвала. Подпись
 // показывает первую клавишу действия, так переназначение видно сразу.
-// Действие без клавиш в подвал не выводится.
+// Действие без клавиш в подвал не выводится. Клик по подсказке нажимает её
+// клавишу (#119).
 func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Binding) string {
 	var hints []string
 	for _, binding := range bindings {
@@ -76,7 +77,8 @@ func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Bindin
 			continue
 		}
 
-		hints = append(hints, keyHint(lipgloss.NewStyle(), colors, displayKey(binding.Keys[0]), text.Text(footerKey(binding.Action), nil)))
+		hint := keyHint(lipgloss.NewStyle(), colors, displayKey(binding.Keys[0]), text.Text(footerKey(binding.Action), nil))
+		hints = append(hints, pressable(binding.Action, hint))
 	}
 
 	return strings.Join(hints, "   ")
@@ -84,7 +86,8 @@ func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Bindin
 
 // locationLabel это ветка и worktree для левого края, каждое со своей
 // клавишей окна, как подсказки справа: «B main   W gitone» (#108). Клавиша
-// берётся из keymap, отключённое окно оставляет одно имя.
+// берётся из keymap, отключённое окно оставляет одно имя. Клик по паре
+// открывает окно, как её клавиша (#119).
 func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap) string {
 	if location.Branch == "" {
 		return ""
@@ -93,7 +96,7 @@ func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap
 	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
 	pair := func(action keymap.Action, name string) string {
 		if key := firstKey(keys, action); key != "" {
-			return keyHint(lipgloss.NewStyle(), colors, key, name)
+			return pressable(action, keyHint(lipgloss.NewStyle(), colors, key, name))
 		}
 		return muted.Render(name)
 	}

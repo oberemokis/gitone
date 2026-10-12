@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"image"
 	"slices"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	filespane "gitone/internal/tui/pane/files"
 	"gitone/internal/tui/picker"
 	"gitone/internal/tui/theme"
+	"gitone/internal/tui/zone"
 )
 
 // Строк за один щелчок колеса: по одной слишком медленно, трекпад шлёт
@@ -146,6 +148,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.keyPress(msg)
 	case tea.MouseWheelMsg:
 		m.view = m.wheel(msg)
+	case tea.MouseClickMsg:
+		if msg.Button == tea.MouseLeft {
+			return m.click(msg.X, msg.Y)
+		}
 	case tickMsg:
 		return m.ticked()
 	// возврат в терминал из редактора: правка видна сразу, а не к тику
@@ -488,20 +494,54 @@ func (m Model) View() tea.View {
 		return view
 	}
 
-	title := ""
-	if len(m.files) > 0 {
-		counter := fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
-		title = header(m.width, m.files[m.current], counter, m.colors, m.text)
+	view.Content, _ = m.screen()
+	return view
+}
+
+// screen рисует экран и находит на нём места клика (#119). Метки снимаются
+// с каждой части до того, как окно ляжет поверх панелей: слой Lip Gloss их не
+// переносит. Окно идёт в списке мест первым и целиком, клик по пустому месту в
+// нём не доходит до панели под ним. Пока открыто окно, клик работает только в
+// нём, как клавиши, поэтому места панелей и подвала не собираются.
+func (m Model) screen() (string, []zone.Zone) {
+	var zones []zone.Zone
+	scan := func(content string, x, y int, collect bool) string {
+		clean, found := zone.Scan(content)
+		for _, place := range found {
+			if collect {
+				place.Area = place.Area.Add(image.Pt(x, y))
+				zones = append(zones, place)
+			}
+		}
+		return clean
+	}
+	free := m.active == noWindow
+	top, height := m.titleHeight(), m.bodyHeight()
+
+	box := m.windowBox()
+	if box != "" {
+		x, y := centered(box, m.width, height)
+		box = scan(box, x, top+y, true)
+		zones = append(zones, zone.Zone{Area: image.Rect(x, top+y, x+lipgloss.Width(box), top+y+lipgloss.Height(box))})
+	}
+
+	body := scan(lipgloss.Place(m.width, height, lipgloss.Left, lipgloss.Top, m.panes(m.placement())), 0, top, free)
+	if box != "" {
+		body = overlay(body, box, m.width, height)
 	}
 
 	var rows []string
 	if m.ui.PaneTitles {
-		rows = append(rows, "", title, "")
+		title := ""
+		if len(m.files) > 0 {
+			counter := fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
+			title = header(m.width, m.files[m.current], counter, m.colors, m.text)
+		}
+		rows = append(rows, "", scan(title, 0, 1, free), "")
 	}
-	rows = append(rows, m.body(), "", m.footerLine(), "")
+	rows = append(rows, body, "", scan(m.footerLine(), 0, top+height+1, free), "")
 
-	view.Content = lipgloss.JoinVertical(lipgloss.Left, rows...)
-	return view
+	return lipgloss.JoinVertical(lipgloss.Left, rows...), zones
 }
 
 // footerLine собирает подвал: ветку слева, статус по центру, подсказки справа.
@@ -523,18 +563,6 @@ func (m Model) footerLine() string {
 	}
 
 	return footer(m.width, locationLabel(m.location, m.colors, m.keys), center, hints)
-}
-
-// body складывает панели по раскладке и кладёт окна поверх, как opencode:
-// дифф остаётся виден по краям.
-func (m Model) body() string {
-	base := lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Left, lipgloss.Top, m.panes(m.placement()))
-
-	box := m.windowBox()
-	if box == "" {
-		return base
-	}
-	return overlay(base, box, m.width, m.bodyHeight())
 }
 
 // panes рисует дерево размещения: лист это панель, контейнер склеивает детей
@@ -590,14 +618,19 @@ func (m Model) titleHeight() int {
 	return 0
 }
 
-// overlay ставит окно по центру поверх base. Координаты не уходят в минус:
-// окно шире экрана иначе теряло бы левый край.
+// overlay ставит окно по центру поверх base, как opencode: дифф остаётся
+// виден по краям.
 func overlay(base, window string, width, height int) string {
-	x := max((width-lipgloss.Width(window))/2, 0)
-	y := max((height-lipgloss.Height(window))/2, 0)
+	x, y := centered(window, width, height)
 
 	return lipgloss.NewCompositor(
 		lipgloss.NewLayer(base),
 		lipgloss.NewLayer(window).X(x).Y(y).Z(1),
 	).Render()
+}
+
+// centered это левый верхний угол окна по центру области width на height.
+// Координаты не уходят в минус: окно шире экрана иначе теряло бы левый край.
+func centered(window string, width, height int) (x, y int) {
+	return max((width-lipgloss.Width(window))/2, 0), max((height-lipgloss.Height(window))/2, 0)
 }

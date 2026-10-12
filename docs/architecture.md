@@ -28,6 +28,7 @@ gitone/
 │       ├── diffview/      один файл диффа в виде split или unified, прокрутка
 │       ├── picker/        окно выбора из списка с нечётким поиском
 │       ├── theme/         цвета по ролям
+│       ├── zone/          места клика мышью: невидимые метки в рисунке и их поиск
 │       └── pane/files/    список изменённых файлов
 ├── architecture_test.go   проверка графа зависимостей
 └── Makefile
@@ -39,12 +40,13 @@ gitone/
 
 ```
 cmd/gitone             → tui, config, keymap, layout, theme, i18n
-tui                    → diffview, pane/files, picker, theme, git, diff, config, keymap, layout, i18n
+tui                    → diffview, pane/files, picker, theme, zone, git, diff, config, keymap, layout, i18n
 diffview               → diff, theme, syntax, i18n
-pane/files, picker     → theme
+pane/files, picker     → theme, zone
 theme, layout          → config, i18n
 config, keymap, git    → i18n
 syntax, diff, i18n     → ничего из проекта
+zone                   → ничего из проекта
 ```
 
 Стрелка разрешает импорт, всё, чего нет на схеме, запрещено. Панели не знают друг друга и не знают корня. Листья `config`, `git` и `diff` не знают ни терминала, ни друг друга.

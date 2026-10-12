@@ -9,6 +9,7 @@ import (
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
+	"gitone/internal/tui/zone"
 )
 
 const (
@@ -18,7 +19,9 @@ const (
 )
 
 // helpBox не шире экрана: на узком окно ужимается, а длинные описания
-// обрезаются, иначе окно уходило за край и теряло левые колонки.
+// обрезаются, иначе окно уходило за край и теряло левые колонки. Клик по
+// строке закрывает справку и делает действие строки, как меню клавиш lazygit
+// (#119).
 func helpBox(colors theme.Theme, text i18n.Dictionary, screenWidth int, keys keymap.Keymap) string {
 	width := max(min(helpWidth, screenWidth-2*helpPaddingX), 1)
 
@@ -43,7 +46,8 @@ func helpBox(colors theme.Theme, text i18n.Dictionary, screenWidth int, keys key
 			}
 
 			description := text.Text(helpKey(binding.Action), nil)
-			rows = append(rows, justify(panel, width, dim.Render(description), panel.Render(strings.Join(displayed, ", "))))
+			row := justify(panel, width, dim.Render(description), panel.Render(strings.Join(displayed, ", ")))
+			rows = append(rows, zone.Mark(helpTarget+string(binding.Action), row))
 		}
 	}
 

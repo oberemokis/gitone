@@ -5,7 +5,13 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"gitone/internal/tui/zone"
 )
+
+// CloseTarget это место клика по закрытию в заголовке. Строки списка помечены
+// zone.Row с позицией среди найденных, её принимает Select (#119).
+const CloseTarget = "picker.close"
 
 const (
 	// ширина содержимого окна без отступов, как у окон opencode
@@ -32,7 +38,7 @@ func (m Model) View(width, height int) string {
 	// приглушённая; отключённое закрытие не пишется
 	closeHint := ""
 	if m.texts.CloseKey != "" {
-		closeHint = panel.Render(m.texts.CloseKey) + dim.Render(" "+m.texts.CloseLabel)
+		closeHint = zone.Mark(CloseTarget, panel.Render(m.texts.CloseKey)+dim.Render(" "+m.texts.CloseLabel))
 	}
 	rows := []string{
 		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), closeHint),
@@ -79,7 +85,7 @@ func (m Model) list(panel, dim lipgloss.Style, width, listRows int) []string {
 
 		room := max(width-ansi.StringWidth(item.Detail)-1, 1)
 		text := ansi.Truncate(item.Label, room, "…")
-		rows = append(rows, justify(label, width, label.Render(text), detail.Render(item.Detail)))
+		rows = append(rows, zone.Mark(zone.Row(position), justify(label, width, label.Render(text), detail.Render(item.Detail))))
 	}
 
 	return rows
