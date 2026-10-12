@@ -27,6 +27,7 @@ type Model struct {
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
 	keys       keymap.Keymap
+	ui         config.UI
 	width      int
 	height     int
 	helpOpen   bool
@@ -53,7 +54,8 @@ type Options struct {
 func New(opts Options, files []diff.File) Model {
 	colors := opts.Theme
 
-	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth)
+	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth).
+		WithoutNumbers(!opts.Config.UI.LineNumbers)
 	if len(files) > 0 {
 		view = view.SetFile(files[0])
 	}
@@ -63,6 +65,7 @@ func New(opts Options, files []diff.File) Model {
 		args:   opts.Args,
 		notice: opts.Notice,
 		keys:   opts.Keys,
+		ui:     opts.Config.UI,
 		colors: colors,
 		files:  files,
 		view:   view,
@@ -236,7 +239,13 @@ func (m Model) View() tea.View {
 		counter = fmt.Sprintf("(%d/%d)", m.current+1, len(m.files))
 	}
 
-	view.Content = lipgloss.JoinVertical(lipgloss.Left, title, "", m.body(), m.footerLine(counter))
+	var rows []string
+	if m.ui.PaneTitles {
+		rows = append(rows, title, "")
+	}
+	rows = append(rows, m.body(), m.footerLine(counter))
+
+	view.Content = lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return view
 }
 
@@ -248,6 +257,9 @@ func (m Model) footerLine(counter string) string {
 		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.TextMuted), "loading")
 	case m.notice != "":
 		return statusFooter(m.width, lipgloss.NewStyle().Foreground(m.colors.Error), m.notice)
+	case !m.ui.KeyHints:
+		// строка остаётся на месте, чтобы высота тела не менялась
+		return ""
 	}
 
 	return footer(m.width, m.colors, counter, m.keys.Bindings())
@@ -271,7 +283,16 @@ func (m Model) body() string {
 }
 
 func (m Model) bodyHeight() int {
-	return max(m.height-headerHeight-footerHeight, 0)
+	return max(m.height-m.titleHeight()-footerHeight, 0)
+}
+
+// titleHeight это заголовок с пустой строкой под ним. Без paneTitles он
+// пропадает, и тело занимает его место.
+func (m Model) titleHeight() int {
+	if m.ui.PaneTitles {
+		return headerHeight
+	}
+	return 0
 }
 
 // overlay ставит окно по центру поверх base. Координаты не уходят в минус:
