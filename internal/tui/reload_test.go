@@ -21,8 +21,8 @@ func TestReloadShowsChangedLines(t *testing.T) {
 	write(t, repo, "a.txt", "one\ntwo\nthree\n")
 	screen := screenOf(pressReload(t, model))
 
-	if header := strings.TrimSpace(screen[0]); header != "a.txt +2-0" {
-		t.Fatalf("заголовок %q, ожидался %q", header, "a.txt +2-0")
+	if header := strings.TrimSpace(screen[0]); header != "a.txt +2-0 (1/1)" {
+		t.Fatalf("заголовок %q, ожидался %q", header, "a.txt +2-0 (1/1)")
 	}
 	if body := strings.Join(screen, "\n"); !strings.Contains(body, "three") {
 		t.Fatalf("новой строки нет на экране:\n%s", body)
@@ -94,7 +94,9 @@ func TestSecondReloadWhileLoadingIsIgnored(t *testing.T) {
 		t.Fatal("второй r во время загрузки запустил ещё одно перечитывание")
 	}
 
-	model, _ = model.Update(first())
+	for _, msg := range runAll(first) {
+		model, _ = model.Update(msg)
+	}
 	if footer := screenOf(model)[len(screenOf(model))-1]; strings.Contains(footer, "loading") {
 		t.Fatalf("после загрузки в подвале осталось loading: %q", footer)
 	}

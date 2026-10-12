@@ -25,7 +25,6 @@
   "action.files.commit.help": "Commit staged changes",
   "action.files.discard.help": "Discard file changes",
   "action.files.next.help": "Next file",
-  "action.files.pick.footer": "files",
   "action.files.pick.help": "File list",
   "action.files.previous.help": "Previous file",
   "action.files.stage.help": "Stage or unstage file",

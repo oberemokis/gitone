@@ -17,10 +17,9 @@ func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
 		t.Fatalf("строк %d, ожидалось 10", len(lines))
 	}
 
-	hints := "q quit   ctrl p files   ? help"
-	margin := strings.Repeat(" ", (60-len(hints))/2)
-	if footer := lines[len(lines)-1]; footer != margin+hints+margin {
-		t.Errorf("подвал не по центру: %q", footer)
+	hints := "q quit   ? help "
+	if footer := lines[len(lines)-1]; footer != strings.Repeat(" ", 60-len(hints))+hints {
+		t.Errorf("подсказки не у правого края: %q", footer)
 	}
 
 	// заголовок и пустая строка занимают строки 0 и 1, тело идёт со 2 по 8,

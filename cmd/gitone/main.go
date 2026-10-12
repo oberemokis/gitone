@@ -125,6 +125,8 @@ func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	files, err := tui.Load(opts.Dir, opts.Args)
 	staged, stagedErr := tui.Staged(opts.Dir)
 	opts.Staged = staged
+	// вне репозитория Load уже вернул ошибку, вторая ничего бы не добавила
+	opts.Location, _ = tui.Locate(opts.Dir)
 	opts.Notice = addNotice(opts.Text, opts.Notice, stagedErr)
 
 	if !timer.Stop() {

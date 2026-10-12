@@ -23,8 +23,8 @@ func TestReloadErrorNamesOperation(t *testing.T) {
 	}
 	screen := screenOf(pressReload(t, model))
 
-	footer := strings.TrimSpace(screen[len(screen)-1])
-	if !strings.HasPrefix(footer, "diff: ") || strings.Count(footer, "diff: ") != 1 || !strings.Contains(footer, "not a git repository") {
+	footer := screen[len(screen)-1]
+	if strings.Count(footer, "diff: ") != 1 || !strings.Contains(footer, "diff: fatal: not a git repository") {
 		t.Fatalf("подвал = %q, want «diff: » один раз и текст git", footer)
 	}
 }
