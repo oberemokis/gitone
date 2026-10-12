@@ -131,8 +131,7 @@ func (e *Error) Error() string {
 // переводится. Чужие ошибки (git, json, os) и обёртки, где внутренняя ошибка
 // стоит не в конце, идут как есть.
 func (d Dictionary) Error(err error) string {
-	var own *Error
-	if errors.As(err, &own) && err == error(own) {
+	if own, ok := err.(*Error); ok {
 		return d.Text(own.Key, own.Args)
 	}
 
