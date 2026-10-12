@@ -69,15 +69,13 @@ func statusKey(status diff.Status) string {
 // показывает первую клавишу действия, так переназначение видно сразу.
 // Действие без клавиш в подвал не выводится.
 func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Binding) string {
-	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
-
 	var hints []string
 	for _, binding := range bindings {
 		if !binding.Footer || len(binding.Keys) == 0 {
 			continue
 		}
 
-		hints = append(hints, displayKey(binding.Keys[0])+" "+muted.Render(text.Text(footerKey(binding.Action), nil)))
+		hints = append(hints, keyHint(lipgloss.NewStyle(), colors, displayKey(binding.Keys[0]), text.Text(footerKey(binding.Action), nil)))
 	}
 
 	return strings.Join(hints, "   ")

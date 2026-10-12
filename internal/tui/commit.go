@@ -68,8 +68,8 @@ func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, sub
 	title := panel.Bold(true).Foreground(colors.Accent).Render(text.Text("commit.title", nil))
 	input := panel.Render("> " + subject + "_")
 	// подсказка обрезается: длинная переназначенная клавиша перенесла бы строку
-	hintText := windowHint(keys, text, keymap.CommitSubmit, keymap.CommitClose)
-	hint := panel.Foreground(colors.TextMuted).Render(ansi.Truncate(hintText, width-2*windowPaddingX, "…"))
+	hintText := windowHint(colors, keys, text, keymap.CommitSubmit, keymap.CommitClose)
+	hint := ansi.Truncate(hintText, width-2*windowPaddingX, panel.Foreground(colors.TextMuted).Render("…"))
 
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join([]string{title, "", input, "", hint}, "\n"))
 }

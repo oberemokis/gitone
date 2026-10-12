@@ -29,7 +29,8 @@ func (m Model) View(width, height int) string {
 	dim := panel.Foreground(m.colors.TextMuted)
 
 	rows := []string{
-		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), dim.Render(m.texts.CloseKey)),
+		// клавиша закрытия цветом текста, как все клавиши в подсказках
+		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), panel.Render(m.texts.CloseKey)),
 		justify(panel, contentWidth, "", ""),
 		justify(panel, contentWidth, m.search(panel, dim), ""),
 		justify(panel, contentWidth, "", ""),
