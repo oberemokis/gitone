@@ -11,7 +11,7 @@ import (
 // Входы сняты с настоящего git 2.55 с флагами из internal/git: с ними git
 // отключает внешний дифф, цвет и пути без префиксов из конфига пользователя.
 func TestParse(t *testing.T) {
-	cases := []struct {
+	tests := []struct {
 		name  string
 		input string
 		want  []diff.File
@@ -431,12 +431,12 @@ func TestParse(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			got := diff.Parse(testCase.input)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := diff.Parse(tc.input)
 
-			if !reflect.DeepEqual(got, testCase.want) {
-				t.Fatalf("получили\n%+v\nожидалось\n%+v", got, testCase.want)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("Parse(%q) =\n%+v\nwant\n%+v", tc.input, got, tc.want)
 			}
 		})
 	}

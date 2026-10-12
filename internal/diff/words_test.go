@@ -1,19 +1,27 @@
-package diff
+package diff_test
 
 import (
 	"slices"
 	"strings"
 	"testing"
+
+	"gitone/internal/diff"
 )
 
 // spanTexts возвращает текст отрезков, чтобы тест читался по словам, а не по
 // смещениям.
-func spanTexts(text string, spans []Span) []string {
+func spanTexts(text string, spans []diff.Span) []string {
 	var texts []string
 	for _, span := range spans {
 		texts = append(texts, text[span.Start:span.End])
 	}
 	return texts
+}
+
+// change это хунк из одной удалённой и одной добавленной строки: в split они
+// встают парой в одну строку.
+func change(oldText, newText string) diff.File {
+	return diff.File{Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{removed(oldText), added(newText)}}}}
 }
 
 func TestWordSpans(t *testing.T) {
@@ -32,13 +40,17 @@ func TestWordSpans(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			oldSpans, newSpans := wordSpans(tc.old, tc.new)
-
-			if got := spanTexts(tc.old, oldSpans); !slices.Equal(got, tc.wantOld) {
-				t.Fatalf("слева подсвечено %q, ожидалось %q", got, tc.wantOld)
+			rows := diff.Split(change(tc.old, tc.new))
+			if len(rows) != 1 {
+				t.Fatalf("Split(-%q +%q) = %d rows, want 1", tc.old, tc.new, len(rows))
 			}
-			if got := spanTexts(tc.new, newSpans); !slices.Equal(got, tc.wantNew) {
-				t.Fatalf("справа подсвечено %q, ожидалось %q", got, tc.wantNew)
+
+			left, right := rows[0].Left, rows[0].Right
+			if got := spanTexts(left.Text, left.Changed); !slices.Equal(got, tc.wantOld) {
+				t.Errorf("Split(-%q +%q).Left.Changed = %q, want %q", tc.old, tc.new, got, tc.wantOld)
+			}
+			if got := spanTexts(right.Text, right.Changed); !slices.Equal(got, tc.wantNew) {
+				t.Errorf("Split(-%q +%q).Right.Changed = %q, want %q", tc.old, tc.new, got, tc.wantNew)
 			}
 		})
 	}
@@ -47,62 +59,60 @@ func TestWordSpans(t *testing.T) {
 // В unified строка получает отрезки от своей пары, а лишние удалённые строки
 // без пары подсветки не получают.
 func TestUnifiedMarksPairedLinesOnly(t *testing.T) {
-	file := File{Hunks: []Hunk{{
+	file := diff.File{Hunks: []diff.Hunk{{
 		OldStart: 1,
 		NewStart: 1,
-		Lines: []Line{
-			{Kind: LineRemoved, Text: "x one"},
-			{Kind: LineRemoved, Text: "x two"},
-			{Kind: LineRemoved, Text: "x three"},
-			{Kind: LineAdded, Text: "x uno"},
-			{Kind: LineAdded, Text: "x dos"},
-		},
+		Lines:    []diff.Line{removed("x one"), removed("x two"), removed("x three"), added("x uno"), added("x dos")},
 	}}}
 
-	rows := Unified(file)
+	rows := diff.Unified(file)
 	if len(rows) != 5 {
 		t.Fatalf("строк %d, ожидалось 5", len(rows))
 	}
 	if got := spanTexts(rows[0].Text, rows[0].Changed); !slices.Equal(got, []string{"one"}) {
-		t.Fatalf("первая пара слева %q, ожидалось one", got)
+		t.Errorf("первая пара слева %q, ожидалось one", got)
 	}
 	if got := spanTexts(rows[3].Text, rows[3].Changed); !slices.Equal(got, []string{"uno"}) {
-		t.Fatalf("первая пара справа %q, ожидалось uno", got)
+		t.Errorf("первая пара справа %q, ожидалось uno", got)
 	}
 	if len(rows[2].Changed) != 0 {
-		t.Fatalf("лишняя удалённая строка подсвечена: %v", rows[2].Changed)
+		t.Errorf("лишняя удалённая строка подсвечена: %v", rows[2].Changed)
 	}
 }
 
 func TestSplitMarksPairedCells(t *testing.T) {
-	file := File{Hunks: []Hunk{{
+	file := diff.File{Hunks: []diff.Hunk{{
 		OldStart: 1,
 		NewStart: 1,
-		Lines: []Line{
-			{Kind: LineRemoved, Text: "x one"},
-			{Kind: LineRemoved, Text: "x three"},
-			{Kind: LineAdded, Text: "x uno"},
-		},
+		Lines:    []diff.Line{removed("x one"), removed("x three"), added("x uno")},
 	}}}
 
-	rows := Split(file)
+	rows := diff.Split(file)
+	if len(rows) != 2 {
+		t.Fatalf("строк %d, ожидалось 2", len(rows))
+	}
 	if got := spanTexts(rows[0].Left.Text, rows[0].Left.Changed); !slices.Equal(got, []string{"one"}) {
-		t.Fatalf("пара слева %q, ожидалось one", got)
+		t.Errorf("пара слева %q, ожидалось one", got)
 	}
 	if got := spanTexts(rows[0].Right.Text, rows[0].Right.Changed); !slices.Equal(got, []string{"uno"}) {
-		t.Fatalf("пара справа %q, ожидалось uno", got)
+		t.Errorf("пара справа %q, ожидалось uno", got)
 	}
 	if len(rows[1].Left.Changed) != 0 {
-		t.Fatalf("строка без пары подсвечена: %v", rows[1].Left.Changed)
+		t.Errorf("строка без пары подсвечена: %v", rows[1].Left.Changed)
 	}
 }
 
 // Длинная строка не считается: ограничение памяти важнее подсветки.
 func TestLongLinesGetNoMarks(t *testing.T) {
 	long := strings.Repeat("w ", 400)
-	oldSpans, newSpans := wordSpans(long, long+"tail")
 
-	if len(oldSpans) != 0 || len(newSpans) != 0 {
-		t.Fatalf("у длинной строки есть отрезки: %d и %d", len(oldSpans), len(newSpans))
+	rows := diff.Split(change(long, long+"tail"))
+	if len(rows) != 1 {
+		t.Fatalf("строк %d, ожидалась 1", len(rows))
+	}
+
+	left, right := rows[0].Left, rows[0].Right
+	if len(left.Changed) != 0 || len(right.Changed) != 0 {
+		t.Errorf("у длинной строки есть отрезки: %d и %d", len(left.Changed), len(right.Changed))
 	}
 }
