@@ -22,7 +22,7 @@ func commitCmd(dir, subject string) tea.Cmd {
 // openCommit открывает поле темы. Клавиши уходят в него целиком, как в окно
 // поиска.
 func (m Model) openCommit() Model {
-	m.committing = true
+	m.active = commitWindow
 	m.subject = ""
 	m.helpOpen = false
 	return m
@@ -35,14 +35,14 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, tea.Quit
 	case "esc":
-		m.committing = false
+		m.active = noWindow
 		m.subject = ""
 	case "enter":
 		subject := strings.TrimSpace(m.subject)
 		if subject == "" {
 			return m, nil
 		}
-		m.committing = false
+		m.active = noWindow
 		m.subject = ""
 		return m, commitCmd(m.dir, subject)
 	case "backspace":

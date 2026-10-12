@@ -71,6 +71,7 @@ func (m Model) askDiscard() Model {
 	}
 
 	file := m.files[m.current]
+	m.active = discardWindow
 	m.confirm = pathsOf(file)
 	m.notice = fmt.Sprintf("отменить правки в «%s»? y да, любая клавиша нет", fileTitle(file))
 	return m
@@ -80,6 +81,7 @@ func (m Model) askDiscard() Model {
 // клавиша отменяет вопрос и не выполняет действие.
 func (m Model) answerDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	paths := m.confirm
+	m.active = noWindow
 	m.confirm = nil
 	m.notice = ""
 

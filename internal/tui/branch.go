@@ -1,11 +1,7 @@
 package tui
 
 import (
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/git"
 	"gitone/internal/tui/theme"
@@ -44,55 +40,37 @@ func currentIndex(branches []git.Branch) int {
 // branchKey отдаёт клавиши окну веток: enter переключает на выбранную, esc
 // закрывает. Переключение на текущую ничего не делает.
 func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "ctrl+c":
-		return m, tea.Quit
-	case "esc":
-		m.branchOpen = false
-	case "down", "j":
-		m.branchCursor = min(m.branchCursor+1, max(len(m.branches)-1, 0))
-	case "up", "k":
-		m.branchCursor = max(m.branchCursor-1, 0)
-	case "enter":
-		if len(m.branches) == 0 {
-			return m, nil
-		}
-
-		branch := m.branches[m.branchCursor]
-		m.branchOpen = false
-		if branch.Current {
-			return m, nil
-		}
-		return m, switchCmd(m.dir, branch.Name)
+	if next, cmd, handled := m.navigate(key, len(m.branches)); handled {
+		return next, cmd
+	}
+	if key.String() != "enter" || len(m.branches) == 0 {
+		return m, nil
 	}
 
-	return m, nil
+	branch := m.branches[m.cursor]
+	m.active = noWindow
+	if branch.Current {
+		return m, nil
+	}
+	return m, switchCmd(m.dir, branch.Name)
 }
 
-// branchBox рисует список веток по центру. Текущая помечена словом, а не
-// цветом: так видно и без цветов.
+// branchBox рисует список веток. Текущая помечена словом, а не цветом: так
+// видно и без цветов.
 func branchBox(colors theme.Theme, branches []git.Branch, cursor, screenWidth, screenHeight int) string {
-	width := max(min(60, screenWidth-8), 20)
-	rows := max(min(len(branches), screenHeight-6), 1)
-	start := max(0, cursor-rows+1)
-
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
-
-	lines := []string{panel.Bold(true).Foreground(colors.Accent).Render("Branches")}
-	for index := start; index < len(branches) && index < start+rows; index++ {
-		marker := "  "
-		if index == cursor {
-			marker = "› "
+	rows := make([]string, len(branches))
+	for index, branch := range branches {
+		rows[index] = branch.Name
+		if branch.Current {
+			rows[index] += " (текущая)"
 		}
-
-		text := marker + branches[index].Name
-		if branches[index].Current {
-			text += " (текущая)"
-		}
-		lines = append(lines, panel.Render(ansi.Truncate(text, width, "…")))
 	}
 
-	lines = append(lines, "", muted.Render("enter переключить   esc закрыть"))
-	return panel.Padding(1, 2).Width(width).Render(strings.Join(lines, "\n"))
+	return list{
+		title:  "Branches",
+		width:  60,
+		rows:   rows,
+		cursor: cursor,
+		hint:   "enter переключить   esc закрыть",
+	}.view(colors, screenWidth, screenHeight)
 }
