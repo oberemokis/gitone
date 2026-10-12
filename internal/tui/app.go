@@ -37,6 +37,9 @@ type Model struct {
 	staged map[string]bool
 	// confirm: пути файла, который ждёт подтверждения discard; nil значит вопроса нет
 	confirm []string
+	// committing: открыто поле темы коммита, subject набранная тема
+	committing bool
+	subject    string
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
 	keys       keymap.Keymap
@@ -111,6 +114,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		if m.confirm != nil {
 			return m.answerDiscard(msg)
+		}
+		if m.committing {
+			return m.typeCommit(msg)
 		}
 		m.notice = ""
 		if m.pickerOpen {
@@ -223,6 +229,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m.toggleStage()
 	case keymap.FilesDiscard:
 		m = m.askDiscard()
+	case keymap.FilesCommit:
+		m = m.openCommit()
 	case keymap.DiffScrollDown:
 		m.view = m.view.ScrollBy(1)
 	case keymap.DiffScrollUp:
@@ -369,6 +377,8 @@ func (m Model) body() string {
 	switch {
 	case m.pickerOpen:
 		return overlay(base, m.picker.View(m.width, m.bodyHeight()), m.width, m.bodyHeight())
+	case m.committing:
+		return overlay(base, commitBox(m.colors, m.subject, m.width), m.width, m.bodyHeight())
 	case m.helpOpen:
 		return overlay(base, helpBox(m.colors, m.width, m.keys.Bindings()), m.width, m.bodyHeight())
 	}
