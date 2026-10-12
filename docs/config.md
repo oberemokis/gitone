@@ -39,7 +39,7 @@
   "diff": {
     "mode": "auto",
     "autoSplitMinWidth": 120,
-    "wrap": false
+    "wrap": true
   }
 }
 ```
