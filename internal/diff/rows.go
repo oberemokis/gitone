@@ -17,6 +17,8 @@ type Cell struct {
 	Kind   LineKind
 	Number int
 	Text   string
+	// изменённые слова пары, пусто без пары или когда подсветки нет
+	Changed []Span
 }
 
 type SplitRow struct {
@@ -33,6 +35,8 @@ type UnifiedRow struct {
 	OldNumber int
 	NewNumber int
 	Text      string
+	// изменённые слова пары, пусто без пары или когда подсветки нет
+	Changed []Span
 }
 
 func Unified(file File) []UnifiedRow {
@@ -43,9 +47,10 @@ func Unified(file File) []UnifiedRow {
 			rows = append(rows, UnifiedRow{Kind: RowGap})
 		}
 
+		marks := wordMarks(hunk.Lines)
 		oldNumber, newNumber := hunk.OldStart, hunk.NewStart
-		for _, line := range hunk.Lines {
-			row := UnifiedRow{Kind: RowLine, Line: line.Kind, Text: line.Text}
+		for lineIndex, line := range hunk.Lines {
+			row := UnifiedRow{Kind: RowLine, Line: line.Kind, Text: line.Text, Changed: marks[lineIndex]}
 			switch line.Kind {
 			case LineContext:
 				row.OldNumber, row.NewNumber = oldNumber, newNumber
@@ -145,7 +150,12 @@ func (side numbered) cell() Cell {
 // pair собирает строку split и, если у строки с какой-то стороны нет
 // перевода в конце, строку-пометку под ней на той же стороне.
 func pair(left, right numbered) []SplitRow {
-	rows := []SplitRow{{Kind: RowLine, Left: left.cell(), Right: right.cell()}}
+	leftCell, rightCell := left.cell(), right.cell()
+	if left.line.Kind == LineRemoved && right.line.Kind == LineAdded {
+		leftCell.Changed, rightCell.Changed = wordSpans(left.line.Text, right.line.Text)
+	}
+
+	rows := []SplitRow{{Kind: RowLine, Left: leftCell, Right: rightCell}}
 	if !left.line.NoNewline && !right.line.NoNewline {
 		return rows
 	}
