@@ -47,6 +47,10 @@ type Model struct {
 	logOpen    bool
 	logEntries []git.LogEntry
 	logCursor  int
+	// список локальных веток: записи, курсор и открыто ли окно
+	branchOpen   bool
+	branches     []git.Branch
+	branchCursor int
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
 	keys       keymap.Keymap
@@ -129,6 +133,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.logOpen {
 			return m.logKey(msg)
 		}
+		if m.branchOpen {
+			return m.branchKey(msg)
+		}
 		m.notice = ""
 		if m.pickerOpen {
 			return m.pickerKey(msg)
@@ -167,6 +174,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case actionDoneMsg:
 		return m.actionDone(msg)
+	case branchesMsg:
+		if msg.err != nil {
+			m.notice = msg.err.Error()
+		} else {
+			m.branches, m.branchOpen = msg.branches, true
+			m.branchCursor = currentIndex(msg.branches)
+		}
 	case logMsg:
 		if msg.err != nil {
 			m.notice = msg.err.Error()
@@ -250,6 +264,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m = m.openCommit()
 	case keymap.AppLog:
 		return m, logCmd(m.dir)
+	case keymap.AppBranches:
+		return m, branchesCmd(m.dir)
 	case keymap.DiffWorkingTree:
 		m.args = m.baseArgs
 		return m.startReload()
@@ -403,6 +419,8 @@ func (m Model) body() string {
 		return overlay(base, commitBox(m.colors, m.subject, m.width), m.width, m.bodyHeight())
 	case m.logOpen:
 		return overlay(base, logBox(m.colors, m.logEntries, m.logCursor, m.width, m.bodyHeight()), m.width, m.bodyHeight())
+	case m.branchOpen:
+		return overlay(base, branchBox(m.colors, m.branches, m.branchCursor, m.width, m.bodyHeight()), m.width, m.bodyHeight())
 	case m.helpOpen:
 		return overlay(base, helpBox(m.colors, m.width, m.keys.Bindings()), m.width, m.bodyHeight())
 	}
