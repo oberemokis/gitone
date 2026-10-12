@@ -30,6 +30,8 @@ const (
 	FilesStage       Action = "files.stage"
 	FilesDiscard     Action = "files.discard"
 	FilesCommit      Action = "files.commit"
+	AppLog           Action = "app.log"
+	DiffWorkingTree  Action = "diff.workingTree"
 	HelpClose        Action = "help.close"
 	DiffToggleMode   Action = "diff.toggleMode"
 	DiffReload       Action = "diff.reload"
@@ -220,6 +222,8 @@ func defaults() []Binding {
 		{Action: FilesStage, Category: CategoryFiles, Keys: []string{"space"}, Description: "Stage or unstage file"},
 		{Action: FilesDiscard, Category: CategoryFiles, Keys: []string{"x"}, Description: "Discard file changes"},
 		{Action: FilesCommit, Category: CategoryFiles, Keys: []string{"c"}, Description: "Commit staged changes"},
+		{Action: AppLog, Category: CategoryDiff, Keys: []string{"l"}, Description: "Commit log"},
+		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Description: "Working tree diff"},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Description: "Scroll down"},
 		{Action: DiffScrollUp, Category: CategoryDiff, Keys: []string{"k", "up"}, Description: "Scroll up"},
 		{Action: DiffHalfPageDown, Category: CategoryDiff, Keys: []string{"ctrl+d"}, Description: "Half page down"},
