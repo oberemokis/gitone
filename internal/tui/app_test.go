@@ -10,8 +10,8 @@ import (
 	"gitone/internal/tui"
 )
 
-func TestScreenLayout(t *testing.T) {
-	model, _ := tui.New().Update(tea.WindowSizeMsg{Width: 60, Height: 10})
+func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
+	model, _ := tui.New(nil).Update(tea.WindowSizeMsg{Width: 60, Height: 10})
 	lines := strings.Split(ansi.Strip(model.View().Content), "\n")
 
 	if len(lines) != 10 {
@@ -24,14 +24,15 @@ func TestScreenLayout(t *testing.T) {
 		t.Errorf("подвал не по центру: %q", footer)
 	}
 
-	// тело идёт со строки 0 по 8, его середина строка 4
-	if got := strings.TrimSpace(lines[4]); got != "hello world" {
-		t.Errorf("в середине тела %q, ожидалось hello world", got)
+	// заголовок и пустая строка занимают строки 0 и 1, тело идёт со 2 по 8,
+	// его середина строка 5
+	if got := strings.TrimSpace(lines[5]); got != "No changes" {
+		t.Errorf("в середине тела %q, ожидалось No changes", got)
 	}
 }
 
 func TestHelpToggle(t *testing.T) {
-	var model tea.Model = tui.New()
+	var model tea.Model = tui.New(nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 
 	isHelpShown := func() bool {
@@ -57,7 +58,7 @@ func TestHelpToggle(t *testing.T) {
 }
 
 func TestHelpGroupsByCategory(t *testing.T) {
-	var model tea.Model = tui.New()
+	var model tea.Model = tui.New(nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
@@ -91,7 +92,7 @@ func TestQuitKeys(t *testing.T) {
 	}
 
 	for _, key := range keys {
-		_, cmd := tui.New().Update(key)
+		_, cmd := tui.New(nil).Update(key)
 		if cmd == nil {
 			t.Fatalf("%s: команды нет, ожидался выход", key)
 		}

@@ -12,6 +12,13 @@ const (
 	actionFiles     action = "files.pick"
 	actionHelp      action = "app.help"
 	actionCloseHelp action = "help.close"
+	actionMode      action = "diff.toggleMode"
+	actionDown      action = "diff.scrollDown"
+	actionUp        action = "diff.scrollUp"
+	actionHalfDown  action = "diff.halfPageDown"
+	actionHalfUp    action = "diff.halfPageUp"
+	actionTop       action = "diff.top"
+	actionBottom    action = "diff.bottom"
 )
 
 // Заголовок группы в справке. Порядок групп задаёт первое появление
@@ -21,6 +28,7 @@ type category string
 const (
 	categoryGeneral category = "General"
 	categoryFiles   category = "Files"
+	categoryDiff    category = "Diff"
 )
 
 type binding struct {
@@ -41,6 +49,13 @@ func bindings() []binding {
 		{action: actionQuit, category: categoryGeneral, keys: []string{"q", "ctrl+c"}, label: "quit", description: "Quit"},
 		{action: actionFiles, category: categoryFiles, keys: []string{"ctrl+p"}, label: "files", description: "File list"},
 		{action: actionHelp, category: categoryGeneral, keys: []string{"?"}, label: "help", description: "Toggle this help"},
+		{action: actionDown, category: categoryDiff, keys: []string{"j", "down"}, description: "Scroll down"},
+		{action: actionUp, category: categoryDiff, keys: []string{"k", "up"}, description: "Scroll up"},
+		{action: actionHalfDown, category: categoryDiff, keys: []string{"ctrl+d"}, description: "Half page down"},
+		{action: actionHalfUp, category: categoryDiff, keys: []string{"ctrl+u"}, description: "Half page up"},
+		{action: actionTop, category: categoryDiff, keys: []string{"g"}, description: "Top"},
+		{action: actionBottom, category: categoryDiff, keys: []string{"G"}, description: "Bottom"},
+		{action: actionMode, category: categoryDiff, keys: []string{"m"}, description: "Split or unified"},
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{action: actionCloseHelp, keys: []string{"esc"}},
 	}

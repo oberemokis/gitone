@@ -6,8 +6,11 @@ build:
 run:
 	go run ./cmd/gitone
 
+# Без кеша: architecture_test.go спрашивает граф у go list, и кеш go test не
+# знает, что результат зависит от импортов других пакетов. Из кеша он
+# показывал «ok» при нарушенном графе.
 test:
-	go test ./...
+	go test -count=1 ./...
 
 lint:
 	go vet ./...

@@ -11,12 +11,19 @@ import (
 // повторяет граф из docs/architecture.md. Пакет, которого в ней нет, тоже
 // ошибка: новый пакет сначала получает место в графе.
 var allowedImports = map[string][]string{
-	"gitone":                 {},
-	"gitone/cmd/gitone":      {"gitone/internal/tui"},
-	"gitone/internal/tui":    {},
-	"gitone/internal/config": {},
-	"gitone/internal/git":    {},
-	"gitone/internal/diff":   {},
+	"gitone":            {},
+	"gitone/cmd/gitone": {"gitone/internal/tui"},
+	"gitone/internal/tui": {
+		"gitone/internal/git",
+		"gitone/internal/diff",
+		"gitone/internal/tui/diffview",
+		"gitone/internal/tui/theme",
+	},
+	"gitone/internal/tui/diffview": {"gitone/internal/diff", "gitone/internal/tui/theme"},
+	"gitone/internal/tui/theme":    {},
+	"gitone/internal/config":       {},
+	"gitone/internal/git":          {},
+	"gitone/internal/diff":         {},
 }
 
 func TestImportDirections(t *testing.T) {

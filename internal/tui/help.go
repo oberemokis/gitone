@@ -4,23 +4,20 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"gitone/internal/tui/theme"
 )
 
-const (
-	// ширина содержимого окна без отступов
-	helpWidth = 44
-	// ponytail: цвета зашиты, переедут в backgroundPanel и accent темы вместе с themes/*.json
-	panelColor  = "#141414"
-	accentColor = "#9d7cd8"
-)
+// ширина содержимого окна без отступов
+const helpWidth = 44
 
-func helpBox() string {
+func helpBox(colors theme.Theme) string {
 	// Каждый кусок строки несёт фон сам: Lip Gloss закрывает жирный полным
 	// сбросом стиля, и без этого фон панели гаснет до конца строки.
-	panel := lipgloss.NewStyle().Background(lipgloss.Color(panelColor))
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	bold := panel.Bold(true)
-	heading := bold.Foreground(lipgloss.Color(accentColor))
-	dim := panel.Foreground(lipgloss.Color(mutedColor))
+	heading := bold.Foreground(colors.Accent)
+	dim := panel.Foreground(colors.TextMuted)
 
 	closeKey := displayKey(keysFor(actionCloseHelp)[0])
 	rows := []string{justify(panel, bold.Render("Hotkeys"), dim.Render(closeKey))}
