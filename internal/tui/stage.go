@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 
@@ -47,11 +48,7 @@ func pathsOf(file diff.File) []string {
 // stagedKey это путь, по которому файл ищется в индексе: новый путь, а у
 // удалённого старый.
 func stagedKey(file diff.File) string {
-	if file.NewPath != "" {
-		return file.NewPath
-	}
-
-	return file.OldPath
+	return cmp.Or(file.NewPath, file.OldPath)
 }
 
 // toggleStage ставит текущий файл в индекс, а если он там уже есть, убирает.

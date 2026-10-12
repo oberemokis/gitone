@@ -72,7 +72,7 @@ func (m Model) windowBox() string {
 	}
 
 	if m.helpOpen {
-		return helpBox(m.colors, width, m.keys.Bindings())
+		return helpBox(m.colors, width, m.keys)
 	}
 	return ""
 }

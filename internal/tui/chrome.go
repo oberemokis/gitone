@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -35,16 +36,11 @@ func header(width int, file diff.File, colors theme.Theme) string {
 // fileTitle это имя файла для заголовка и списка: у переименования оба пути,
 // у удалённого старый.
 func fileTitle(file diff.File) string {
-	switch {
-	case file.Status == diff.StatusRenamed || file.Status == diff.StatusCopied:
+	if file.Status == diff.StatusRenamed || file.Status == diff.StatusCopied {
 		return file.OldPath + " → " + file.NewPath
-	case file.NewPath != "":
-		return file.NewPath
-	case file.OldPath != "":
-		return file.OldPath
 	}
 
-	return "git output"
+	return cmp.Or(file.NewPath, file.OldPath, "git output")
 }
 
 // statusLabel пустой у изменённого файла, это обычный случай. У остальных
