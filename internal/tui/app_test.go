@@ -56,6 +56,34 @@ func TestHelpToggle(t *testing.T) {
 	}
 }
 
+func TestHelpGroupsByCategory(t *testing.T) {
+	var model tea.Model = tui.New()
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
+
+	lines := strings.Split(ansi.Strip(model.View().Content), "\n")
+	lineOf := func(prefix string) int {
+		for index, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+				return index
+			}
+		}
+		return -1
+	}
+
+	// «Toggle this help» стоит в списке после «File list», но относится к
+	// General, поэтому в справке идёт раньше секции Files
+	want := []string{"General", "Quit", "Toggle this help", "Files", "File list"}
+	previous := -1
+	for _, prefix := range want {
+		index := lineOf(prefix)
+		if index <= previous {
+			t.Fatalf("строка %q не на своём месте, порядок должен быть %v", prefix, want)
+		}
+		previous = index
+	}
+}
+
 func TestQuitKeys(t *testing.T) {
 	keys := []tea.KeyPressMsg{
 		{Code: 'q', Text: "q"},

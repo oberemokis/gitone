@@ -14,8 +14,18 @@ const (
 	actionCloseHelp action = "help.close"
 )
 
+// Заголовок группы в справке. Порядок групп задаёт первое появление
+// категории в bindings(), подряд клавиши одной категории стоять не обязаны.
+type category string
+
+const (
+	categoryGeneral category = "General"
+	categoryFiles   category = "Files"
+)
+
 type binding struct {
-	action action
+	action   action
+	category category
 	// как их возвращает KeyPressMsg.String()
 	keys []string
 	// подпись в подвале, пустая значит в подвал не выводить
@@ -28,9 +38,9 @@ type binding struct {
 // ponytail: список зашит, переедет в keymap вместе с keybinds.json
 func bindings() []binding {
 	return []binding{
-		{action: actionQuit, keys: []string{"q", "ctrl+c"}, label: "quit", description: "Quit"},
-		{action: actionFiles, keys: []string{"ctrl+p"}, label: "files", description: "File list"},
-		{action: actionHelp, keys: []string{"?"}, label: "help", description: "Toggle this help"},
+		{action: actionQuit, category: categoryGeneral, keys: []string{"q", "ctrl+c"}, label: "quit", description: "Quit"},
+		{action: actionFiles, category: categoryFiles, keys: []string{"ctrl+p"}, label: "files", description: "File list"},
+		{action: actionHelp, category: categoryGeneral, keys: []string{"?"}, label: "help", description: "Toggle this help"},
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{action: actionCloseHelp, keys: []string{"esc"}},
 	}
