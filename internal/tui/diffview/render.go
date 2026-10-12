@@ -48,10 +48,16 @@ func (m Model) renderUnified(row diff.UnifiedRow, part int) string {
 		return m.noNewline(m.width)
 	}
 
+	// подсветка удалённой строки со старой стороны, остальных с новой
+	spans := m.newCode[row.NewNumber]
+	if row.Line == diff.LineRemoved {
+		spans = m.oldCode[row.OldNumber]
+	}
+
 	// Один столбец номеров: у строки контекста старый и новый номер
 	// дублировали бы друг друга. Удалённая строка с её старым номером, а
 	// от добавленной с тем же номером её отличают знак и цвет.
-	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.Changed, part)
+	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.Changed, spans, part)
 }
 
 // renderSplit делит ширину пополам. Половина без строки остаётся пустой и без
@@ -62,10 +68,10 @@ func (m Model) renderSplit(row diff.SplitRow, part int) string {
 	}
 
 	leftWidth := m.width / 2
-	return m.half(leftWidth, row.Kind, row.Left, part) + m.half(m.width-leftWidth, row.Kind, row.Right, part)
+	return m.half(leftWidth, row.Kind, row.Left, m.oldCode, part) + m.half(m.width-leftWidth, row.Kind, row.Right, m.newCode, part)
 }
 
-func (m Model) half(width int, kind diff.RowKind, side diff.Cell, part int) string {
+func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code, part int) string {
 	switch {
 	case side.Kind == "":
 		return strings.Repeat(" ", width)
@@ -73,7 +79,7 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, part int) stri
 		return m.noNewline(width)
 	}
 
-	return m.cell(width, side.Kind, side.Number, side.Text, side.Changed, part)
+	return m.cell(width, side.Kind, side.Number, side.Text, side.Changed, sideCode[side.Number], part)
 }
 
 // cell рисует строку файла шириной ровно width: отступ, номер, знак и текст,
@@ -81,8 +87,9 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, part int) stri
 // со сбросом иначе гасит фон до конца строки. У изменённой строки номер и
 // знак идут её цветом на своём фоне, светлее фона кода: так изменение видно
 // по краю, даже когда код длинный. Продолжение перенесённой строки (part
-// больше нуля) идёт без номера и знака, с тем же фоном.
-func (m Model) cell(width int, kind diff.LineKind, number int, text string, changed []diff.Span, part int) string {
+// больше нуля) идёт без номера и знака, с тем же фоном. spans это подсветка
+// синтаксиса строки.
+func (m Model) cell(width int, kind diff.LineKind, number int, text string, changed []diff.Span, spans []syntax.Span, part int) string {
 	base := lipgloss.NewStyle()
 	gutter := base.Foreground(m.colors.TextMuted)
 	wordBg := m.colors.DiffAddedWordBg
@@ -109,8 +116,7 @@ func (m Model) cell(width int, kind diff.LineKind, number int, text string, chan
 	}
 
 	codeWidth := width - ansi.StringWidth(prefix)
-	code := m.lexer.Tokens(text)
-	return gutter.Render(prefix) + m.textCells(codeWidth, m.skip(part, codeWidth), base, wordBg, text, changed, code)
+	return gutter.Render(prefix) + m.textCells(codeWidth, m.skip(part, codeWidth), base, wordBg, text, changed, spans)
 }
 
 // textCells рисует текст ровно на width клеток, начиная с колонки skip:
@@ -167,6 +173,18 @@ func (m Model) syntaxColor(kind syntax.Kind) color.Color {
 		return m.colors.SyntaxComment
 	case syntax.Number:
 		return m.colors.SyntaxNumber
+	case syntax.Function:
+		return m.colors.SyntaxFunction
+	case syntax.Type:
+		return m.colors.SyntaxType
+	case syntax.Constant:
+		return m.colors.SyntaxConstant
+	case syntax.Property:
+		return m.colors.SyntaxProperty
+	case syntax.Operator:
+		return m.colors.SyntaxOperator
+	case syntax.Tag:
+		return m.colors.SyntaxTag
 	}
 
 	return nil
