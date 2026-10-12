@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"gitone/internal/config"
 	"gitone/internal/tui"
 )
 
@@ -255,7 +256,7 @@ func open(t *testing.T, repo string, args []string) tea.Model {
 		t.Fatalf("Load: %v", err)
 	}
 
-	return tui.New(repo, args, files)
+	return tui.New(tui.Options{Dir: repo, Args: args, Config: config.Default()}, files)
 }
 
 // render задаёт размер окна и возвращает экран построчно без цветов.

@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"gitone/internal/config"
 	"gitone/internal/diff"
 	"gitone/internal/tui/diffview"
 	"gitone/internal/tui/picker"
@@ -35,15 +36,31 @@ type Model struct {
 	view       diffview.Model
 }
 
-func New(dir string, args []string, files []diff.File) Model {
+// Options это всё, что корню нужно до запуска: каталог и аргументы для
+// перечитывания по r, настройки и текст ошибки их загрузки для подвала.
+type Options struct {
+	Dir    string
+	Args   []string
+	Config config.Config
+	Notice string
+}
+
+func New(opts Options, files []diff.File) Model {
 	colors := theme.Dark()
 
-	view := diffview.New(colors)
+	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth)
 	if len(files) > 0 {
 		view = view.SetFile(files[0])
 	}
 
-	return Model{dir: dir, args: args, colors: colors, files: files, view: view}
+	return Model{
+		dir:    opts.Dir,
+		args:   opts.Args,
+		notice: opts.Notice,
+		colors: colors,
+		files:  files,
+		view:   view,
+	}
 }
 
 func (m Model) Init() tea.Cmd {

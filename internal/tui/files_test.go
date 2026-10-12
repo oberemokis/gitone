@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"gitone/internal/config"
 	"gitone/internal/tui"
 )
 
@@ -139,7 +140,7 @@ func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
 }
 
 func TestHelpShrinksOnNarrowScreen(t *testing.T) {
-	model, _ := tui.New("", nil, nil).Update(tea.WindowSizeMsg{Width: 40, Height: 40})
+	model, _ := tui.New(tui.Options{Config: config.Default()}, nil).Update(tea.WindowSizeMsg{Width: 40, Height: 40})
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
 	screen := screenOf(model)

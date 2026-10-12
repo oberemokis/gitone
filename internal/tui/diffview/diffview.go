@@ -19,25 +19,23 @@ const (
 	ModeUnified Mode = "unified"
 )
 
-// С этой ширины auto выбирает split: на меньшей две колонки слишком узки для
-// кода. Так же делает critique.
-const autoSplitMinWidth = 120
-
 type Model struct {
 	file   diff.File
 	colors theme.Theme
 	mode   Mode
-	width  int
-	height int
-	scroll int
+	// с этой ширины auto выбирает split, по умолчанию 120 (diff.autoSplitMinWidth)
+	autoSplitMinWidth int
+	width             int
+	height            int
+	scroll            int
 	// Строки пересчитываются при смене файла, режима или размера, а не в
 	// View: Bubble Tea вызывает View на каждое сообщение.
 	lines       []line
 	numberWidth int
 }
 
-func New(colors theme.Theme) Model {
-	return Model{colors: colors, mode: ModeAuto}
+func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
+	return Model{colors: colors, mode: mode, autoSplitMinWidth: autoSplitMinWidth}
 }
 
 func (m Model) SetFile(file diff.File) Model {
@@ -153,7 +151,7 @@ func (m Model) effectiveMode() Mode {
 	if m.mode != ModeAuto {
 		return m.mode
 	}
-	if m.width >= autoSplitMinWidth {
+	if m.width >= m.autoSplitMinWidth {
 		return ModeSplit
 	}
 
