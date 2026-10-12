@@ -22,7 +22,12 @@ func screenText(model tea.Model) string {
 
 func footerOf(model tea.Model) string {
 	screen := screenOf(model)
-	return screen[len(screen)-1]
+	return screen[footerRow(screen)]
+}
+
+// footerRow это строка подвала: под ним одна пустая строка (#103).
+func footerRow(screen []string) int {
+	return len(screen) - 2
 }
 
 // openAsync нажимает клавишу, которая грузит список ответом git, и доставляет

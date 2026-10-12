@@ -18,13 +18,13 @@ func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
 	}
 
 	hints := "q quit   ? help "
-	if footer := lines[len(lines)-1]; footer != strings.Repeat(" ", 60-len(hints))+hints {
+	if footer := lines[footerRow(lines)]; footer != strings.Repeat(" ", 60-len(hints))+hints {
 		t.Errorf("подсказки не у правого края: %q", footer)
 	}
 
-	// заголовок с пустыми строками занимает строки 0-2, тело идёт с 3 по 8,
-	// его середина строка 5
-	if got := strings.TrimSpace(lines[5]); got != "No changes" {
+	// заголовок с пустыми строками занимает строки 0-2, подвал с пустыми
+	// строками 7-9, тело идёт с 3 по 6, его середина строка 4
+	if got := strings.TrimSpace(lines[4]); got != "No changes" {
 		t.Errorf("в середине тела %q, ожидалось No changes", got)
 	}
 }

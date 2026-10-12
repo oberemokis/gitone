@@ -85,7 +85,7 @@ func TestSecondReloadWhileLoadingIsIgnored(t *testing.T) {
 	if first == nil {
 		t.Fatal("первый r не запустил перечитывание")
 	}
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "loading") {
+	if footer := footerOf(model); !strings.Contains(footer, "loading") {
 		t.Fatalf("во время загрузки в подвале %q, ожидалось loading", footer)
 	}
 
@@ -97,7 +97,7 @@ func TestSecondReloadWhileLoadingIsIgnored(t *testing.T) {
 	for _, msg := range runAll(first) {
 		model, _ = model.Update(msg)
 	}
-	if footer := screenOf(model)[len(screenOf(model))-1]; strings.Contains(footer, "loading") {
+	if footer := footerOf(model); strings.Contains(footer, "loading") {
 		t.Fatalf("после загрузки в подвале осталось loading: %q", footer)
 	}
 }
@@ -119,12 +119,12 @@ func TestReloadErrorKeepsOldDiffUntilNextKey(t *testing.T) {
 	if body := strings.Join(screen, "\n"); !strings.Contains(body, "two") {
 		t.Fatalf("старый дифф пропал с экрана:\n%s", body)
 	}
-	if footer := screen[len(screen)-1]; !strings.Contains(footer, "not a git repository") {
+	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "not a git repository") {
 		t.Fatalf("в подвале %q, ожидался текст ошибки git", footer)
 	}
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if footer := screenOf(model)[len(screen)-1]; strings.Contains(footer, "not a git repository") || !strings.Contains(footer, "quit") {
+	if footer := footerOf(model); strings.Contains(footer, "not a git repository") || !strings.Contains(footer, "quit") {
 		t.Fatalf("после нажатия подвал %q, ожидались подсказки", footer)
 	}
 }

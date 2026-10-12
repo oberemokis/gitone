@@ -41,7 +41,7 @@ func openWithKeys(km keymap.Keymap) tea.Model {
 func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
 	model := openWithKeys(loadKeys(t, `{"keybinds":{"app.quit":"e"}}`))
 
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "e quit") || strings.Contains(footer, "q quit") {
+	if footer := footerOf(model); !strings.Contains(footer, "e quit") || strings.Contains(footer, "q quit") {
 		t.Fatalf("в подвале %q, ожидалось «e quit» без «q quit»", footer)
 	}
 

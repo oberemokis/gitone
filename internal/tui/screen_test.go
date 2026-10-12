@@ -89,7 +89,8 @@ func TestScrollStopsAtBothEnds(t *testing.T) {
 	}
 	write(t, repo, "long.txt", content.String())
 
-	// высота 20: заголовок с пустой строкой и подвал оставляют телу 17 строк
+	// высота 20: заголовок и подвал, оба с пустыми строками над и под ними,
+	// оставляют телу 14 строк, полэкрана это 7
 	var model tea.Model = open(t, options(repo, layout.Focus()))
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
@@ -103,13 +104,13 @@ func TestScrollStopsAtBothEnds(t *testing.T) {
 		{name: "k", msg: tea.KeyPressMsg{Code: 'k', Text: "k"}, wantTop: 2},
 		{name: "стрелка вверх", msg: tea.KeyPressMsg{Code: tea.KeyUp}, wantTop: 1},
 		{name: "k в начале", msg: tea.KeyPressMsg{Code: 'k', Text: "k"}, wantTop: 1},
-		{name: "ctrl d", msg: tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}, wantTop: 9},
-		{name: "колесо вниз", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown}, wantTop: 12},
-		{name: "колесо вверх", msg: tea.MouseWheelMsg{Button: tea.MouseWheelUp}, wantTop: 9},
+		{name: "ctrl d", msg: tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}, wantTop: 8},
+		{name: "колесо вниз", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown}, wantTop: 11},
+		{name: "колесо вверх", msg: tea.MouseWheelMsg{Button: tea.MouseWheelUp}, wantTop: 8},
 		{name: "ctrl u", msg: tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}, wantTop: 1},
-		{name: "G", msg: tea.KeyPressMsg{Code: 'g', Text: "G", Mod: tea.ModShift}, wantTop: 45},
-		{name: "j в конце", msg: tea.KeyPressMsg{Code: 'j', Text: "j"}, wantTop: 45},
-		{name: "колесо в конце", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown}, wantTop: 45},
+		{name: "G", msg: tea.KeyPressMsg{Code: 'g', Text: "G", Mod: tea.ModShift}, wantTop: 47},
+		{name: "j в конце", msg: tea.KeyPressMsg{Code: 'j', Text: "j"}, wantTop: 47},
+		{name: "колесо в конце", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown}, wantTop: 47},
 		{name: "g", msg: tea.KeyPressMsg{Code: 'g', Text: "g"}, wantTop: 1},
 	}
 
@@ -125,7 +126,7 @@ func TestScrollStopsAtBothEnds(t *testing.T) {
 func TestModeToggleKeepsTopLine(t *testing.T) {
 	repo := newRepo(t)
 	var before, after strings.Builder
-	for number := 1; number <= 40; number++ {
+	for number := 1; number <= 35; number++ {
 		fmt.Fprintf(&before, "r%d\n", number)
 		fmt.Fprintf(&after, "a%d\n", number)
 	}
@@ -133,8 +134,8 @@ func TestModeToggleKeepsTopLine(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", after.String())
 
-	// unified: сорок удалённых строк, затем сорок добавленных. Пять раз на
-	// полэкрана (по 8 строк) ставят наверх первую добавленную, её номер 1.
+	// unified: 35 удалённых строк, затем 35 добавленных. Пять раз на
+	// полэкрана (по 7 строк) ставят наверх первую добавленную, её номер 1.
 	var model tea.Model = open(t, options(repo, layout.Focus()))
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	for range 5 {

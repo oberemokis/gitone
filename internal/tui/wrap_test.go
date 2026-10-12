@@ -51,10 +51,11 @@ func longLine(t *testing.T, change func(*config.Config)) tea.Model {
 	return resize(open(t, opts), 100, 20)
 }
 
-// paneBottom это последняя строка панели диффа в сыром выводе: над подвалом.
+// paneBottom это последняя строка панели диффа в сыром выводе: над пустой
+// строкой, подвалом и пустой строкой под ним.
 func paneBottom(model tea.Model) string {
 	lines := strings.Split(model.View().Content, "\n")
-	return lines[len(lines)-2]
+	return lines[len(lines)-4]
 }
 
 // addedRow это строка экрана с добавленной строкой: вторая строка тела.

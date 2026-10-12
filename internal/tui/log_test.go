@@ -56,7 +56,7 @@ func openLog(t *testing.T, count, width, height int) (string, tea.Model) {
 }
 
 // Окно лога во всю ширину с полями: по 12 колонок слева и справа, по 4 строки
-// сверху и снизу (восьмая часть высоты тела 36), список заполняет высоту.
+// сверху и снизу (восьмая часть высоты тела 34), список заполняет высоту.
 func TestLogWindowFillsScreenWithMargins(t *testing.T) {
 	_, model := openLog(t, 40, 120, 40)
 	screen := screenOf(model)
@@ -71,9 +71,9 @@ func TestLogWindowFillsScreenWithMargins(t *testing.T) {
 		t.Errorf("заголовок окна с колонки %d, want 14: %q", column, screen[title])
 	}
 
-	// высота окна 36-8: без отступов, заголовка, пустой строки и подсказки 23 строки
-	if shown := strings.Count(strings.Join(screen, "\n"), " · "); shown != 23 {
-		t.Errorf("строк лога %d, want 23", shown)
+	// высота окна 34-8: без отступов, заголовка, пустой строки и подсказки 21 строка
+	if shown := strings.Count(strings.Join(screen, "\n"), " · "); shown != 21 {
+		t.Errorf("строк лога %d, want 21", shown)
 	}
 }
 
