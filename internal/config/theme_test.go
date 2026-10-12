@@ -1,10 +1,12 @@
-package config
+package config_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitone/internal/config"
 )
 
 func writeTheme(t *testing.T, dir, name, content string) {
@@ -27,7 +29,7 @@ func TestReadTheme(t *testing.T) {
 		wantOK  bool
 		// подстрока ошибки, пусто значит ошибки нет
 		wantErr string
-		check   func(t *testing.T, file ThemeFile)
+		check   func(t *testing.T, file config.ThemeFile)
 	}{
 		{
 			name:    "нет файла",
@@ -39,9 +41,9 @@ func TestReadTheme(t *testing.T) {
 			file:    "midnight",
 			content: `{"defs":{"green":"#3fb950"},"colors":{"diffAdded":"green","textMuted":8,"accent":"#9d7cd8"}}`,
 			wantOK:  true,
-			check: func(t *testing.T, file ThemeFile) {
+			check: func(t *testing.T, file config.ThemeFile) {
 				if file.Colors["diffAdded"] != "green" || file.Colors["textMuted"] != "8" || file.Defs["green"] != "#3fb950" {
-					t.Fatalf("значения %+v", file)
+					t.Errorf("ReadTheme(midnight) = %+v, want colors diffAdded green, textMuted 8 and defs green #3fb950", file)
 				}
 			},
 		},
@@ -78,19 +80,19 @@ func TestReadTheme(t *testing.T) {
 				writeTheme(t, dir, filepath.Base(tc.file), tc.content)
 			}
 
-			file, found, err := ReadTheme(dir, tc.file)
+			file, found, err := config.ReadTheme(dir, tc.file)
 
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("ошибка %v, ожидалась с текстом %q", err, tc.wantErr)
+					t.Errorf("ReadTheme(%q) error = %v, want error with %q", tc.file, err, tc.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ошибка %v, ожидалась без ошибки", err)
+				t.Fatalf("ReadTheme(%q) error = %v, want nil", tc.file, err)
 			}
 			if found != tc.wantOK {
-				t.Fatalf("найден %v, ожидалось %v", found, tc.wantOK)
+				t.Errorf("ReadTheme(%q) found = %v, want %v", tc.file, found, tc.wantOK)
 			}
 			if tc.check != nil {
 				tc.check(t, file)
@@ -105,14 +107,14 @@ func TestConfigReadsThemeName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := Load(dir)
+	cfg, err := config.Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if cfg.Theme != "midnight" {
-		t.Fatalf("тема %q, ожидалась midnight", cfg.Theme)
+		t.Errorf("тема %q, ожидалась midnight", cfg.Theme)
 	}
-	if Default().Theme != "dark" {
-		t.Fatalf("тема по умолчанию %q, ожидалась dark", Default().Theme)
+	if config.Default().Theme != "dark" {
+		t.Errorf("тема по умолчанию %q, ожидалась dark", config.Default().Theme)
 	}
 }
