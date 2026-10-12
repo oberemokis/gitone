@@ -74,17 +74,22 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell) string {
 
 // cell рисует строку файла шириной ровно width: номера, знак и текст,
 // обрезанный по краю. Каждый кусок несёт фон строки сам: вложенный стиль
-// со сбросом иначе гасит фон до конца строки.
+// со сбросом иначе гасит фон до конца строки. У изменённой строки номер и
+// знак идут её цветом на своём фоне, светлее фона кода: так изменение видно
+// по краю, даже когда код длинный.
 func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, changed []diff.Span) string {
 	base := lipgloss.NewStyle()
+	gutter := base.Foreground(m.colors.TextMuted)
 	wordBg := m.colors.DiffAddedWordBg
 	marker := " "
 	switch kind {
 	case diff.LineAdded:
 		base = base.Background(m.colors.DiffAddedBg)
+		gutter = lipgloss.NewStyle().Background(m.colors.DiffAddedNumberBg).Foreground(m.colors.DiffAdded)
 		marker = "+"
 	case diff.LineRemoved:
 		base = base.Background(m.colors.DiffRemovedBg)
+		gutter = lipgloss.NewStyle().Background(m.colors.DiffRemovedNumberBg).Foreground(m.colors.DiffRemoved)
 		wordBg = m.colors.DiffRemovedWordBg
 		marker = "-"
 	}
@@ -99,7 +104,7 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, c
 	}
 
 	code := m.lexer.Tokens(text)
-	return base.Foreground(m.colors.TextMuted).Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), base, wordBg, text, changed, code)
+	return gutter.Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), base, wordBg, text, changed, code)
 }
 
 // textCells рисует текст ровно на width клеток. Изменённые слова идут с фоном
