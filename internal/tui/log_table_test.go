@@ -133,3 +133,40 @@ func TestBranchColors(t *testing.T) {
 		t.Errorf("отметка текущей цветом accent: %q", code)
 	}
 }
+
+// Окно веток это таблица: у ветки автор и время последнего коммита, столбцы
+// начинаются с одной колонки под своими заголовками, длинный автор обрезан
+// «…» до 20 колонок (#124).
+func TestBranchColumnsLineUp(t *testing.T) {
+	repo := newRepo(t)
+	t.Setenv("GIT_AUTHOR_NAME", "ann")
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "a-much-longer-feature")
+	t.Setenv("GIT_AUTHOR_NAME", "bob with a very long author name")
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+
+	model := resize(open(t, options(repo, layout.Focus())), 140, 40)
+	screen := screenOf(openAsync(model, key('B')))
+
+	header := rowWith(t, screen, "Author")
+	short, long := rowWith(t, screen, "main"), rowWith(t, screen, "a-much-longer-feature")
+	for _, pair := range []struct{ title, text, other string }{
+		{title: "Branch", text: "main", other: "a-much-longer-feature"},
+		{title: "Author", text: "ann", other: "bob with"},
+		{title: "Date", text: relativeDate.FindString(short), other: relativeDate.FindString(long)},
+	} {
+		want := column(header, pair.title)
+		if got := column(short, pair.text); want < 0 || got != want {
+			t.Errorf("%q с колонки %d, заголовок %q с %d:\n%s\n%s", pair.text, got, pair.title, want, header, short)
+		}
+		if got := column(long, pair.other); got != want {
+			t.Errorf("%q с колонки %d, заголовок %q с %d:\n%s\n%s", pair.other, got, pair.title, want, header, long)
+		}
+	}
+	if !strings.Contains(long, "bob with a very lon…") {
+		t.Errorf("длинный автор не обрезан до 20 колонок: %q", long)
+	}
+}

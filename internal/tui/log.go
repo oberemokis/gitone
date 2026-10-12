@@ -143,13 +143,14 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		return graphCell(panel, lanes, entry.Graph, graphWidth) + panel.Render(strings.Repeat(" ", columnGap))
 	}
 
-	box.header = graph(git.LogEntry{}) + tableRow(panel, widths, muted, muted, muted, muted, titles...)
+	box.header = graph(git.LogEntry{}) + tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
 
+	styles := []lipgloss.Style{panel.Foreground(colors.Accent), panel, muted, muted}
 	box.rows = make([]string, len(entries))
 	for index, entry := range entries {
 		box.rows[index] = graph(entry)
 		if entry.Hash != "" {
-			box.rows[index] += tableRow(panel, widths, panel.Foreground(colors.Accent), panel, muted, muted, entry.Hash[:7], entry.Subject, entry.Author, entry.When)
+			box.rows[index] += tableRow(panel, widths, styles, entry.Hash[:7], entry.Subject, entry.Author, entry.When)
 		}
 	}
 
@@ -173,11 +174,10 @@ func graphCell(panel lipgloss.Style, lanes []color.Color, graph string, width in
 	return cell.String()
 }
 
-// tableRow собирает строку таблицы: каждая ячейка своим стилем, обрезана
-// «…» и дополнена пробелами до ширины столбца, между столбцами промежуток.
-func tableRow(panel lipgloss.Style, widths []int, hash, subject, author, date lipgloss.Style, cells ...string) string {
-	styles := []lipgloss.Style{hash, subject, author, date}
-
+// tableRow собирает строку таблицы лога и окна веток: каждая ячейка своим
+// стилем из styles, обрезана «…» и дополнена пробелами до ширины столбца,
+// между столбцами промежуток.
+func tableRow(panel lipgloss.Style, widths []int, styles []lipgloss.Style, cells ...string) string {
 	var row strings.Builder
 	for index, cell := range cells {
 		if index > 0 {
