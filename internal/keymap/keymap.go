@@ -48,6 +48,9 @@ const (
 	DiffHalfPageUp   Action = "diff.halfPageUp"
 	DiffTop          Action = "diff.top"
 	DiffBottom       Action = "diff.bottom"
+	DiffToggleWrap   Action = "diff.toggleWrap"
+	DiffScrollLeft   Action = "diff.scrollLeft"
+	DiffScrollRight  Action = "diff.scrollRight"
 )
 
 // Действия окон. Окно забирает нажатия целиком, поэтому эти действия ищутся
@@ -370,6 +373,9 @@ func defaults() []Binding {
 		{Action: DiffTop, Category: CategoryDiff, Keys: []string{"g"}, Help: true},
 		{Action: DiffBottom, Category: CategoryDiff, Keys: []string{"G"}, Help: true},
 		{Action: DiffToggleMode, Category: CategoryDiff, Keys: []string{"m"}, Help: true},
+		{Action: DiffToggleWrap, Category: CategoryDiff, Keys: []string{"w"}, Help: true},
+		{Action: DiffScrollLeft, Category: CategoryDiff, Keys: []string{"left"}, Help: true},
+		{Action: DiffScrollRight, Category: CategoryDiff, Keys: []string{"right"}, Help: true},
 		{Action: DiffReload, Category: CategoryDiff, Keys: []string{"r"}, Help: true},
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{Action: HelpClose, Keys: []string{"esc"}},

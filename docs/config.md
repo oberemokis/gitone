@@ -38,7 +38,8 @@
   },
   "diff": {
     "mode": "auto",
-    "autoSplitMinWidth": 120
+    "autoSplitMinWidth": 120,
+    "wrap": false
   }
 }
 ```

@@ -41,6 +41,11 @@ type Model struct {
 	hideNumbers bool
 	// служебные строки на языке интерфейса
 	text i18n.Dictionary
+	// wrap переносит длинные строки, без него код сдвигается вбок на shift
+	// колонок; longest это ширина самого длинного кода файла (wrap.go)
+	wrap    bool
+	shift   int
+	longest int
 }
 
 func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
@@ -60,7 +65,7 @@ func (m Model) WithoutNumbers(hide bool) Model {
 }
 
 func (m Model) SetFile(file diff.File) Model {
-	m.scroll = 0
+	m.scroll, m.shift = 0, 0
 	return m.withFile(file).rebuild()
 }
 
@@ -159,16 +164,32 @@ func (m Model) Bottom() Model {
 // clamp держит прокрутку в пределах: последняя строка файла не уходит выше
 // нижнего края экрана, первая не уходит ниже верхнего.
 func (m Model) clamp() Model {
-	m.scroll = max(min(m.scroll, len(m.lines)-m.height), 0)
+	m.scroll = max(min(m.scroll, len(m.lines)-m.rows()), 0)
 	return m
 }
 
-func (m Model) View() string {
-	end := min(m.scroll+m.height, len(m.lines))
+// rows это строки экрана под код: полоса прокрутки забирает нижнюю.
+func (m Model) rows() int {
+	if m.hasBar() {
+		return m.height - 1
+	}
+	return m.height
+}
 
-	rendered := make([]string, 0, end-m.scroll)
+func (m Model) View() string {
+	end := min(m.scroll+m.rows(), len(m.lines))
+
+	rendered := make([]string, 0, m.height)
 	for _, line := range m.lines[m.scroll:end] {
 		rendered = append(rendered, m.render(line))
+	}
+
+	if m.hasBar() {
+		// полоса стоит внизу панели и под коротким файлом
+		for len(rendered) < m.rows() {
+			rendered = append(rendered, "")
+		}
+		rendered = append(rendered, m.scrollbar())
 	}
 
 	return strings.Join(rendered, "\n")
@@ -185,27 +206,38 @@ func (m Model) effectiveMode() Mode {
 	return ModeUnified
 }
 
+// rebuild пересчитывает строки экрана. Ширина номеров нужна раньше строк:
+// по ней считается ширина кода, а по ней перенос.
 func (m Model) rebuild() Model {
-	m.lines = m.notices()
+	var rows []line
 	largest := 0
 
 	if m.effectiveMode() == ModeSplit {
 		for _, row := range diff.Split(m.file) {
-			m.lines = append(m.lines, line{split: &row})
+			rows = append(rows, line{split: &row})
 			largest = max(largest, row.Left.Number, row.Right.Number)
 		}
 	} else {
 		for _, row := range diff.Unified(m.file) {
-			m.lines = append(m.lines, line{unified: &row})
+			rows = append(rows, line{unified: &row})
 			largest = max(largest, row.OldNumber, row.NewNumber)
 		}
+	}
+	m.numberWidth = len(strconv.Itoa(largest))
+
+	m.longest = 0
+	m.lines = m.notices()
+	for _, row := range rows {
+		left, right := row.textWidths()
+		m.longest = max(m.longest, left, right)
+		m.lines = append(m.lines, m.parts(row)...)
 	}
 
 	if len(m.lines) == 0 {
 		m.lines = []line{{notice: &notice{text: m.text.Text("diff.noContent", nil)}}}
 	}
 
-	m.numberWidth = len(strconv.Itoa(largest))
+	m.shift = min(m.shift, m.maxShift())
 	return m.clamp()
 }
 
@@ -239,11 +271,13 @@ func shortMode(mode string) string {
 	return strings.TrimPrefix(mode, "100")
 }
 
-// line это строка экрана до отрисовки. Заполнено ровно одно поле.
+// line это строка экрана до отрисовки. Заполнено ровно одно из split, unified
+// и notice. part это номер куска строки файла при переносе, 0 у первого.
 type line struct {
 	split   *diff.SplitRow
 	unified *diff.UnifiedRow
 	notice  *notice
+	part    int
 }
 
 // notice это служебная строка вместо строки файла. plain значит текст как

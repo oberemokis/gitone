@@ -35,7 +35,7 @@ var (
 // клавиш, имена операций git в префиксе ошибки и ответы git (ссылка stash,
 // подпись stash, относительная дата коммита).
 var notOurs = map[string]bool{
-	"ctrl": true, "space": true, "up": true, "down": true, "esc": true, "enter": true,
+	"ctrl": true, "space": true, "up": true, "down": true, "left": true, "right": true, "esc": true, "enter": true,
 	"stash": true, "push": true, "WIP": true, "on": true,
 	"year": true, "years": true, "month": true, "months": true, "ago": true,
 }
