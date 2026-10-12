@@ -25,13 +25,3 @@ func TestPickerOpensWithoutFiles(t *testing.T) {
 		t.Fatalf("esc не закрыл поиск:\n%s", screenText(model))
 	}
 }
-
-// Без изменений раскладка рисуется целиком: панель файлов видна, и в ней,
-// как и в диффе, «No changes».
-func TestEmptyDiffKeepsLayout(t *testing.T) {
-	model := resize(tui.New(options("", layout.Default()), nil), 120, 20)
-
-	if got := strings.Count(screenText(model), "No changes"); got != 2 {
-		t.Fatalf("«No changes» %d раз, want 2: в панели файлов и в диффе:\n%s", got, screenText(model))
-	}
-}

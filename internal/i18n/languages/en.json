@@ -28,6 +28,7 @@
   "action.files.pick.help": "File list",
   "action.files.previous.help": "Previous file",
   "action.files.stage.help": "Stage or unstage file",
+  "action.files.toggle.help": "Show or hide file panel",
   "action.stash.list.help": "Stash list",
   "action.stash.push.help": "Save changes to stash",
   "branches.current": "(current)",

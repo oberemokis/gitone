@@ -52,6 +52,7 @@ func TestTickLeavesFooterAlone(t *testing.T) {
 // git add из другого терминала: отметка индекса появляется без нажатия.
 func TestTickShowsStageFromOutside(t *testing.T) {
 	repo, model := editedRepo(t, oneTick(), layout.Default())
+	model = toggleFiles(model)
 
 	runGit(t, repo, "add", "a.txt")
 	model = settle(model, model.Init(), 3)

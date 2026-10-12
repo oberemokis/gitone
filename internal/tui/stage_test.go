@@ -19,7 +19,7 @@ func TestSpaceStagesCurrentFile(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
 
-	model := resize(open(t, options(repo, layout.Default())), 100, 20)
+	model := toggleFiles(resize(open(t, options(repo, layout.Default())), 100, 20))
 	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	model = settle(model, cmd, 4)
 
