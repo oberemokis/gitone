@@ -1,0 +1,32 @@
+# Сборка релиза: четыре бинарника (darwin и linux, amd64 и arm64) в архивах и
+# файл контрольных сумм. Запускает workflow release.yml по тегу vX.Y.Z.
+#
+# Формулы Homebrew здесь пока нет: нужен отдельный репозиторий-tap и токен для
+# записи в него. Секция brews добавляется вместе с ними.
+version: 2
+
+project_name: gitone
+
+builds:
+  - id: gitone
+    main: ./cmd/gitone
+    binary: gitone
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    # версия, которую печатает gitone --version
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+
+checksum:
+  name_template: checksums.txt
