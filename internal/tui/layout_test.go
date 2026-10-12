@@ -119,7 +119,7 @@ func TestFilesPanelSide(t *testing.T) {
 			screen := screenOf(toggleFiles(openLayout(t, tc.root, 100)))
 
 			// первая строка тела: строка панели с текущим файлом
-			line := screen[2]
+			line := screen[bodyRow]
 			marker := strings.Index(line, "›")
 			if marker < 0 {
 				t.Fatalf("панели нет на экране: %q", line)

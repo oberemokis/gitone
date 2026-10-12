@@ -22,7 +22,7 @@ func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
 		t.Errorf("подсказки не у правого края: %q", footer)
 	}
 
-	// заголовок и пустая строка занимают строки 0 и 1, тело идёт со 2 по 8,
+	// заголовок с пустыми строками занимает строки 0-2, тело идёт с 3 по 8,
 	// его середина строка 5
 	if got := strings.TrimSpace(lines[5]); got != "No changes" {
 		t.Errorf("в середине тела %q, ожидалось No changes", got)

@@ -148,9 +148,15 @@ func screenOf(model tea.Model) []string {
 	return strings.Split(ansi.Strip(model.View().Content), "\n")
 }
 
+// Строки экрана с заголовком: пустая, заголовок, пустая, дальше тело.
+const (
+	headerRow = 1
+	bodyRow   = 3
+)
+
 // openedFile читает путь открытого файла из заголовка: первое слово.
 func openedFile(screen []string) string {
-	fields := strings.Fields(screen[0])
+	fields := strings.Fields(screen[headerRow])
 	if len(fields) == 0 {
 		return ""
 	}
@@ -163,14 +169,14 @@ func openedFile(screen []string) string {
 func topNumber(t *testing.T, screen []string) int {
 	t.Helper()
 
-	fields := strings.Fields(screen[2])
+	fields := strings.Fields(screen[bodyRow])
 	if len(fields) == 0 {
 		t.Fatalf("первая строка тела пустая:\n%s", strings.Join(screen, "\n"))
 	}
 
 	number, err := strconv.Atoi(fields[0])
 	if err != nil {
-		t.Fatalf("в первой строке тела нет номера: %q", screen[2])
+		t.Fatalf("в первой строке тела нет номера: %q", screen[bodyRow])
 	}
 
 	return number

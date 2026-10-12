@@ -41,9 +41,9 @@ func TestPaneTitlesOffHidesHeader(t *testing.T) {
 	}
 }
 
-// Без заголовка тело на два ряда выше: в нём помещаются две лишние строки
-// диффа.
-func TestPaneTitlesOffFreesTwoRows(t *testing.T) {
+// Без заголовка тело на три ряда выше (заголовок с пустыми строками над и под
+// ним): в нём помещаются три лишние строки диффа.
+func TestPaneTitlesOffFreesThreeRows(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "f.txt", numberedLines(60))
 
@@ -60,8 +60,8 @@ func TestPaneTitlesOffFreesTwoRows(t *testing.T) {
 	with := countBody(openWithUI(t, repo, config.Default(), ""))
 	without := countBody(openWithUI(t, repo, uiSettings(func(ui *config.UI) { ui.PaneTitles = false }), ""))
 
-	if without-with != 2 {
-		t.Fatalf("строк тела без заголовка %d, с заголовком %d, ожидалась разница 2", without, with)
+	if without-with != 3 {
+		t.Fatalf("строк тела без заголовка %d, с заголовком %d, ожидалась разница 3", without, with)
 	}
 }
 
@@ -94,12 +94,12 @@ func TestLineNumbersOffDropsColumn(t *testing.T) {
 	write(t, repo, "a.txt", "one\nTWO\n")
 
 	with := openWithUI(t, repo, config.Default(), "")
-	if got := strings.TrimSpace(with[2]); !strings.HasPrefix(got, "1") {
-		t.Fatalf("с номерами строка %q, ожидался номер в начале", with[2])
+	if got := strings.TrimSpace(with[bodyRow]); !strings.HasPrefix(got, "1") {
+		t.Fatalf("с номерами строка %q, ожидался номер в начале", with[bodyRow])
 	}
 
 	without := openWithUI(t, repo, uiSettings(func(ui *config.UI) { ui.LineNumbers = false }), "")
-	if got := strings.TrimSpace(without[2]); !strings.HasPrefix(got, "one") {
-		t.Fatalf("без номеров строка %q, ожидался текст в начале", without[2])
+	if got := strings.TrimSpace(without[bodyRow]); !strings.HasPrefix(got, "one") {
+		t.Fatalf("без номеров строка %q, ожидался текст в начале", without[bodyRow])
 	}
 }

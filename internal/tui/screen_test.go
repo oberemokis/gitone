@@ -23,8 +23,8 @@ func TestFirstChangedFileOpensWithPathAndCounts(t *testing.T) {
 
 	screen := render(open(t, options(repo, layout.Focus())), 100, 20)
 
-	if header := strings.TrimSpace(screen[0]); header != "a.txt +2-1 (1/2)" {
-		t.Fatalf("заголовок %q, ожидался %q", header, "a.txt +2-1 (1/2)")
+	if header := strings.TrimSpace(screen[headerRow]); header != "a.txt +2 -1 (1/2)" {
+		t.Fatalf("заголовок %q, ожидался %q", header, "a.txt +2 -1 (1/2)")
 	}
 	if body := strings.Join(screen[1:], "\n"); !strings.Contains(body, "TWO") || strings.Contains(body, "y") {
 		t.Fatalf("на экране не первый файл:\n%s", body)
@@ -107,9 +107,9 @@ func TestScrollStopsAtBothEnds(t *testing.T) {
 		{name: "колесо вниз", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown}, wantTop: 12},
 		{name: "колесо вверх", msg: tea.MouseWheelMsg{Button: tea.MouseWheelUp}, wantTop: 9},
 		{name: "ctrl u", msg: tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}, wantTop: 1},
-		{name: "G", msg: tea.KeyPressMsg{Code: 'g', Text: "G", Mod: tea.ModShift}, wantTop: 44},
-		{name: "j в конце", msg: tea.KeyPressMsg{Code: 'j', Text: "j"}, wantTop: 44},
-		{name: "колесо в конце", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown}, wantTop: 44},
+		{name: "G", msg: tea.KeyPressMsg{Code: 'g', Text: "G", Mod: tea.ModShift}, wantTop: 45},
+		{name: "j в конце", msg: tea.KeyPressMsg{Code: 'j', Text: "j"}, wantTop: 45},
+		{name: "колесо в конце", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown}, wantTop: 45},
 		{name: "g", msg: tea.KeyPressMsg{Code: 'g', Text: "g"}, wantTop: 1},
 	}
 
@@ -140,7 +140,7 @@ func TestModeToggleKeepsTopLine(t *testing.T) {
 	for range 5 {
 		model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	}
-	if top := strings.Fields(screenOf(model)[2]); len(top) < 3 || top[2] != "a1" {
+	if top := strings.Fields(screenOf(model)[bodyRow]); len(top) < 3 || top[2] != "a1" {
 		t.Fatalf("наверху не первая добавленная строка: %v", top)
 	}
 

@@ -84,8 +84,9 @@ func TestLongStashListUsesCommonMargin(t *testing.T) {
 	model, _ = model.Update(cmd())
 
 	shown := strings.Count(strings.Join(screenOf(model), "\n"), "stash@{")
-	// высота 20: заголовок с пустой строкой и подвал оставляют телу 17 строк
-	if want := 17 - 6; shown != want {
+	// высота 20: заголовок с пустыми строками над и под ним и подвал
+	// оставляют телу 16 строк
+	if want := 16 - 6; shown != want {
 		t.Fatalf("строк stash на экране %d, ожидалось %d", shown, want)
 	}
 }
