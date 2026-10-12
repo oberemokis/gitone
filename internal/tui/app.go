@@ -183,28 +183,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case actionDoneMsg:
 		return m.actionDone(msg)
+	// Списки приходят асинхронно. Если за это время открыли другое окно, список
+	// отбрасывается: иначе на экране одно окно, а клавиши уходят другому.
+	// Ошибка доходит до подвала при любом окне.
 	case stashesMsg:
-		if msg.err != nil {
+		switch {
+		case msg.err != nil:
 			m.notice = msg.err.Error()
-		} else {
+		case !m.windowOpen():
 			m.stashes, m.stashCursor, m.stashOpen = msg.stashes, 0, true
 		}
 	case branchesMsg:
-		if msg.err != nil {
+		switch {
+		case msg.err != nil:
 			m.notice = msg.err.Error()
-		} else {
+		case !m.windowOpen():
 			m.branches, m.branchOpen = msg.branches, true
 			m.branchCursor = currentIndex(msg.branches)
 		}
 	case logMsg:
-		if msg.err != nil {
+		switch {
+		case msg.err != nil:
 			m.notice = msg.err.Error()
-		} else {
+		case !m.windowOpen():
 			m.logEntries, m.logCursor, m.logOpen = msg.entries, 0, true
 		}
 	}
 
 	return m, nil
+}
+
+// windowOpen говорит, забирает ли какое-то окно клавиши. Справка клавиш не
+// забирает, поэтому её здесь нет.
+func (m Model) windowOpen() bool {
+	return m.pickerOpen || m.committing || m.logOpen || m.branchOpen || m.stashOpen || m.confirm != nil
 }
 
 // startReload запускает перечитывание, если оно не идёт. Повтор во время загрузки

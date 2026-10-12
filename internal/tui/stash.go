@@ -91,7 +91,7 @@ func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // строке окна, пока не отвечен.
 func stashBox(colors theme.Theme, stashes []git.Stash, cursor int, confirm string, screenWidth, screenHeight int) string {
 	width := max(min(68, screenWidth-8), 20)
-	rows := max(min(len(stashes), screenHeight-7), 1)
+	rows := max(min(len(stashes), screenHeight-6), 1)
 	start := max(0, cursor-rows+1)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
