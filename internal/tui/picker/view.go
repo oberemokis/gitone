@@ -29,7 +29,7 @@ func (m Model) View(width, height int) string {
 	dim := panel.Foreground(m.colors.TextMuted)
 
 	rows := []string{
-		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), dim.Render("esc")),
+		justify(panel, contentWidth, panel.Bold(true).Render(m.texts.Title), dim.Render(m.texts.CloseKey)),
 		justify(panel, contentWidth, "", ""),
 		justify(panel, contentWidth, m.search(panel, dim), ""),
 		justify(panel, contentWidth, "", ""),

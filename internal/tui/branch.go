@@ -7,6 +7,7 @@ import (
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
+	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
 )
 
@@ -35,13 +36,13 @@ func currentIndex(branches []git.Branch) int {
 	return max(slices.IndexFunc(branches, func(b git.Branch) bool { return b.Current }), 0)
 }
 
-// branchKey отдаёт клавиши окну веток: enter переключает на выбранную, esc
-// закрывает. Переключение на текущую ничего не делает.
+// branchKey отдаёт клавиши окну веток: branches.switch переключает на
+// выбранную, list.close закрывает. Переключение на текущую ничего не делает.
 func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.branches)); handled {
 		return next, cmd
 	}
-	if key.String() != keyEnter || len(m.branches) == 0 {
+	if !m.keys.Is(keymap.BranchesSwitch, key.String()) || len(m.branches) == 0 {
 		return m, nil
 	}
 
@@ -55,7 +56,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // branchBox рисует список веток. Текущая помечена словом, а не цветом: так
 // видно и без цветов.
-func branchBox(colors theme.Theme, text i18n.Dictionary, branches []git.Branch, cursor, screenWidth, screenHeight int) string {
+func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, branches []git.Branch, cursor, screenWidth, screenHeight int) string {
 	rows := make([]string, len(branches))
 	for index, branch := range branches {
 		rows[index] = branch.Name
@@ -69,6 +70,6 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, branches []git.Branch, 
 		width:  60,
 		rows:   rows,
 		cursor: cursor,
-		hint:   text.Text("branches.hint", windowKeys()),
+		hint:   windowHint(keys, text, keymap.BranchesSwitch, keymap.ListClose),
 	}.view(colors, screenWidth, screenHeight)
 }

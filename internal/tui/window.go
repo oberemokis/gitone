@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
 )
 
@@ -62,13 +63,13 @@ func (m Model) windowBox() string {
 	case pickerWindow:
 		return m.picker.View(width, height)
 	case commitWindow:
-		return commitBox(m.colors, m.text, m.subject, width)
+		return commitBox(m.colors, m.text, m.keys, m.subject, width)
 	case logWindow:
-		return logBox(m.colors, m.text, m.logEntries, m.cursor, width, height)
+		return logBox(m.colors, m.text, m.keys, m.logEntries, m.cursor, width, height)
 	case branchWindow:
-		return branchBox(m.colors, m.text, m.branches, m.cursor, width, height)
+		return branchBox(m.colors, m.text, m.keys, m.branches, m.cursor, width, height)
 	case stashWindow, stashDropWindow:
-		return stashBox(m.colors, m.text, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
+		return stashBox(m.colors, m.text, m.keys, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
 	}
 
 	if m.helpOpen {
@@ -78,18 +79,20 @@ func (m Model) windowBox() string {
 }
 
 // navigate разбирает клавиши, общие для списков: выход, закрытие и курсор.
+// ctrl+c зашит: выход из приложения не должен теряться из-за конфига.
 // handled false значит, что клавиша остаётся окну.
 func (m Model) navigate(key tea.KeyPressMsg, count int) (next Model, cmd tea.Cmd, handled bool) {
-	switch key.String() {
-	case "ctrl+c":
+	pressed := key.String()
+	switch {
+	case pressed == "ctrl+c":
 		return m, tea.Quit, true
-	case keyEsc:
+	case m.keys.Is(keymap.ListClose, pressed):
 		m.active = noWindow
 		return m, nil, true
-	case "down", "j":
+	case m.keys.Is(keymap.ListDown, pressed):
 		m.cursor = min(m.cursor+1, max(count-1, 0))
 		return m, nil, true
-	case "up", "k":
+	case m.keys.Is(keymap.ListUp, pressed):
 		m.cursor = max(m.cursor-1, 0)
 		return m, nil, true
 	}
@@ -117,6 +120,8 @@ type list struct {
 // прокручивается так, чтобы курсор оставался видимым.
 func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	width := max(min(l.width, screenWidth-8), 20)
+	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
+	content := width - 2*windowPaddingX
 	shown := max(min(len(l.rows), screenHeight-6), 1)
 	start := max(0, l.cursor-shown+1)
 
@@ -138,14 +143,19 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 		if index == l.cursor {
 			marker = "› "
 		}
-		lines = append(lines, panel.Render(ansi.Truncate(marker+l.rows[index], width, "…")))
+		lines = append(lines, panel.Render(ansi.Truncate(marker+l.rows[index], content, "…")))
 	}
 
-	last := muted.Render(l.hint)
+	// подсказка и вопрос обрезаются, как строки: длинные переназначенные
+	// клавиши иначе перенесли бы строку, и окно вылезло бы за экран
+	last := muted.Render(ansi.Truncate(l.hint, content, "…"))
 	if l.question != "" {
-		last = panel.Foreground(colors.Error).Render(l.question)
+		last = panel.Foreground(colors.Error).Render(ansi.Truncate(l.question, content, "…"))
 	}
 	lines = append(lines, "", last)
 
-	return panel.Padding(1, 2).Width(width).Render(strings.Join(lines, "\n"))
+	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))
 }
+
+// windowPaddingX это боковой отступ окон списка и коммита.
+const windowPaddingX = 2
