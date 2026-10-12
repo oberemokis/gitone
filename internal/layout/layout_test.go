@@ -129,6 +129,63 @@ func TestSplitSizes(t *testing.T) {
 	}
 }
 
+// Панель файлов в default занимает пятую часть ширины.
+func TestDefaultFilesPaneIsFifth(t *testing.T) {
+	got := layout.Split(layout.Default(), 100, 20)
+
+	if files := got.Children[0]; files.Pane != "files" || files.Width != 20 {
+		t.Errorf("default %+v, want files шириной 20 слева", got)
+	}
+}
+
+func TestWithoutAndHas(t *testing.T) {
+	nested := layout.Node{Direction: "row", Children: []layout.Node{
+		{Pane: "diff"},
+		{Direction: "column", Children: []layout.Node{{Pane: "files", Size: layout.Size{Percent: 30}}}},
+	}}
+
+	tests := []struct {
+		name     string
+		root     layout.Node
+		wantDiff int
+	}{
+		{name: "default: дифф во всю ширину", root: layout.Default(), wantDiff: 100},
+		{name: "контейнер без детей уходит вместе с панелью", root: nested, wantDiff: 100},
+		{name: "focus без панели не меняется", root: layout.Focus(), wantDiff: 100},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			without := layout.Without(tc.root, "files")
+			if layout.Has(without, "files") {
+				t.Fatalf("Without оставил files: %+v", without)
+			}
+
+			placed := layout.Split(without, 100, 20)
+			if width := diffWidth(placed); width != tc.wantDiff {
+				t.Errorf("дифф шириной %d, want %d: %+v", width, tc.wantDiff, placed)
+			}
+		})
+	}
+
+	if !layout.Has(nested, "files") || layout.Has(layout.Focus(), "files") {
+		t.Error("Has не нашёл files во вложенном контейнере или нашёл в focus")
+	}
+}
+
+// diffWidth ищет панель диффа в размещённом дереве.
+func diffWidth(placed layout.Placed) int {
+	if placed.Pane == "diff" {
+		return placed.Width
+	}
+	for _, child := range placed.Children {
+		if width := diffWidth(child); width > 0 {
+			return width
+		}
+	}
+	return 0
+}
+
 func TestSinglePaneTakesWholeScreen(t *testing.T) {
 	got := layout.Split(layout.Focus(), 90, 12)
 
