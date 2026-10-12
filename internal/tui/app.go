@@ -128,30 +128,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.view = m.view.ScrollBy(-wheelStep)
 		}
 	case changedMsg:
-		// сигнал съеден, ожидание возобновляется сразу: следующее изменение не должно ждать
-		if m.loading {
-			m.stale = true
-			return m, waitChange(m.changes)
-		}
-		var reloadCmd tea.Cmd
-		m, reloadCmd = m.startReload()
-		return m, tea.Batch(reloadCmd, waitChange(m.changes))
+		return m.changed()
 	case watchStoppedMsg:
 		m = m.say("слежение остановлено: нажмите r")
 	case reloadMsg:
-		m.loading = false
-		// ponytail: окно поиска, открытое во время загрузки, показывает список
-		// до перечитывания, выбор при этом ищется по имени в новом. Открыть
-		// окно заново обновит список.
-		if msg.err != nil {
-			m = m.say(msg.err.Error())
-		} else {
-			m = m.applyReload(msg.files)
-			m.staged = msg.staged
-		}
-		if m.stale {
-			return m.startReload()
-		}
+		return m.reloaded(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список

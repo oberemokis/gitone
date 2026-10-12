@@ -96,31 +96,28 @@ func indexWithUntracked(root string) (string, func(), error) {
 		return "", nil, err
 	}
 	cleanup := func() { os.RemoveAll(temp) }
-	index := filepath.Join(temp, "index")
 
-	// Индекса ещё нет в свежем репозитории без единого add: тогда git
-	// создаст копию сам. Пустой файл вместо него git отвергает.
-	content, err := os.ReadFile(strings.TrimSpace(realIndex))
-	var realTime time.Time
-	switch {
-	case err == nil:
-		if info, statErr := os.Stat(strings.TrimSpace(realIndex)); statErr == nil {
-			realTime = info.ModTime()
-		}
-		err = os.WriteFile(index, content, 0o600)
-	case errors.Is(err, fs.ErrNotExist):
-		err = nil
-	}
-	if err != nil {
+	index := filepath.Join(temp, "index")
+	if err := fillIndex(root, strings.TrimSpace(realIndex), index, withoutDirectories(listed)); err != nil {
 		cleanup()
 		return "", nil, err
 	}
 
-	if untracked := withoutDirectories(listed); untracked != "" {
+	return index, cleanup, nil
+}
+
+// fillIndex собирает копию индекса: содержимое настоящего плюс untracked как
+// намерение.
+func fillIndex(root, realIndex, index, untracked string) error {
+	realTime, err := copyIndex(realIndex, index)
+	if err != nil {
+		return err
+	}
+
+	if untracked != "" {
 		addCall := call{dir: root, env: []string{"GIT_INDEX_FILE=" + index}, stdin: untracked}
 		if _, err := run(addCall, "add", "--intent-to-add", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
-			cleanup()
-			return "", nil, err
+			return err
 		}
 	}
 
@@ -129,14 +126,30 @@ func indexWithUntracked(root string) (string, func(), error) {
 	// время «сейчас», и правка с тем же размером в ту же тику пропадала. Время
 	// исходного индекса возвращаем копии, тогда git сверяет те же записи, что и
 	// сверил бы настоящий индекс.
-	if !realTime.IsZero() {
-		if err := os.Chtimes(index, realTime, realTime); err != nil {
-			cleanup()
-			return "", nil, err
-		}
+	if realTime.IsZero() {
+		return nil
+	}
+	return os.Chtimes(index, realTime, realTime)
+}
+
+// copyIndex копирует индекс и возвращает время его записи. Индекса ещё нет в
+// свежем репозитории без единого add: тогда копии нет, и git создаст её сам.
+// Пустой файл вместо него git отвергает.
+func copyIndex(from, to string) (time.Time, error) {
+	content, err := os.ReadFile(from)
+	if errors.Is(err, fs.ErrNotExist) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, err
 	}
 
-	return index, cleanup, nil
+	var modTime time.Time
+	if info, err := os.Stat(from); err == nil {
+		modTime = info.ModTime()
+	}
+
+	return modTime, os.WriteFile(to, content, 0o600)
 }
 
 // withoutDirectories убирает из вывода `ls-files -z` записи на `/`. Так

@@ -1,11 +1,9 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -60,14 +58,8 @@ type themeJSON struct {
 
 func decodeTheme(data []byte) (ThemeFile, error) {
 	var raw themeJSON
-
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&raw); err != nil {
+	if err := decodeStrict(data, &raw, "темы"); err != nil {
 		return ThemeFile{}, err
-	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return ThemeFile{}, errors.New("лишний текст после темы")
 	}
 
 	defs, err := colorsOf("defs", raw.Defs)

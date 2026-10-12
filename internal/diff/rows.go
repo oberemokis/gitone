@@ -139,12 +139,12 @@ type numbered struct {
 	number int
 }
 
-func (side numbered) cell() Cell {
-	if side.line.Kind == "" {
+func (n numbered) cell() Cell {
+	if n.line.Kind == "" {
 		return Cell{}
 	}
 
-	return Cell{Kind: side.line.Kind, Number: side.number, Text: side.line.Text}
+	return Cell{Kind: n.line.Kind, Number: n.number, Text: n.line.Text}
 }
 
 // pair собирает строку split и, если у строки с какой-то стороны нет

@@ -18,7 +18,7 @@ type parser struct {
 }
 
 func Parse(text string) []File {
-	var state parser
+	var p parser
 	if text == "" {
 		return nil
 	}
@@ -27,38 +27,38 @@ func Parse(text string) []File {
 		switch {
 		// `\ No newline at end of file` относится к предыдущей строке и в
 		// счётчики хунка не входит. Приходит и внутри хунка, и после него.
-		case strings.HasPrefix(line, `\`) && !state.inRaw():
-			state.markNoNewline()
-		case state.oldLeft > 0 || state.newLeft > 0:
-			state.hunkLine(line)
+		case strings.HasPrefix(line, `\`) && !p.inRaw():
+			p.markNoNewline()
+		case p.oldLeft > 0 || p.newLeft > 0:
+			p.hunkLine(line)
 		default:
-			state.headerLine(line)
+			p.headerLine(line)
 		}
 	}
 
-	return state.files
+	return p.files
 }
 
-func (state *parser) headerLine(line string) {
+func (p *parser) headerLine(line string) {
 	switch {
 	case strings.HasPrefix(line, "diff --git "):
 		oldPath, newPath := headerPaths(strings.TrimPrefix(line, "diff --git "))
-		state.files = append(state.files, File{OldPath: oldPath, NewPath: newPath, Status: StatusModified})
+		p.files = append(p.files, File{OldPath: oldPath, NewPath: newPath, Status: StatusModified})
 	case strings.HasPrefix(line, "diff --cc "), strings.HasPrefix(line, "diff --combined "):
 		_, combinedPath, _ := strings.Cut(strings.TrimPrefix(line, "diff --"), " ")
-		state.files = append(state.files, File{NewPath: path(combinedPath, ""), Status: StatusRaw, Raw: clean(line)})
+		p.files = append(p.files, File{NewPath: path(combinedPath, ""), Status: StatusRaw, Raw: clean(line)})
 	case strings.HasPrefix(line, "* Unmerged path "):
 		unmergedPath := strings.TrimPrefix(line, "* Unmerged path ")
-		state.files = append(state.files, File{NewPath: path(unmergedPath, ""), Status: StatusRaw, Raw: clean(line)})
-	case state.inRaw() || !state.fileHeader(line):
-		state.appendRaw(line)
+		p.files = append(p.files, File{NewPath: path(unmergedPath, ""), Status: StatusRaw, Raw: clean(line)})
+	case p.inRaw() || !p.fileHeader(line):
+		p.appendRaw(line)
 	}
 }
 
 // fileHeader разбирает строку заголовка обычного файла. Незнакомая строка
 // возвращает false и уходит в сырую запись, чтобы не пропасть молча.
-func (state *parser) fileHeader(line string) bool {
-	file := state.current()
+func (p *parser) fileHeader(line string) bool {
+	file := p.current()
 	if file == nil {
 		return false
 	}
@@ -102,8 +102,8 @@ func (state *parser) fileHeader(line string) bool {
 		}
 
 		file.Hunks = append(file.Hunks, Hunk{OldStart: number(match[1], 0), NewStart: number(match[3], 0)})
-		state.oldLeft = number(match[2], 1)
-		state.newLeft = number(match[4], 1)
+		p.oldLeft = number(match[2], 1)
+		p.newLeft = number(match[4], 1)
 	default:
 		return false
 	}
@@ -111,28 +111,28 @@ func (state *parser) fileHeader(line string) bool {
 	return true
 }
 
-func (state *parser) hunkLine(line string) {
-	file := state.current()
+func (p *parser) hunkLine(line string) {
+	file := p.current()
 	hunk := &file.Hunks[len(file.Hunks)-1]
 
 	switch {
 	case strings.HasPrefix(line, "+"):
 		hunk.Lines = append(hunk.Lines, Line{Kind: LineAdded, Text: clean(line[1:])})
 		file.Added++
-		state.newLeft--
+		p.newLeft--
 	case strings.HasPrefix(line, "-"):
 		hunk.Lines = append(hunk.Lines, Line{Kind: LineRemoved, Text: clean(line[1:])})
 		file.Removed++
-		state.oldLeft--
+		p.oldLeft--
 	default:
 		hunk.Lines = append(hunk.Lines, Line{Kind: LineContext, Text: clean(strings.TrimPrefix(line, " "))})
-		state.oldLeft--
-		state.newLeft--
+		p.oldLeft--
+		p.newLeft--
 	}
 }
 
-func (state *parser) markNoNewline() {
-	file := state.current()
+func (p *parser) markNoNewline() {
+	file := p.current()
 	if file == nil || len(file.Hunks) == 0 {
 		return
 	}
@@ -145,27 +145,27 @@ func (state *parser) markNoNewline() {
 
 // appendRaw чистит строку так же, как строки хунков: сырой текст тоже идёт
 // на экран, и escape-код из конфликта слияния иначе красил бы терминал.
-func (state *parser) appendRaw(line string) {
-	if state.inRaw() {
-		file := state.current()
+func (p *parser) appendRaw(line string) {
+	if p.inRaw() {
+		file := p.current()
 		file.Raw += "\n" + clean(line)
 		return
 	}
 
-	state.files = append(state.files, File{Status: StatusRaw, Raw: clean(line)})
+	p.files = append(p.files, File{Status: StatusRaw, Raw: clean(line)})
 }
 
-func (state *parser) inRaw() bool {
-	file := state.current()
+func (p *parser) inRaw() bool {
+	file := p.current()
 	return file != nil && file.Status == StatusRaw
 }
 
-func (state *parser) current() *File {
-	if len(state.files) == 0 {
+func (p *parser) current() *File {
+	if len(p.files) == 0 {
 		return nil
 	}
 
-	return &state.files[len(state.files)-1]
+	return &p.files[len(p.files)-1]
 }
 
 func number(digits string, fallback int) int {

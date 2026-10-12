@@ -1,11 +1,9 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -72,14 +70,8 @@ func ReadLayout(dir, name string) (LayoutFile, bool, error) {
 
 func decodeLayout(data []byte) (LayoutFile, error) {
 	var file LayoutFile
-
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&file); err != nil {
+	if err := decodeStrict(data, &file, "раскладки"); err != nil {
 		return LayoutFile{}, err
-	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return LayoutFile{}, errors.New("лишний текст после раскладки")
 	}
 
 	return file, nil

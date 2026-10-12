@@ -4,6 +4,7 @@
 package diffview
 
 import (
+	"cmp"
 	"strconv"
 	"strings"
 
@@ -64,12 +65,7 @@ func (m Model) Reload(file diff.File) Model {
 // старый, у переименованного новый.
 func (m Model) withFile(file diff.File) Model {
 	m.file = file
-	path := file.NewPath
-	if path == "" {
-		path = file.OldPath
-	}
-	m.lexer = syntax.Detect(path)
-
+	m.lexer = syntax.Detect(cmp.Or(file.NewPath, file.OldPath))
 	return m
 }
 

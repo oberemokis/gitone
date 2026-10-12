@@ -72,14 +72,8 @@ func Load(dir string) (Config, error) {
 
 func decode(data []byte) (Config, error) {
 	cfg := Default()
-
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&cfg); err != nil {
+	if err := decodeStrict(data, &cfg, "настроек"); err != nil {
 		return Config{}, err
-	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return Config{}, errors.New("лишний текст после настроек")
 	}
 
 	switch cfg.Diff.Mode {
@@ -89,6 +83,22 @@ func decode(data []byte) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// decodeStrict читает ровно один объект JSON. Неизвестное поле и текст после
+// объекта это ошибка: опечатка в ключе иначе молча ничего не делает. what
+// называет содержимое в сообщении о лишнем тексте.
+func decodeStrict(data []byte, target any, what string) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("лишний текст после %s", what)
+	}
+
+	return nil
 }
 
 // Dir возвращает каталог настроек: $XDG_CONFIG_HOME/gitone, а без переменной

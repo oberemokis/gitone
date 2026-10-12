@@ -18,7 +18,7 @@ const (
 
 // helpBox не шире экрана: на узком окно ужимается, а длинные описания
 // обрезаются, иначе окно уходило за край и теряло левые колонки.
-func helpBox(colors theme.Theme, screenWidth int, bindings []keymap.Binding) string {
+func helpBox(colors theme.Theme, screenWidth int, keys keymap.Keymap) string {
 	width := max(min(helpWidth, screenWidth-2*helpPaddingX), 1)
 
 	// Каждый кусок строки несёт фон сам: Lip Gloss закрывает жирный полным
@@ -30,14 +30,12 @@ func helpBox(colors theme.Theme, screenWidth int, bindings []keymap.Binding) str
 
 	// клавиши закрытия могли быть отключены: тогда в заголовке их не пишем
 	var closeKey string
-	for _, binding := range bindings {
-		if binding.Action == keymap.HelpClose && len(binding.Keys) > 0 {
-			closeKey = displayKey(binding.Keys[0])
-		}
+	if closeKeys := keys.KeysFor(keymap.HelpClose); len(closeKeys) > 0 {
+		closeKey = displayKey(closeKeys[0])
 	}
 	rows := []string{justify(panel, width, bold.Render("Hotkeys"), dim.Render(closeKey))}
 
-	order, groups := groupByCategory(bindings)
+	order, groups := groupByCategory(keys.Bindings())
 	for _, title := range order {
 		rows = append(rows, "", justify(panel, width, heading.Render(string(title)), ""))
 

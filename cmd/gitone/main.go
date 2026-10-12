@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -36,13 +35,8 @@ func main() {
 		exit(err)
 	}
 
-	// Ошибка настроек не останавливает запуск: работают встроенные значения,
-	// а текст ошибки стоит в подвале.
-	opts, settingsErr := loadSettings()
+	opts := loadSettings()
 	opts.Dir, opts.Args = dir, os.Args[1:]
-	if settingsErr != nil {
-		opts.Notice = settingsErr.Error()
-	}
 
 	// слежение живёт до конца программы, поэтому канал закрывается здесь
 	done := make(chan struct{})
@@ -50,7 +44,7 @@ func main() {
 	if opts.Config.UI.AutoReload {
 		changes, watchErr := watch.Start(dir, maxWatchedDirs, done)
 		if watchErr != nil {
-			opts.Notice = joinNotices(opts.Notice, watchErr.Error())
+			opts.Notice = addNotice(opts.Notice, watchErr)
 		} else {
 			opts.Changes = changes
 		}
@@ -66,15 +60,16 @@ func main() {
 	}
 }
 
-// loadSettings читает config.json, keybinds.json, тему и раскладку. Ошибки всех
-// склеиваются в одну строку: подвал показывает одну первую строку. Ошибочный
-// файл заменяется встроенным значением, поэтому opts всегда пригоден.
-func loadSettings() (tui.Options, error) {
+// loadSettings читает config.json, keybinds.json, тему и раскладку. Ошибка
+// настроек не останавливает запуск: ошибочный файл заменяется встроенным
+// значением, поэтому opts всегда пригоден, а текст ошибки стоит в подвале.
+func loadSettings() tui.Options {
 	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: layout.Default()}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return opts, err
+		opts.Notice = err.Error()
+		return opts
 	}
 
 	dir := config.Dir(os.Getenv("XDG_CONFIG_HOME"), home)
@@ -84,29 +79,25 @@ func loadSettings() (tui.Options, error) {
 	root, layoutErr := layout.Load(dir, settings.Layout)
 	opts.Config, opts.Keys, opts.Theme, opts.Layout = settings, keys, palette, root
 
-	var problems []string
-	for _, err := range []error{settingsErr, keysErr, themeErr, layoutErr} {
-		if err != nil {
-			problems = append(problems, err.Error())
-		}
-	}
-	if len(problems) == 0 {
-		return opts, nil
-	}
-
-	return opts, errors.New(strings.Join(problems, "; "))
+	opts.Notice = addNotice("", settingsErr, keysErr, themeErr, layoutErr)
+	return opts
 }
 
-// joinNotices склеивает тексты ошибок в одну строку подвала.
-func joinNotices(notices ...string) string {
-	var present []string
-	for _, notice := range notices {
-		if notice != "" {
-			present = append(present, notice)
+// addNotice дописывает к тексту подвала тексты ошибок через «; »: подвал
+// показывает одну строку. nil пропускается, иначе в тексте осталась бы пустая
+// часть.
+func addNotice(notice string, errs ...error) string {
+	var parts []string
+	if notice != "" {
+		parts = append(parts, notice)
+	}
+	for _, err := range errs {
+		if err != nil {
+			parts = append(parts, err.Error())
 		}
 	}
 
-	return strings.Join(present, "; ")
+	return strings.Join(parts, "; ")
 }
 
 // Дифф грузится до запуска интерфейса: ошибка git (вне репозитория, неверный
@@ -122,7 +113,7 @@ func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	files, err := tui.Load(opts.Dir, opts.Args)
 	staged, stagedErr := tui.Staged(opts.Dir)
 	opts.Staged = staged
-	opts.Notice = joinNotices(opts.Notice, errorText(stagedErr))
+	opts.Notice = addNotice(opts.Notice, stagedErr)
 
 	if !timer.Stop() {
 		<-printed
@@ -130,15 +121,6 @@ func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	}
 
 	return tui.New(opts, files), err
-}
-
-// errorText нужен там, где ошибки может не быть: nil в тексте стал бы пустой
-// строкой подвала.
-func errorText(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }
 
 func exit(err error) {

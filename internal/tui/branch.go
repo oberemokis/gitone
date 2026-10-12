@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/git"
@@ -27,14 +29,9 @@ func switchCmd(dir, name string) tea.Cmd {
 	}
 }
 
+// currentIndex это строка текущей ветки, а без неё (detached HEAD) первая.
 func currentIndex(branches []git.Branch) int {
-	for index, branch := range branches {
-		if branch.Current {
-			return index
-		}
-	}
-
-	return 0
+	return max(slices.IndexFunc(branches, func(b git.Branch) bool { return b.Current }), 0)
 }
 
 // branchKey отдаёт клавиши окну веток: enter переключает на выбранную, esc

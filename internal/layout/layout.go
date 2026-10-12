@@ -58,17 +58,27 @@ func build(node config.LayoutNode, path string, seen map[string]bool) (Node, err
 	}
 
 	if node.Pane != "" {
-		if !slices.Contains(panes, node.Pane) {
-			return Node{}, fmt.Errorf("%s.pane: неизвестная панель «%s», есть %s", path, node.Pane, strings.Join(panes, ", "))
-		}
-		if seen[node.Pane] {
-			return Node{}, fmt.Errorf("%s.pane: панель «%s» уже есть в раскладке", path, node.Pane)
-		}
-		seen[node.Pane] = true
+		return buildPane(node.Pane, size, path, seen)
+	}
+	return buildContainer(node, size, path, seen)
+}
 
-		return Node{Pane: node.Pane, Size: size}, nil
+// buildPane проверяет лист: панель известна и стоит в раскладке один раз.
+func buildPane(pane string, size Size, path string, seen map[string]bool) (Node, error) {
+	if !slices.Contains(panes, pane) {
+		return Node{}, fmt.Errorf("%s.pane: неизвестная панель «%s», есть %s", path, pane, strings.Join(panes, ", "))
+	}
+	if seen[pane] {
+		return Node{}, fmt.Errorf("%s.pane: панель «%s» уже есть в раскладке", path, pane)
 	}
 
+	seen[pane] = true
+	return Node{Pane: pane, Size: size}, nil
+}
+
+// buildContainer проверяет контейнер и строит детей. Проценты детей в сумме не
+// больше 100: иначе им не хватит места.
+func buildContainer(node config.LayoutNode, size Size, path string, seen map[string]bool) (Node, error) {
 	if node.Direction != "row" && node.Direction != "column" {
 		return Node{}, fmt.Errorf("%s.direction: «%s» не направление, допустимы row и column", path, node.Direction)
 	}
