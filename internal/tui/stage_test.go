@@ -11,8 +11,8 @@ import (
 	"gitone/internal/layout"
 )
 
-// Пробел ставит текущий файл в индекс: в панели появляется отметка, в git он в
-// индексе.
+// Пробел ставит текущий файл в индекс. Отметки в панели нет (#99): индекс
+// виден в git.
 func TestSpaceStagesCurrentFile(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
@@ -23,11 +23,11 @@ func TestSpaceStagesCurrentFile(t *testing.T) {
 	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	model = settle(model, cmd, 4)
 
-	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "● a.txt") {
-		t.Fatalf("отметки нет в панели:\n%s", body)
-	}
 	if staged, err := git.StagedPaths(repo); err != nil || len(staged) != 1 || staged[0] != "a.txt" {
 		t.Fatalf("в индексе %q, ошибка %v", staged, err)
+	}
+	if body := strings.Join(screenOf(model), "\n"); strings.Contains(body, "●") {
+		t.Fatalf("в панели осталась отметка индекса:\n%s", body)
 	}
 }
 
