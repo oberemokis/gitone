@@ -33,21 +33,21 @@ func loadKeys(t *testing.T, content string) keymap.Keymap {
 // Переназначенный выход работает, встроенный перестаёт, а подвал показывает
 // новую клавишу.
 func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
-	km := loadKeys(t, `{"keybinds":{"app.quit":"z"}}`)
+	km := loadKeys(t, `{"keybinds":{"app.quit":"w"}}`)
 	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: km, Theme: theme.Dark()}, nil)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "z quit") || strings.Contains(footer, "q quit") {
-		t.Fatalf("в подвале %q, ожидалось «z quit» без «q quit»", footer)
+	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "w quit") || strings.Contains(footer, "q quit") {
+		t.Fatalf("в подвале %q, ожидалось «w quit» без «q quit»", footer)
 	}
 
 	if _, cmd := model.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd != nil {
 		if _, isQuit := cmd().(tea.QuitMsg); isQuit {
-			t.Fatal("q выходит, хотя выход переназначен на z")
+			t.Fatal("q выходит, хотя выход переназначен на w")
 		}
 	}
 
-	_, cmd := model.Update(tea.KeyPressMsg{Code: 'z', Text: "z"})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
 	if cmd == nil {
 		t.Fatal("x не выходит, хотя назначен на выход")
 	}

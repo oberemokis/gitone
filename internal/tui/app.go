@@ -51,6 +51,11 @@ type Model struct {
 	branchOpen   bool
 	branches     []git.Branch
 	branchCursor int
+	// список stash: записи, курсор, открыто ли окно и stash, ждущий подтверждения удаления
+	stashOpen    bool
+	stashes      []git.Stash
+	stashCursor  int
+	confirmStash string
 	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
 	notice     string
 	keys       keymap.Keymap
@@ -136,6 +141,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.branchOpen {
 			return m.branchKey(msg)
 		}
+		if m.stashOpen {
+			return m.stashKey(msg)
+		}
 		m.notice = ""
 		if m.pickerOpen {
 			return m.pickerKey(msg)
@@ -174,6 +182,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case actionDoneMsg:
 		return m.actionDone(msg)
+	case stashesMsg:
+		if msg.err != nil {
+			m.notice = msg.err.Error()
+		} else {
+			m.stashes, m.stashCursor, m.stashOpen = msg.stashes, 0, true
+		}
 	case branchesMsg:
 		if msg.err != nil {
 			m.notice = msg.err.Error()
@@ -266,6 +280,10 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m, logCmd(m.dir)
 	case keymap.AppBranches:
 		return m, branchesCmd(m.dir)
+	case keymap.StashPush:
+		return m, stashPushCmd(m.dir)
+	case keymap.StashList:
+		return m, stashListCmd(m.dir)
 	case keymap.DiffWorkingTree:
 		m.args = m.baseArgs
 		return m.startReload()
@@ -421,6 +439,8 @@ func (m Model) body() string {
 		return overlay(base, logBox(m.colors, m.logEntries, m.logCursor, m.width, m.bodyHeight()), m.width, m.bodyHeight())
 	case m.branchOpen:
 		return overlay(base, branchBox(m.colors, m.branches, m.branchCursor, m.width, m.bodyHeight()), m.width, m.bodyHeight())
+	case m.stashOpen:
+		return overlay(base, stashBox(m.colors, m.stashes, m.stashCursor, m.confirmStash, m.width, m.bodyHeight()), m.width, m.bodyHeight())
 	case m.helpOpen:
 		return overlay(base, helpBox(m.colors, m.width, m.keys.Bindings()), m.width, m.bodyHeight())
 	}
