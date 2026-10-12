@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
@@ -54,14 +55,18 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, switchCmd(m.dir, branch.Name)
 }
 
-// branchBox рисует список веток. Текущая помечена словом, а не цветом: так
-// видно и без цветов.
+// branchBox рисует список веток. Имя цветом accent, как ветка в окне worktree
+// (#117). Текущая помечена словом, а не цветом: так видно и без цветов.
+// Каждый кусок несёт фон окна сам.
 func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, branches []git.Branch, cursor, screenWidth, screenHeight int) string {
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	name := panel.Foreground(colors.Accent)
+
 	rows := make([]string, len(branches))
 	for index, branch := range branches {
-		rows[index] = branch.Name
+		rows[index] = name.Render(branch.Name)
 		if branch.Current {
-			rows[index] += " " + text.Text("branches.current", nil)
+			rows[index] += panel.Render(" " + text.Text("branches.current", nil))
 		}
 	}
 

@@ -111,3 +111,20 @@ func TestWorktreeColors(t *testing.T) {
 		t.Errorf("путь не приглушён: %q", code)
 	}
 }
+
+// В окне веток имя каждой ветки цветом accent, как в окне worktree, а
+// отметка текущей цветом текста (#117).
+func TestBranchColors(t *testing.T) {
+	repo, model := threeFileRepo(t)
+	runGit(t, repo, "branch", "feature")
+	raw := openAsync(model, key('B')).View().Content
+
+	for _, name := range []string{"main", "feature"} {
+		if code := styleBefore(t, raw, name, name); !strings.Contains(code, "38;2;157;124;216") {
+			t.Errorf("ветка %s не цветом accent: %q", name, code)
+		}
+	}
+	if code := styleBefore(t, raw, "(current)", "(current)"); strings.Contains(code, "38;2;157;124;216") {
+		t.Errorf("отметка текущей цветом accent: %q", code)
+	}
+}
