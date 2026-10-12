@@ -2,11 +2,8 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/git"
 	"gitone/internal/tui/theme"
@@ -44,78 +41,62 @@ func stashDropCmd(dir, ref string) tea.Cmd {
 }
 
 // stashKey отдаёт клавиши окну stash. enter показывает диф stash в экране, a
-// применяет его, d спрашивает удаление. Вопрос отвечается y, иначе отмена.
+// применяет его, d спрашивает удаление.
 func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.confirmStash != "" {
-		ref := m.confirmStash
-		m.confirmStash = ""
-		if key.String() == "y" {
-			m.stashOpen = false
-			return m, stashDropCmd(m.dir, ref)
-		}
+	if next, cmd, handled := m.navigate(key, len(m.stashes)); handled {
+		return next, cmd
+	}
+	if len(m.stashes) == 0 {
 		return m, nil
 	}
 
+	ref := m.stashes[m.cursor].Ref
 	switch key.String() {
-	case "ctrl+c":
-		return m, tea.Quit
-	case "esc":
-		m.stashOpen = false
-	case "down", "j":
-		m.stashCursor = min(m.stashCursor+1, max(len(m.stashes)-1, 0))
-	case "up", "k":
-		m.stashCursor = max(m.stashCursor-1, 0)
 	case "enter":
-		if len(m.stashes) == 0 {
-			return m, nil
-		}
-		m.stashOpen = false
-		m.args = []string{m.stashes[m.stashCursor].Ref + "^!"}
+		m.active = noWindow
+		m.args = []string{ref + "^!"}
 		return m.startReload()
 	case "a":
-		if len(m.stashes) == 0 {
-			return m, nil
-		}
-		m.stashOpen = false
-		return m, stashApplyCmd(m.dir, m.stashes[m.stashCursor].Ref)
+		m.active = noWindow
+		return m, stashApplyCmd(m.dir, ref)
 	case "d":
-		if len(m.stashes) > 0 {
-			m.confirmStash = m.stashes[m.stashCursor].Ref
-		}
+		m.active = stashDropWindow
 	}
 
 	return m, nil
 }
 
-// stashBox рисует список stash по центру. Вопрос об удалении стоит в последней
-// строке окна, пока не отвечен.
-func stashBox(colors theme.Theme, stashes []git.Stash, cursor int, confirm string, screenWidth, screenHeight int) string {
-	width := max(min(68, screenWidth-8), 20)
-	rows := max(min(len(stashes), screenHeight-6), 1)
-	start := max(0, cursor-rows+1)
-
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
-
-	lines := []string{panel.Bold(true).Foreground(colors.Accent).Render("Stash")}
-	if len(stashes) == 0 {
-		lines = append(lines, muted.Render("Нет stash"))
-	}
-	for index := start; index < len(stashes) && index < start+rows; index++ {
-		marker := "  "
-		if index == cursor {
-			marker = "› "
-		}
-
-		text := marker + stashes[index].Ref + "  " + stashes[index].Subject
-		lines = append(lines, panel.Render(ansi.Truncate(text, width, "…")))
+// answerStashDrop разбирает ответ на вопрос об удалении. Удаляет только y,
+// любая другая клавиша возвращает к списку и сама не выполняется.
+func (m Model) answerStashDrop(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if key.String() != "y" {
+		m.active = stashWindow
+		return m, nil
 	}
 
-	if confirm != "" {
-		lines = append(lines, "", panel.Foreground(colors.Error).Render(fmt.Sprintf("удалить %s? y да, любая клавиша нет", confirm)))
-	} else {
-		lines = append(lines, "", muted.Render("enter диф   a применить   d удалить   esc закрыть"))
+	m.active = noWindow
+	return m, stashDropCmd(m.dir, m.stashes[m.cursor].Ref)
+}
+
+// stashBox рисует список stash. Вопрос об удалении стоит в последней строке
+// окна, пока не отвечен.
+func stashBox(colors theme.Theme, stashes []git.Stash, cursor int, asking bool, screenWidth, screenHeight int) string {
+	rows := make([]string, len(stashes))
+	for index, stash := range stashes {
+		rows[index] = stash.Ref + "  " + stash.Subject
 	}
 
-	return panel.Padding(1, 2).Width(width).Render(strings.Join(lines, "\n"))
+	box := list{
+		title:  "Stash",
+		width:  68,
+		rows:   rows,
+		cursor: cursor,
+		empty:  []string{"Нет stash"},
+		hint:   "enter диф   a применить   d удалить   esc закрыть",
+	}
+	if asking {
+		box.question = fmt.Sprintf("удалить %s? y да, любая клавиша нет", stashes[cursor].Ref)
+	}
+
+	return box.view(colors, screenWidth, screenHeight)
 }

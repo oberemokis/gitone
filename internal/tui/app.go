@@ -36,40 +36,30 @@ type Model struct {
 	changes <-chan struct{}
 	// staged: пути с отличием индекса от HEAD, по ним отметка в панели файлов
 	staged map[string]bool
-	// confirm: пути файла, который ждёт подтверждения discard; nil значит вопроса нет
-	confirm []string
-	// committing: открыто поле темы коммита, subject набранная тема
-	committing bool
-	subject    string
 	// baseArgs аргументы запуска: b возвращает к ним дифф рабочего дерева
 	baseArgs []string
-	// лог коммитов поверх диффа: записи, курсор и открыто ли окно
-	logOpen    bool
+	// active окно, которое получает клавиши; cursor курсор открытого списка
+	active window
+	cursor int
+	// данные окон: пути под вопросом discard, тема коммита, записи списков
+	confirm    []string
+	subject    string
 	logEntries []git.LogEntry
-	logCursor  int
-	// список локальных веток: записи, курсор и открыто ли окно
-	branchOpen   bool
-	branches     []git.Branch
-	branchCursor int
-	// список stash: записи, курсор, открыто ли окно и stash, ждущий подтверждения удаления
-	stashOpen    bool
-	stashes      []git.Stash
-	stashCursor  int
-	confirmStash string
-	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
-	notice     string
-	keys       keymap.Keymap
-	ui         config.UI
-	layout     layout.Node
-	width      int
-	height     int
-	helpOpen   bool
-	pickerOpen bool
+	branches   []git.Branch
+	stashes    []git.Stash
 	picker     picker.Model
-	colors     theme.Theme
-	files      []diff.File
-	current    int
-	view       diffview.Model
+	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
+	notice   string
+	keys     keymap.Keymap
+	ui       config.UI
+	layout   layout.Node
+	width    int
+	height   int
+	helpOpen bool
+	colors   theme.Theme
+	files    []diff.File
+	current  int
+	view     diffview.Model
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
@@ -129,26 +119,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m = m.resize()
 	case tea.KeyPressMsg:
-		if m.confirm != nil {
-			return m.answerDiscard(msg)
-		}
-		if m.committing {
-			return m.typeCommit(msg)
-		}
-		if m.logOpen {
-			return m.logKey(msg)
-		}
-		if m.branchOpen {
-			return m.branchKey(msg)
-		}
-		if m.stashOpen {
-			return m.stashKey(msg)
-		}
-		m.notice = ""
-		if m.pickerOpen {
-			return m.pickerKey(msg)
-		}
-		return m.handleAction(m.keys.ActionFor(msg.String()))
+		return m.keyPress(msg)
 	case tea.MouseWheelMsg:
 		switch msg.Button {
 		case tea.MouseWheelDown:
@@ -190,33 +161,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case msg.err != nil:
 			m = m.say(msg.err.Error())
-		case !m.windowOpen():
-			m.stashes, m.stashCursor, m.stashOpen = msg.stashes, 0, true
+		case m.active == noWindow:
+			m.stashes, m.cursor, m.active = msg.stashes, 0, stashWindow
 		}
 	case branchesMsg:
 		switch {
 		case msg.err != nil:
 			m = m.say(msg.err.Error())
-		case !m.windowOpen():
-			m.branches, m.branchOpen = msg.branches, true
-			m.branchCursor = currentIndex(msg.branches)
+		case m.active == noWindow:
+			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
 		}
 	case logMsg:
 		switch {
 		case msg.err != nil:
 			m = m.say(msg.err.Error())
-		case !m.windowOpen():
-			m.logEntries, m.logCursor, m.logOpen = msg.entries, 0, true
+		case m.active == noWindow:
+			m.logEntries, m.cursor, m.active = msg.entries, 0, logWindow
 		}
 	}
 
 	return m, nil
-}
-
-// windowOpen говорит, забирает ли какое-то окно клавиши. Справка клавиш не
-// забирает, поэтому её здесь нет.
-func (m Model) windowOpen() bool {
-	return m.pickerOpen || m.committing || m.logOpen || m.branchOpen || m.stashOpen || m.confirm != nil
 }
 
 // say ставит асинхронное сообщение в подвал. Висящий вопрос discard при этом
@@ -224,6 +188,13 @@ func (m Model) windowOpen() bool {
 // пользователь вопроса уже не видит.
 func (m Model) say(text string) Model {
 	m.notice = text
+	return m.dropQuestion()
+}
+
+func (m Model) dropQuestion() Model {
+	if m.active == discardWindow {
+		m.active = noWindow
+	}
 	m.confirm = nil
 	return m
 }
@@ -239,7 +210,7 @@ func (m Model) startReload() (Model, tea.Cmd) {
 
 	m.loading = true
 	m.stale = false
-	m.confirm = nil
+	m = m.dropQuestion()
 	return m, reload(m.dir, m.args)
 }
 
@@ -341,12 +312,12 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch outcome {
 	case picker.Chosen:
-		m.pickerOpen = false
+		m.active = noWindow
 		if index, found := m.chosenFile(); found {
 			m = m.openFile(index)
 		}
 	case picker.Closed:
-		m.pickerOpen = false
+		m.active = noWindow
 	}
 
 	return m, nil
@@ -403,7 +374,7 @@ func (m Model) openPicker() Model {
 	}
 
 	m.picker = picker.New("Files", items, m.colors)
-	m.pickerOpen = true
+	m.active = pickerWindow
 	m.helpOpen = false
 	return m
 }
@@ -472,22 +443,11 @@ func (m Model) body() string {
 		base = lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Center, lipgloss.Center, "No changes")
 	}
 
-	switch {
-	case m.pickerOpen:
-		return overlay(base, m.picker.View(m.width, m.bodyHeight()), m.width, m.bodyHeight())
-	case m.committing:
-		return overlay(base, commitBox(m.colors, m.subject, m.width), m.width, m.bodyHeight())
-	case m.logOpen:
-		return overlay(base, logBox(m.colors, m.logEntries, m.logCursor, m.width, m.bodyHeight()), m.width, m.bodyHeight())
-	case m.branchOpen:
-		return overlay(base, branchBox(m.colors, m.branches, m.branchCursor, m.width, m.bodyHeight()), m.width, m.bodyHeight())
-	case m.stashOpen:
-		return overlay(base, stashBox(m.colors, m.stashes, m.stashCursor, m.confirmStash, m.width, m.bodyHeight()), m.width, m.bodyHeight())
-	case m.helpOpen:
-		return overlay(base, helpBox(m.colors, m.width, m.keys.Bindings()), m.width, m.bodyHeight())
+	box := m.windowBox()
+	if box == "" {
+		return base
 	}
-
-	return base
+	return overlay(base, box, m.width, m.bodyHeight())
 }
 
 // panes рисует дерево размещения: лист это панель, контейнер склеивает детей
