@@ -49,16 +49,28 @@ func TestDefaultLayoutListsFiles(t *testing.T) {
 	}
 }
 
+// markedFile узнаёт текущий файл по стрелке на той же строке, что и имя. Между
+// стрелкой и именем может стоять отметка индекса, поэтому точная строка не
+// подходит.
+func markedFile(screen []string, name string) bool {
+	for _, line := range screen {
+		if strings.Contains(line, "›") && strings.Contains(line, name) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestFileListMarksCurrentFile(t *testing.T) {
 	var model tea.Model = openLayout(t, layout.Default(), 100)
-	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "› a.txt") {
-		t.Fatalf("текущий файл не помечен:\n%s", body)
+	if !markedFile(screenOf(model), "a.txt") {
+		t.Fatalf("текущий файл не помечен:\n%s", strings.Join(screenOf(model), "\n"))
 	}
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
-	body := strings.Join(screenOf(model), "\n")
-	if !strings.Contains(body, "› b.txt") || strings.Contains(body, "› a.txt") {
-		t.Fatalf("после ] пометка не переехала на b.txt:\n%s", body)
+	if screen := screenOf(model); !markedFile(screen, "b.txt") || markedFile(screen, "a.txt") {
+		t.Fatalf("после ] пометка не переехала на b.txt:\n%s", strings.Join(screen, "\n"))
 	}
 }
 
