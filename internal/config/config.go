@@ -33,7 +33,8 @@ type Config struct {
 type Diff struct {
 	Mode              string `json:"mode"`
 	AutoSplitMinWidth int    `json:"autoSplitMinWidth"`
-	// Wrap переносит длинные строки, без него они прокручиваются вбок
+	// Wrap переносит длинные строки (по умолчанию), без него они
+	// прокручиваются вбок
 	Wrap bool `json:"wrap"`
 }
 
@@ -52,7 +53,7 @@ func Default() Config {
 		Theme:  "dark",
 		Layout: "default",
 		UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
-		Diff:   Diff{Mode: "auto", AutoSplitMinWidth: 120},
+		Diff:   Diff{Mode: "auto", AutoSplitMinWidth: 120, Wrap: true},
 	}
 }
 
