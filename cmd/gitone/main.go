@@ -11,6 +11,7 @@ import (
 
 	"gitone/internal/config"
 	"gitone/internal/keymap"
+	"gitone/internal/layout"
 	"gitone/internal/tui"
 	"gitone/internal/tui/theme"
 )
@@ -43,11 +44,11 @@ func main() {
 	}
 }
 
-// loadSettings читает config.json, keybinds.json и тему. Ошибки всех трёх
+// loadSettings читает config.json, keybinds.json, тему и раскладку. Ошибки всех
 // склеиваются в одну строку: подвал показывает одну первую строку. Ошибочный
 // файл заменяется встроенным значением, поэтому opts всегда пригоден.
 func loadSettings() (tui.Options, error) {
-	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}
+	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: layout.Default()}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -58,10 +59,11 @@ func loadSettings() (tui.Options, error) {
 	settings, settingsErr := config.Load(dir)
 	keys, keysErr := keymap.Load(dir)
 	palette, themeErr := theme.Load(dir, settings.Theme)
-	opts.Config, opts.Keys, opts.Theme = settings, keys, palette
+	root, layoutErr := layout.Load(dir, settings.Layout)
+	opts.Config, opts.Keys, opts.Theme, opts.Layout = settings, keys, palette, root
 
 	var problems []string
-	for _, err := range []error{settingsErr, keysErr, themeErr} {
+	for _, err := range []error{settingsErr, keysErr, themeErr, layoutErr} {
 		if err != nil {
 			problems = append(problems, err.Error())
 		}

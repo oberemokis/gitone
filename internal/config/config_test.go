@@ -40,6 +40,7 @@ func TestLoad(t *testing.T) {
 		{name: "$schema допустим", content: `{"$schema":"./schemas/config.schema.json","diff":{"mode":"unified"}}`, want: Config{
 			Schema: "./schemas/config.schema.json",
 			Theme:  "dark",
+			Layout: "default",
 			UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true},
 			Diff:   Diff{Mode: "unified", AutoSplitMinWidth: 120},
 		}},

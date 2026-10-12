@@ -19,8 +19,10 @@ type Config struct {
 	Schema string `json:"$schema"`
 	// имя темы: встроенная dark или файл themes/<имя>.json
 	Theme string `json:"theme"`
-	UI    UI     `json:"ui"`
-	Diff  Diff   `json:"diff"`
+	// имя раскладки: встроенная default или focus либо файл layouts/<имя>.json
+	Layout string `json:"layout"`
+	UI     UI     `json:"ui"`
+	Diff   Diff   `json:"diff"`
 }
 
 type Diff struct {
@@ -38,9 +40,10 @@ type UI struct {
 
 func Default() Config {
 	return Config{
-		Theme: "dark",
-		UI:    UI{KeyHints: true, PaneTitles: true, LineNumbers: true},
-		Diff:  Diff{Mode: "auto", AutoSplitMinWidth: 120},
+		Theme:  "dark",
+		Layout: "default",
+		UI:     UI{KeyHints: true, PaneTitles: true, LineNumbers: true},
+		Diff:   Diff{Mode: "auto", AutoSplitMinWidth: 120},
 	}
 }
 
