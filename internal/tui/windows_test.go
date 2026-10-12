@@ -114,20 +114,19 @@ func TestListsIgnoreGlobalKeys(t *testing.T) {
 // Сообщение, пришедшее при открытом списке, переживает навигацию по нему и
 // его закрытие.
 func TestListKeepsFooterMessage(t *testing.T) {
-	repo, _ := threeFileRepo(t)
-	changes := make(chan struct{})
-	opts := options(repo, layout.Focus())
-	opts.Changes = changes
-	model := resize(open(t, opts), 100, 20)
-	waiter := model.Init()
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
+	// stash без правок отвечает ошибкой, когда список уже открыт
+	model, stash := model.Update(key('z'))
 	model = openAsync(model, key('l'))
-	close(changes)
-	model, _ = model.Update(waiter())
+	model = settle(model, stash, 4)
 
 	for _, press := range []tea.KeyPressMsg{key('j'), {Code: tea.KeyEscape}} {
 		model, _ = model.Update(press)
-		if !strings.Contains(footerOf(model), "watching stopped") {
+		if !strings.Contains(footerOf(model), "no changes to save in stash") {
 			t.Fatalf("после %s подвал = %q, want сообщение на месте", press, footerOf(model))
 		}
 	}

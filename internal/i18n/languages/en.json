@@ -101,8 +101,5 @@
   "update.noPermission": "cannot write to {dir}, run: sudo {exe} update",
   "update.noVersion": "cannot find the release version in {url}",
   "update.upToDate": "gitone {version} is the latest version",
-  "update.wrongVersion": "the downloaded gitone reports \"{got}\" instead of \"{want}\", nothing was installed",
-  "watch.stopped": "watching stopped: press {key}",
-  "watch.stoppedNoKey": "watching stopped",
-  "watch.tooManyDirs": "watching off: too many directories"
+  "update.wrongVersion": "the downloaded gitone reports \"{got}\" instead of \"{want}\", nothing was installed"
 }

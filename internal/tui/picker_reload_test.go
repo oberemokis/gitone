@@ -9,25 +9,21 @@ import (
 	"gitone/internal/layout"
 )
 
-// pickerOverReload открывает дифф трёх файлов со слежением, открывает окно
-// поиска и набирает query. Потом a.txt откатывается, и сигнал слежения
-// перечитывает дифф, пока окно открыто: в новом списке b.txt и c.txt.
+// pickerOverReload открывает дифф трёх файлов с таймером опроса, открывает
+// окно поиска и набирает query. Потом a.txt откатывается, и тик перечитывает
+// дифф, пока окно открыто: в новом списке b.txt и c.txt.
 func pickerOverReload(t *testing.T, query string) tea.Model {
 	t.Helper()
 
 	repo, _ := threeFileRepo(t)
-	changes := make(chan struct{}, 1)
 	opts := options(repo, layout.Focus())
-	opts.Changes = changes
+	opts.Ticks = oneTick()
 	model := resize(open(t, opts), 100, 20)
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 	model = typeText(model, query)
 
 	runGit(t, repo, "checkout", "--", "a.txt")
-	changes <- struct{}{}
-	// сигнал последний: закрытый канал отпускает ожидание следующего
-	close(changes)
 	return settle(model, model.Init(), 4)
 }
 

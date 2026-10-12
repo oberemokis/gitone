@@ -71,13 +71,13 @@ func TestError(t *testing.T) {
 }
 
 func TestErrorKeepsIdentity(t *testing.T) {
-	sentinel := i18n.New("watch.tooManyDirs", nil)
-	wrapped := fmt.Errorf("start: %w", sentinel)
+	sentinel := i18n.New("update.dev", nil)
+	wrapped := fmt.Errorf("update: %w", sentinel)
 
 	if !errors.Is(wrapped, sentinel) {
 		t.Errorf("errors.Is(%v, sentinel) = false, want true", wrapped)
 	}
-	if errors.Is(wrapped, i18n.New("watch.tooManyDirs", nil)) {
+	if errors.Is(wrapped, i18n.New("update.dev", nil)) {
 		t.Errorf("errors.Is(%v, другая ошибка с тем же ключом) = true, want false", wrapped)
 	}
 }
