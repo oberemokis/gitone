@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
+	"gitone/internal/layout"
 )
 
 // Ошибка перечитывания в подвале называет операцию git один раз и несёт текст
@@ -16,7 +16,7 @@ func TestReloadErrorNamesOperation(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
 	if err := os.RemoveAll(filepath.Join(repo, ".git")); err != nil {
 		t.Fatal(err)

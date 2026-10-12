@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/layout"
 )
 
 // B открывает список веток с текущей, k ставит курсор на другую, enter
@@ -16,7 +18,7 @@ func TestBranchListSwitches(t *testing.T) {
 	runGit(t, repo, "branch", "feature")
 	write(t, repo, "a.txt", "two\n")
 
-	model := openStage(t, repo)
+	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'B', Text: "B"})
 	model = settle(model, cmd, 4)
 	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "feature") {
@@ -25,10 +27,9 @@ func TestBranchListSwitches(t *testing.T) {
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	model, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	model = settle(model, cmd, 4)
-	_ = model
+	settle(model, cmd, 4)
 
-	if got := gitOut(t, repo, "rev-parse", "--abbrev-ref", "HEAD"); got != "feature" {
+	if got := runGit(t, repo, "rev-parse", "--abbrev-ref", "HEAD"); got != "feature" {
 		t.Fatalf("текущая ветка %q, ожидалась feature", got)
 	}
 }

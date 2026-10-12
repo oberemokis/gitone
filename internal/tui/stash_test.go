@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/layout"
 )
 
 // z уносит правку в stash, Z показывает список, a применяет его обратно.
@@ -14,7 +16,7 @@ func TestStashFromApp(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
 
-	model := openStage(t, repo)
+	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'z', Text: "z"})
 	model = settle(model, cmd, 4)
 	if got := readText(t, repo+"/a.txt"); got != "one\n" {
@@ -28,7 +30,7 @@ func TestStashFromApp(t *testing.T) {
 	}
 
 	model, cmd = model.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
-	model = settle(model, cmd, 4)
+	settle(model, cmd, 4)
 	if got := readText(t, repo+"/a.txt"); got != "two\n" {
 		t.Fatalf("после a файл %q, ожидалась правка", got)
 	}
@@ -42,22 +44,21 @@ func TestStashDropNeedsYes(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	runGit(t, repo, "stash", "push", "-q")
 
-	model := openStage(t, repo)
+	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
 	model = settle(model, cmd, 4)
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
 	model, cmd = model.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
 	model = settle(model, cmd, 4)
-	if out := gitOut(t, repo, "stash", "list"); out == "" {
+	if out := runGit(t, repo, "stash", "list"); out == "" {
 		t.Fatal("stash удалён без подтверждения")
 	}
 
-	model, _ = model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	// ответ «нет» оставил список открытым, вопрос задаётся в нём же
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
 	model, cmd = model.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
-	model = settle(model, cmd, 4)
-	_ = model
-	if out := gitOut(t, repo, "stash", "list"); out != "" {
+	settle(model, cmd, 4)
+	if out := runGit(t, repo, "stash", "list"); out != "" {
 		t.Fatalf("stash не удалён после y: %q", out)
 	}
 }

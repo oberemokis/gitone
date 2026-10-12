@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/layout"
 )
 
 // l открывает лог, enter показывает диф коммита, b возвращает рабочее дерево.
@@ -17,7 +19,7 @@ func TestLogShowsCommitDiffAndGoesBack(t *testing.T) {
 	// в дереве правка, которой нет ни в одном коммите
 	write(t, repo, "a.txt", "three\n")
 
-	model := openStage(t, repo)
+	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
 	model = settle(model, cmd, 4)
 	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "commit") {

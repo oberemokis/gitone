@@ -7,11 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
 	"gitone/internal/layout"
-	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
 )
 
 // openLayout открывает дифф двух изменённых файлов a.txt и b.txt в раскладке.
@@ -25,14 +21,7 @@ func openLayout(t *testing.T, root layout.Node, width int) tea.Model {
 	write(t, repo, "a.txt", "new a\n")
 	write(t, repo, "b.txt", "new b\n")
 
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root}
-	model, _ := tui.New(opts, files).Update(tea.WindowSizeMsg{Width: width, Height: 20})
-
-	return model
+	return resize(open(t, options(repo, root)), width, 20)
 }
 
 func TestDefaultLayoutListsFiles(t *testing.T) {
@@ -98,12 +87,7 @@ func TestDiffColumnIsNarrowerInDefaultLayout(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", strings.Repeat("x", 200)+"\n")
 
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: layout.Default()}
-	model, _ := tui.New(opts, files).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 
 	for _, line := range screenOf(model) {
 		if strings.Count(line, "x") > 70 {

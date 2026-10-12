@@ -4,12 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
-
 	"gitone/internal/config"
-	"gitone/internal/keymap"
-	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
+	"gitone/internal/layout"
 )
 
 // uiSettings берёт встроенные настройки и меняет в них блок ui.
@@ -22,14 +18,9 @@ func uiSettings(change func(ui *config.UI)) config.Config {
 func openWithUI(t *testing.T, repo string, cfg config.Config, notice string) []string {
 	t.Helper()
 
-	files, err := tui.Load(repo, nil)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	opts := tui.Options{Config: cfg, Keys: keymap.Default(), Theme: theme.Dark(), Notice: notice}
-	model, _ := tui.New(opts, files).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
-
-	return screenOf(model)
+	opts := options(repo, layout.Focus())
+	opts.Config, opts.Notice = cfg, notice
+	return render(open(t, opts), 100, 20)
 }
 
 // Заголовок с путём скрыт, и тело начинается с первой строки диффа.

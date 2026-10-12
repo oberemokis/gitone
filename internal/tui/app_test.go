@@ -5,17 +5,13 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
-	"gitone/internal/config"
-	"gitone/internal/keymap"
+	"gitone/internal/layout"
 	"gitone/internal/tui"
-	"gitone/internal/tui/theme"
 )
 
 func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
-	model, _ := tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}, nil).Update(tea.WindowSizeMsg{Width: 60, Height: 10})
-	lines := strings.Split(ansi.Strip(model.View().Content), "\n")
+	lines := render(tui.New(options("", layout.Focus()), nil), 60, 10)
 
 	if len(lines) != 10 {
 		t.Fatalf("строк %d, ожидалось 10", len(lines))
@@ -35,11 +31,10 @@ func TestWithoutChangesBodySaysNoChanges(t *testing.T) {
 }
 
 func TestHelpToggle(t *testing.T) {
-	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}, nil)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
+	model := resize(tui.New(options("", layout.Focus()), nil), 60, 20)
 
 	isHelpShown := func() bool {
-		return strings.Contains(ansi.Strip(model.View().Content), "Hotkeys")
+		return strings.Contains(strings.Join(screenOf(model), "\n"), "Hotkeys")
 	}
 
 	steps := []struct {
@@ -61,11 +56,10 @@ func TestHelpToggle(t *testing.T) {
 }
 
 func TestHelpGroupsByCategory(t *testing.T) {
-	var model tea.Model = tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}, nil)
-	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	model := resize(tui.New(options("", layout.Focus()), nil), 80, 30)
 	model, _ = model.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
-	lines := strings.Split(ansi.Strip(model.View().Content), "\n")
+	lines := screenOf(model)
 	lineOf := func(prefix string) int {
 		for index, line := range lines {
 			if strings.HasPrefix(strings.TrimSpace(line), prefix) {
@@ -95,7 +89,7 @@ func TestQuitKeys(t *testing.T) {
 	}
 
 	for _, key := range keys {
-		_, cmd := tui.New(tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark()}, nil).Update(key)
+		_, cmd := tui.New(options("", layout.Focus()), nil).Update(key)
 		if cmd == nil {
 			t.Fatalf("%s: команды нет, ожидался выход", key)
 		}

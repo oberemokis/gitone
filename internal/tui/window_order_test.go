@@ -8,25 +8,9 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/layout"
 )
-
-// threeFileRepo это репозиторий с коммитом и правками в a.txt, b.txt и c.txt,
-// открытый в один дифф на экране 100 на 20.
-func threeFileRepo(t *testing.T) (string, tea.Model) {
-	t.Helper()
-
-	repo := newRepo(t)
-	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
-		write(t, repo, name, "old "+name+"\n")
-	}
-	commitAll(t, repo)
-	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
-		write(t, repo, name, "new "+name+"\n")
-	}
-
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
-	return repo, model
-}
 
 // Лог, пришедший, когда уже открыт поиск, не перехватывает ввод: набранное
 // уходит в поиск, и enter открывает найденный файл.
@@ -95,7 +79,7 @@ func TestLongStashListUsesCommonMargin(t *testing.T) {
 		runGit(t, repo, "stash", "push", "-q")
 	}
 
-	model, _ := open(t, repo, nil).Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
 	model, _ = model.Update(cmd())
 
