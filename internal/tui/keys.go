@@ -8,6 +8,7 @@ import (
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
+	"gitone/internal/tui/zone"
 )
 
 // ctrl+p показываем как «ctrl p», так читается в подвале critique
@@ -28,18 +29,25 @@ func firstKey(keys keymap.Keymap, action keymap.Action) string {
 // windowHint это строка подсказки окна: первая клавиша и подпись каждого
 // действия в заданном порядке. Закрытие стоит в заголовке окна (closeHint).
 // Отключённое действие в подсказку не идёт, как в подвале. Каждый кусок несёт
-// фон окна сам: вложенный стиль со сбросом иначе погасил бы его.
+// фон окна сам: вложенный стиль со сбросом иначе погасил бы его. Клик по
+// подсказке нажимает её клавишу (#119).
 func windowHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, actions ...keymap.Action) string {
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 
 	var hints []string
 	for _, action := range actions {
 		if key := firstKey(keys, action); key != "" {
-			hints = append(hints, keyHint(panel, colors, key, text.Text(hintKey(action), nil)))
+			hints = append(hints, pressable(action, keyHint(panel, colors, key, text.Text(hintKey(action), nil))))
 		}
 	}
 
 	return strings.Join(hints, panel.Render("   "))
+}
+
+// pressable помечает подсказку местом клика: клик нажимает первую клавишу
+// действия, как клавиатура (#119).
+func pressable(action keymap.Action, hint string) string {
+	return zone.Mark(pressTarget+string(action), hint)
 }
 
 // keyHint это пара «клавиша подпись» для подвала и окон: клавиша цветом
@@ -57,7 +65,7 @@ func closeHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, act
 	}
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	return keyHint(panel, colors, key, text.Text("window.close", nil))
+	return pressable(action, keyHint(panel, colors, key, text.Text("window.close", nil)))
 }
 
 // windowTitle это заголовок окна шириной width, у всех окон как у справки:

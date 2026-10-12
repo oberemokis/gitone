@@ -96,6 +96,15 @@ func (m Model) HandleKey(key tea.KeyPressMsg) (Model, Outcome) {
 	return m, Pending
 }
 
+// Select ставит выделение на позицию среди найденных, как её помечает View.
+// Позиция за краем списка выделение не трогает.
+func (m Model) Select(position int) Model {
+	if position >= 0 && position < len(m.matches) {
+		m.selected = position
+	}
+	return m
+}
+
 // SelectedItem это выбранный элемент. found false, если под поиск ничего не
 // подошло. Номер в списке не отдаётся: список, по которому строилось окно, у
 // вызывающего мог смениться, пока окно открыто.

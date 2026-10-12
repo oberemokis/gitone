@@ -11,6 +11,7 @@ import (
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 	"gitone/internal/tui/theme"
+	"gitone/internal/tui/zone"
 )
 
 // window говорит, кто сейчас получает клавиши. Открыто не больше одного окна:
@@ -270,12 +271,15 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 		}
 	}
 
+	// строка дополнена до края окна: клик по ней попадает в любом месте (#119)
 	for index := start; index < len(l.rows) && index < start+shown; index++ {
 		marker := "  "
 		if index == l.cursor {
 			marker = "› "
 		}
-		lines = append(lines, panel.Render(ansi.Truncate(marker+l.rows[index], content, "…")))
+		row := ansi.Truncate(marker+l.rows[index], content, "…")
+		row += strings.Repeat(" ", max(content-ansi.StringWidth(row), 0))
+		lines = append(lines, zone.Mark(zone.Row(index), panel.Render(row)))
 	}
 
 	// окно на весь экран держит высоту и с коротким списком
