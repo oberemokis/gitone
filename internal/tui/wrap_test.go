@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/config"
 	"gitone/internal/layout"
@@ -21,9 +22,14 @@ var (
 	left  = tea.KeyPressMsg{Code: tea.KeyLeft}
 )
 
+// noWrap выключает перенос, включённый по умолчанию.
+func noWrap(cfg *config.Config) {
+	cfg.Diff.Wrap = false
+}
+
 // longLine открывает дифф, где x заменён строкой из 200 цифр, в unified на
 // экране 100 на 20. Полоса прокрутки красится отличимыми цветами: дорожка
-// #010101 (48;2;1;1;1), ползунок #020202 (48;2;2;2;2).
+// #010101 (38;2;1;1;1), ползунок #020202 (38;2;2;2;2).
 func longLine(t *testing.T, change func(*config.Config)) tea.Model {
 	t.Helper()
 
@@ -56,41 +62,46 @@ func addedRow(model tea.Model) string {
 	return screenOf(model)[bodyRow+1]
 }
 
-// Строка шире панели: видно начало, внизу полоса с ползунком у левого края.
+// Без переноса строка шире панели: видно начало, внизу полоса из полублоков
+// с ползунком у левого края. Фон клетки полоса не красит: она вдвое тоньше
+// строки.
 func TestLongLineShowsScrollbar(t *testing.T) {
-	model := longLine(t, nil)
+	model := longLine(t, noWrap)
 
 	if row := addedRow(model); !strings.Contains(row, "+ 0123456789") {
 		t.Fatalf("строка не с начала: %q", row)
 	}
 	bar := paneBottom(model)
-	thumb, track := strings.Index(bar, "48;2;2;2;2"), strings.Index(bar, "48;2;1;1;1")
+	thumb, track := strings.Index(bar, "38;2;2;2;2"), strings.Index(bar, "38;2;1;1;1")
 	if thumb < 0 || track < 0 || thumb > track {
 		t.Fatalf("внизу нет полосы с ползунком слева: %q", bar)
+	}
+	if strings.Contains(bar, "48;") || strings.Trim(ansi.Strip(bar), "▄") != "" {
+		t.Fatalf("полоса не из полублоков без фона: %q", bar)
 	}
 }
 
 // Стрелки сдвигают код на 8 колонок, номера и знак остаются на месте.
 func TestArrowsShiftCode(t *testing.T) {
-	model := longLine(t, nil)
+	model := longLine(t, noWrap)
 
 	model, _ = model.Update(right)
-	if row := addedRow(model); !strings.HasPrefix(row, "  1 + 8901234567") {
+	if row := addedRow(model); !strings.HasPrefix(row, " 1 + 8901234567") {
 		t.Fatalf("после → строка %q, want код с колонки 8", row)
 	}
 
 	model, _ = model.Update(left)
-	if row := addedRow(model); !strings.HasPrefix(row, "  1 + 0123456789") {
+	if row := addedRow(model); !strings.HasPrefix(row, " 1 + 0123456789") {
 		t.Fatalf("после ← строка %q, want код с начала", row)
 	}
 }
 
 // Сдвиг не уходит левее начала и дальше конца самой длинной строки.
 func TestShiftStopsAtEdges(t *testing.T) {
-	model := longLine(t, nil)
+	model := longLine(t, noWrap)
 
 	model, _ = model.Update(left)
-	if row := addedRow(model); !strings.HasPrefix(row, "  1 + 0123456789") {
+	if row := addedRow(model); !strings.HasPrefix(row, " 1 + 0123456789") {
 		t.Fatalf("← в начале сдвинул строку: %q", row)
 	}
 
@@ -106,28 +117,32 @@ func TestShiftStopsAtEdges(t *testing.T) {
 	}
 }
 
-// w включает перенос: продолжение идёт следующей строкой без номера и знака,
-// полосы нет.
-func TestWrapContinuesLine(t *testing.T) {
+// По умолчанию строка переносится: продолжение идёт следующей строкой без
+// номера и знака, полосы нет.
+func TestWrapByDefault(t *testing.T) {
 	model := longLine(t, nil)
 
-	model, _ = model.Update(key('w'))
-
-	// колонка кода 100 - 6 = 94, продолжение начинается с цифры 94 % 10 = 4
-	if next := screenOf(model)[bodyRow+2]; !strings.HasPrefix(next, "      4567890123") {
-		t.Fatalf("продолжение строки %q, want с цифры 4 без номера", next)
+	// колонка кода 100 - 5 = 95, продолжение начинается с цифры 95 % 10 = 5
+	if next := screenOf(model)[bodyRow+2]; !strings.HasPrefix(next, "     5678901234") {
+		t.Fatalf("продолжение строки %q, want с цифры 5 без номера", next)
 	}
-	if bar := paneBottom(model); strings.Contains(bar, "48;2;2;2;2") {
-		t.Fatalf("полоса осталась при переносе: %q", bar)
+	if bar := paneBottom(model); strings.Contains(bar, "▄") {
+		t.Fatalf("полоса есть при переносе: %q", bar)
 	}
 }
 
-// diff.wrap в config.json: запуск с переносом.
-func TestWrapFromConfig(t *testing.T) {
-	model := longLine(t, func(cfg *config.Config) { cfg.Diff.Wrap = true })
+// w выключает перенос, второй w включает обратно.
+func TestWKeyTogglesWrap(t *testing.T) {
+	model := longLine(t, nil)
 
-	if next := screenOf(model)[bodyRow+2]; !strings.HasPrefix(next, "      4567890123") {
-		t.Fatalf("diff.wrap не включил перенос: %q", next)
+	model, _ = model.Update(key('w'))
+	if bar := paneBottom(model); !strings.Contains(bar, "▄") {
+		t.Fatalf("после w нет полосы прокрутки: %q", bar)
+	}
+
+	model, _ = model.Update(key('w'))
+	if next := screenOf(model)[bodyRow+2]; !strings.HasPrefix(next, "     5678901234") {
+		t.Fatalf("второй w не вернул перенос: %q", next)
 	}
 }
 
@@ -149,6 +164,7 @@ func TestSplitShiftsBothSides(t *testing.T) {
 
 	opts := options(repo, layout.Focus())
 	opts.Config.Diff.Mode = "split"
+	opts.Config.Diff.Wrap = false
 	model := resize(open(t, opts), 120, 20)
 
 	model, _ = model.Update(right)
@@ -168,12 +184,48 @@ func TestNewFileResetsShift(t *testing.T) {
 
 	opts := options(repo, layout.Focus())
 	opts.Config.Diff.Mode = "unified"
+	opts.Config.Diff.Wrap = false
 	model := resize(open(t, opts), 100, 20)
 
 	for _, press := range []tea.KeyPressMsg{right, key(']'), key('[')} {
 		model, _ = model.Update(press)
 	}
-	if row := addedRow(model); !strings.HasPrefix(row, "  1 + 0123456789") {
+	if row := addedRow(model); !strings.HasPrefix(row, " 1 + 0123456789") {
 		t.Fatalf("после смены файла строка %q, want без сдвига", row)
+	}
+}
+
+// Номер строки с отступом слева, в unified один столбец номеров: у строки
+// контекста и добавленной новый номер, у удалённой старый.
+func TestUnifiedSingleNumberColumn(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "keep\nold\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "keep\nnew\n")
+
+	opts := options(repo, layout.Focus())
+	opts.Config.Diff.Mode = "unified"
+	screen := screenOf(resize(open(t, opts), 100, 20))
+
+	for index, want := range []string{" 1   keep", " 2 - old", " 2 + new"} {
+		if row := screen[bodyRow+index]; !strings.HasPrefix(row, want) {
+			t.Errorf("строка %d = %q, want %q", index, row, want)
+		}
+	}
+}
+
+// В split у номера тоже отступ слева.
+func TestSplitNumberPadding(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "old\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "new\n")
+
+	opts := options(repo, layout.Focus())
+	opts.Config.Diff.Mode = "split"
+	row := screenOf(resize(open(t, opts), 120, 20))[bodyRow]
+
+	if !strings.HasPrefix(row, " 1 - old") || !strings.Contains(row, " 1 + new") {
+		t.Fatalf("строка split %q, want « 1 - old» и « 1 + new»", row)
 	}
 }

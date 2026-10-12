@@ -1,6 +1,7 @@
 package diffview
 
 import (
+	"cmp"
 	"fmt"
 	"image/color"
 	"slices"
@@ -44,10 +45,13 @@ func (m Model) renderUnified(row diff.UnifiedRow, part int) string {
 	case diff.RowGap:
 		return ""
 	case diff.RowNoNewline:
-		return m.noNewline(m.width, 2)
+		return m.noNewline(m.width)
 	}
 
-	return m.cell(m.width, row.Line, []int{row.OldNumber, row.NewNumber}, row.Text, row.Changed, part)
+	// Один столбец номеров: у строки контекста старый и новый номер
+	// дублировали бы друг друга. Удалённая строка с её старым номером, а
+	// от добавленной с тем же номером её отличают знак и цвет.
+	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.Changed, part)
 }
 
 // renderSplit делит ширину пополам. Половина без строки остаётся пустой и без
@@ -66,19 +70,19 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, part int) stri
 	case side.Kind == "":
 		return strings.Repeat(" ", width)
 	case kind == diff.RowNoNewline:
-		return m.noNewline(width, 1)
+		return m.noNewline(width)
 	}
 
-	return m.cell(width, side.Kind, []int{side.Number}, side.Text, side.Changed, part)
+	return m.cell(width, side.Kind, side.Number, side.Text, side.Changed, part)
 }
 
-// cell рисует строку файла шириной ровно width: номера, знак и текст,
+// cell рисует строку файла шириной ровно width: отступ, номер, знак и текст,
 // обрезанный по краю. Каждый кусок несёт фон строки сам: вложенный стиль
 // со сбросом иначе гасит фон до конца строки. У изменённой строки номер и
 // знак идут её цветом на своём фоне, светлее фона кода: так изменение видно
 // по краю, даже когда код длинный. Продолжение перенесённой строки (part
 // больше нуля) идёт без номера и знака, с тем же фоном.
-func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, changed []diff.Span, part int) string {
+func (m Model) cell(width int, kind diff.LineKind, number int, text string, changed []diff.Span, part int) string {
 	base := lipgloss.NewStyle()
 	gutter := base.Foreground(m.colors.TextMuted)
 	wordBg := m.colors.DiffAddedWordBg
@@ -95,13 +99,10 @@ func (m Model) cell(width int, kind diff.LineKind, numbers []int, text string, c
 		marker = "-"
 	}
 
-	prefix := marker + " "
+	// отступ слева, чтобы номер не прилипал к краю: « 1 + »
+	prefix := " " + marker + " "
 	if !m.hideNumbers {
-		columns := make([]string, len(numbers))
-		for index, number := range numbers {
-			columns[index] = m.formatNumber(number)
-		}
-		prefix = strings.Join(columns, " ") + " " + marker + " "
+		prefix = " " + m.formatNumber(number) + " " + marker + " "
 	}
 	if part > 0 {
 		prefix = strings.Repeat(" ", ansi.StringWidth(prefix))
@@ -224,15 +225,10 @@ func kindAt(at int, spans []syntax.Span) syntax.Kind {
 	return ""
 }
 
-// noNewline ставит пометку туда, где у строки начинается текст: под колонки
-// номеров и знак.
-func (m Model) noNewline(width, numberColumns int) string {
-	numbersWidth := numberColumns * (m.numberWidth + 1)
-	if m.hideNumbers {
-		numbersWidth = 0
-	}
-
-	indent := strings.Repeat(" ", numbersWidth+2)
+// noNewline ставит пометку туда, где у строки начинается текст: под отступ,
+// номер и знак.
+func (m Model) noNewline(width int) string {
+	indent := strings.Repeat(" ", m.prefixWidth())
 	return lipgloss.NewStyle().Foreground(m.colors.TextMuted).Render(fill(width, indent+m.text.Text("diff.noNewline", nil)))
 }
 

@@ -39,13 +39,12 @@ func (m Model) ScrollRight(delta int) Model {
 	return m.clamp()
 }
 
-// prefixWidth это ширина номеров и знака перед кодом при columns колонках
-// номеров: в unified их две, в половине split одна.
-func (m Model) prefixWidth(columns int) int {
+// prefixWidth это ширина отступа, номера и знака перед кодом: « 12 + ».
+func (m Model) prefixWidth() int {
 	if m.hideNumbers {
-		return 2
+		return 3
 	}
-	return columns*(m.numberWidth+1) + 2
+	return m.numberWidth + 4
 }
 
 // codeWidths это ширина кода в левой и правой колонке split или в единственной
@@ -53,9 +52,9 @@ func (m Model) prefixWidth(columns int) int {
 func (m Model) codeWidths() (int, int) {
 	if m.effectiveMode() == ModeSplit {
 		left := m.width / 2
-		return left - m.prefixWidth(1), m.width - left - m.prefixWidth(1)
+		return left - m.prefixWidth(), m.width - left - m.prefixWidth()
 	}
-	return m.width - m.prefixWidth(2), 0
+	return m.width - m.prefixWidth(), 0
 }
 
 // maxShift это сдвиг, при котором конец самой длинной строки встаёт к правому
@@ -71,8 +70,9 @@ func (m Model) hasBar() bool {
 }
 
 // scrollbar это полоса горизонтальной прокрутки во всю ширину панели, как в
-// opencode: дорожка фоном окон, ползунок приглушённым цветом. Длина ползунка
-// это видимая доля самой длинной строки, место это сдвиг.
+// opencode: дорожка цветом окон, ползунок приглушённым цветом. Полоса из
+// нижних полублоков, без фона клетки: она вдвое тоньше строки (#100). Длина
+// ползунка это видимая доля самой длинной строки, место это сдвиг.
 func (m Model) scrollbar() string {
 	visible, _ := m.codeWidths()
 	thumb := max(m.width*visible/m.longest, 1)
@@ -81,17 +81,20 @@ func (m Model) scrollbar() string {
 		start = m.width - thumb
 	}
 
-	track := lipgloss.NewStyle().Background(m.colors.BackgroundPanel)
-	knob := lipgloss.NewStyle().Background(m.colors.TextMuted)
+	track := lipgloss.NewStyle().Foreground(m.colors.BackgroundPanel)
+	knob := lipgloss.NewStyle().Foreground(m.colors.TextMuted)
 	return cells(track, start) + cells(knob, thumb) + cells(track, m.width-start-thumb)
 }
 
-// cells это count пробелов в стиле style; ноль пробелов без кодов стиля.
+// halfBlock это нижний полублок: полоса из него вдвое тоньше клетки.
+const halfBlock = "▄"
+
+// cells это count полублоков в стиле style; ноль без кодов стиля.
 func cells(style lipgloss.Style, count int) string {
 	if count <= 0 {
 		return ""
 	}
-	return style.Render(strings.Repeat(" ", count))
+	return style.Render(strings.Repeat(halfBlock, count))
 }
 
 // parts режет строку файла на строки экрана. Без переноса она одна, с

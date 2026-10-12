@@ -31,9 +31,10 @@ func TestLoad(t *testing.T) {
 	}{
 		{name: "нет файла", missing: true, want: config.Default()},
 		{name: "режим из файла", content: `{"diff":{"mode":"split"}}`, want: withMode("split")},
-		{name: "перенос строк", content: `{"diff":{"wrap":true}}`, want: func() config.Config {
+		// перенос включён по умолчанию, файл его выключает
+		{name: "без переноса строк", content: `{"diff":{"wrap":false}}`, want: func() config.Config {
 			cfg := config.Default()
-			cfg.Diff.Wrap = true
+			cfg.Diff.Wrap = false
 			return cfg
 		}()},
 		{name: "неизвестное поле", content: `{"diff":{"thme":"x"}}`, want: config.Default(), wantErr: "thme"},
@@ -52,14 +53,14 @@ func TestLoad(t *testing.T) {
 			Theme:    "midnight",
 			Layout:   "default",
 			UI:       config.UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
-			Diff:     config.Diff{Mode: "auto", AutoSplitMinWidth: 120},
+			Diff:     config.Diff{Mode: "auto", AutoSplitMinWidth: 120, Wrap: true},
 		}},
 		{name: "$schema допустим", content: `{"$schema":"./schemas/config.schema.json","diff":{"mode":"unified"}}`, want: config.Config{
 			Schema: "./schemas/config.schema.json",
 			Theme:  "dark",
 			Layout: "default",
 			UI:     config.UI{KeyHints: true, PaneTitles: true, LineNumbers: true, AutoReload: true},
-			Diff:   config.Diff{Mode: "unified", AutoSplitMinWidth: 120},
+			Diff:   config.Diff{Mode: "unified", AutoSplitMinWidth: 120, Wrap: true},
 		}},
 	}
 
