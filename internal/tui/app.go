@@ -10,7 +10,9 @@ import (
 	"gitone/internal/config"
 	"gitone/internal/diff"
 	"gitone/internal/keymap"
+	"gitone/internal/layout"
 	"gitone/internal/tui/diffview"
+	filespane "gitone/internal/tui/pane/files"
 	"gitone/internal/tui/picker"
 	"gitone/internal/tui/theme"
 )
@@ -18,6 +20,10 @@ import (
 // Строк за один щелчок колеса: по одной слишком медленно, трекпад шлёт
 // десятки щелчков на жест.
 const wheelStep = 3
+
+// Уже этой ширины список файлов не помещается рядом с диффом, поэтому на
+// узком экране его скрывает раскладка focus.
+const narrowWidth = 80
 
 type Model struct {
 	// dir и args нужны для перечитывания по r: тот же git diff, что при запуске
@@ -28,6 +34,7 @@ type Model struct {
 	notice     string
 	keys       keymap.Keymap
 	ui         config.UI
+	layout     layout.Node
 	width      int
 	height     int
 	helpOpen   bool
@@ -40,19 +47,25 @@ type Model struct {
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
-// перечитывания по r, настройки, клавиши и текст ошибок их загрузки для
-// подвала.
+// перечитывания по r, настройки, клавиши, раскладка и текст ошибок их загрузки
+// для подвала. Пустая раскладка значит один дифф на весь экран.
 type Options struct {
 	Dir    string
 	Args   []string
 	Config config.Config
 	Keys   keymap.Keymap
 	Theme  theme.Theme
+	Layout layout.Node
 	Notice string
 }
 
 func New(opts Options, files []diff.File) Model {
 	colors := opts.Theme
+
+	root := opts.Layout
+	if root.Pane == "" && len(root.Children) == 0 {
+		root = layout.Focus()
+	}
 
 	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth).
 		WithoutNumbers(!opts.Config.UI.LineNumbers)
@@ -66,6 +79,7 @@ func New(opts Options, files []diff.File) Model {
 		notice: opts.Notice,
 		keys:   opts.Keys,
 		ui:     opts.Config.UI,
+		layout: root,
 		colors: colors,
 		files:  files,
 		view:   view,
@@ -80,7 +94,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.view = m.view.SetSize(m.width, m.bodyHeight())
+		m = m.resize()
 	case tea.KeyPressMsg:
 		m.notice = ""
 		if m.pickerOpen {
@@ -106,6 +120,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать
+// от экрана список файлов.
+func (m Model) resize() Model {
+	if diffPane, found := findPane(m.placement(), "diff"); found {
+		m.view = m.view.SetSize(diffPane.Width, diffPane.Height)
+	}
+	return m
+}
+
+// placement считает размеры панелей для текущего экрана. На узком экране
+// раскладка заменяется одним диффом.
+func (m Model) placement() layout.Placed {
+	root := m.layout
+	if m.width < narrowWidth {
+		root = layout.Focus()
+	}
+
+	return layout.Split(root, m.width, m.bodyHeight())
+}
+
+func findPane(placed layout.Placed, pane string) (layout.Placed, bool) {
+	if placed.Pane == pane && len(placed.Children) == 0 {
+		return placed, true
+	}
+
+	for _, child := range placed.Children {
+		if found, ok := findPane(child, pane); ok {
+			return found, true
+		}
+	}
+
+	return layout.Placed{}, false
 }
 
 func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
@@ -265,9 +313,10 @@ func (m Model) footerLine(counter string) string {
 	return footer(m.width, m.colors, counter, m.keys.Bindings())
 }
 
-// body кладёт окна поверх диффа, как opencode: дифф остаётся виден по краям.
+// body складывает панели по раскладке и кладёт окна поверх, как opencode:
+// дифф остаётся виден по краям.
 func (m Model) body() string {
-	base := lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Left, lipgloss.Top, m.view.View())
+	base := lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Left, lipgloss.Top, m.panes(m.placement()))
 	if len(m.files) == 0 {
 		base = lipgloss.Place(m.width, m.bodyHeight(), lipgloss.Center, lipgloss.Center, "No changes")
 	}
@@ -280,6 +329,41 @@ func (m Model) body() string {
 	}
 
 	return base
+}
+
+// panes рисует дерево размещения: лист это панель, контейнер склеивает детей
+// по своей оси.
+func (m Model) panes(placed layout.Placed) string {
+	if len(placed.Children) == 0 {
+		if placed.Pane == "files" {
+			return filespane.View(m.labels(), m.current, m.colors, placed.Width, placed.Height)
+		}
+		return m.view.View()
+	}
+
+	parts := make([]string, len(placed.Children))
+	for index, child := range placed.Children {
+		parts[index] = m.panes(child)
+	}
+
+	if placed.Direction == "column" {
+		return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+}
+
+// labels это подписи файлов для панели: имя и статус, если он не просто
+// изменён.
+func (m Model) labels() []string {
+	labels := make([]string, len(m.files))
+	for index, file := range m.files {
+		labels[index] = fileTitle(file)
+		if status := statusLabel(file.Status); status != "" {
+			labels[index] += " " + status
+		}
+	}
+
+	return labels
 }
 
 func (m Model) bodyHeight() int {
