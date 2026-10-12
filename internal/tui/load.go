@@ -45,18 +45,23 @@ type reloadMsg struct {
 // без ввода-вывода.
 func reload(dir string, args []string) tea.Cmd {
 	return func() tea.Msg {
-		files, err := Load(dir, args)
-		if err != nil {
-			return reloadMsg{err: err}
-		}
-
-		staged, err := Staged(dir)
-		return reloadMsg{files: files, staged: staged, err: err}
+		return readDiff(dir, args)
 	}
 }
 
+// readDiff читает дифф и индекс: по r и при опросе одним путём.
+func readDiff(dir string, args []string) reloadMsg {
+	files, err := Load(dir, args)
+	if err != nil {
+		return reloadMsg{err: err}
+	}
+
+	staged, err := Staged(dir)
+	return reloadMsg{files: files, staged: staged, err: err}
+}
+
 // reloaded ставит перечитанный дифф на экран, а ошибку git в подвал. Если за
-// время загрузки что-то изменилось, загрузка идёт ещё раз.
+// время загрузки gitone сам что-то поменял, загрузка идёт ещё раз.
 func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
 	// ponytail: окно поиска, открытое во время загрузки, показывает список

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -32,9 +33,11 @@ type Model struct {
 	dir     string
 	args    []string
 	loading bool
-	// stale: изменение пришло во время загрузки, после неё нужно перечитать ещё раз
-	stale   bool
-	changes <-chan struct{}
+	// stale: правка gitone пришла во время загрузки, после неё нужно перечитать ещё раз
+	stale bool
+	// polling: идёт тихий опрос из live.go; ticks таймер опроса, nil без автообновления
+	polling bool
+	ticks   <-chan time.Time
 	// staged: пути с отличием индекса от HEAD, по ним отметка в панели файлов
 	staged map[string]bool
 	// baseArgs аргументы запуска: b возвращает к ним дифф рабочего дерева
@@ -75,8 +78,8 @@ type Options struct {
 	Theme  theme.Theme
 	Layout layout.Node
 	Notice string
-	// Changes присылает сигнал при изменении файлов, nil значит без слежения
-	Changes <-chan struct{}
+	// Ticks таймер опроса для автообновления, nil значит без него
+	Ticks <-chan time.Time
 	// Staged пути, уже лежащие в индексе при запуске
 	Staged map[string]bool
 	// Text тексты интерфейса на выбранном языке, нулевое значение английское
@@ -102,7 +105,7 @@ func New(opts Options, files []diff.File) Model {
 		dir:      opts.Dir,
 		args:     opts.Args,
 		baseArgs: opts.Args,
-		changes:  opts.Changes,
+		ticks:    opts.Ticks,
 		staged:   opts.Staged,
 		notice:   opts.Notice,
 		keys:     opts.Keys,
@@ -116,7 +119,7 @@ func New(opts Options, files []diff.File) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return waitChange(m.changes)
+	return waitTick(m.ticks)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -133,10 +136,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.MouseWheelUp:
 			m.view = m.view.ScrollBy(-wheelStep)
 		}
-	case changedMsg:
-		return m.changed()
-	case watchStoppedMsg:
-		m = m.say(m.watchStopped())
+	case tickMsg:
+		return m.ticked()
+	// возврат в терминал из редактора: правка видна сразу, а не к тику
+	case tea.FocusMsg:
+		if m.ticks != nil {
+			return m.poll()
+		}
+	case polledMsg:
+		m = m.polled(msg)
 	case reloadMsg:
 		return m.reloaded(msg)
 	case actionDoneMsg:
@@ -398,6 +406,7 @@ func (m Model) View() tea.View {
 	// Колесо мыши прокручивает дифф. Терминал при этом выделяет текст только
 	// с shift: это принятая цена (решение в #10).
 	view.MouseMode = tea.MouseModeCellMotion
+	view.ReportFocus = m.ticks != nil
 
 	// до первого WindowSizeMsg ширина неизвестна, раскладывать не по чему
 	if m.width == 0 {

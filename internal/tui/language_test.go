@@ -74,12 +74,11 @@ func pseudoRepo(t *testing.T) string {
 	return repo
 }
 
-func openPseudo(t *testing.T, repo string, changes <-chan struct{}) tea.Model {
+func openPseudo(t *testing.T, repo string) tea.Model {
 	t.Helper()
 
 	opts := options(repo, layout.Default())
 	opts.Text = pseudo()
-	opts.Changes = changes
 	return resize(open(t, opts), 120, 40)
 }
 
@@ -90,7 +89,7 @@ func withChanges(t *testing.T) (string, tea.Model) {
 	repo := pseudoRepo(t)
 	write(t, repo, "1", "1\n3\n")
 	write(t, repo, "3", "3\n")
-	return repo, openPseudo(t, repo, nil)
+	return repo, openPseudo(t, repo)
 }
 
 func TestScreensUseDictionary(t *testing.T) {
@@ -150,28 +149,21 @@ func TestScreensUseDictionary(t *testing.T) {
 		{name: "вопрос об удалении stash", screen: func(t *testing.T) tea.Model {
 			repo, _ := withChanges(t)
 			runGit(t, repo, "stash", "push", "-q")
-			model := openAsync(openPseudo(t, repo, nil), key('Z'))
+			model := openAsync(openPseudo(t, repo), key('Z'))
 			model, _ = model.Update(key('d'))
 			return model
 		}},
 		{name: "своя ошибка в подвале", screen: func(t *testing.T) tea.Model {
-			model := openPseudo(t, pseudoRepo(t), nil)
+			model := openPseudo(t, pseudoRepo(t))
 			model, cmd := model.Update(key('z'))
 			return settle(model, cmd, 4)
 		}},
 		{name: "нет изменений", screen: func(t *testing.T) tea.Model {
-			return openPseudo(t, pseudoRepo(t), nil)
+			return openPseudo(t, pseudoRepo(t))
 		}},
 		{name: "загрузка", screen: func(t *testing.T) tea.Model {
 			_, model := withChanges(t)
 			model, _ = model.Update(key('r'))
-			return model
-		}},
-		{name: "слежение остановлено", screen: func(t *testing.T) tea.Model {
-			changes := make(chan struct{})
-			close(changes)
-			model := openPseudo(t, pseudoRepo(t), changes)
-			model, _ = model.Update(model.Init()())
 			return model
 		}},
 	}
@@ -204,7 +196,7 @@ func TestDiffNoticesUseDictionary(t *testing.T) {
 	}
 	write(t, repo, "2", "2\n8")
 
-	model := openPseudo(t, repo, nil)
+	model := openPseudo(t, repo)
 	next := key(']')
 	for range 4 {
 		screen := screenOf(model)

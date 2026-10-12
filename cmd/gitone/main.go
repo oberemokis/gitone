@@ -14,16 +14,15 @@ import (
 	"gitone/internal/layout"
 	"gitone/internal/tui"
 	"gitone/internal/tui/theme"
-	"gitone/internal/watch"
 )
 
 // Первый git diff на большом репозитории идёт секунды, и пустой терминал
 // всё это время выглядит зависшим. Короткая загрузка надписи не показывает.
 const loadingNoticeDelay = 200 * time.Millisecond
 
-// maxWatchedDirs ограничивает слежение: каждый каталог держит дескриптор, и
-// большой репозиторий или node_modules без лимита съедают их все.
-const maxWatchedDirs = 1000
+// pollInterval как externalChangeCheckInterval у lazygit: правка видна почти
+// сразу, а git diff рабочей копии дешёвый, git сверяет файлы по индексу.
+const pollInterval = 2 * time.Second
 
 func main() {
 	if isVersionFlag(os.Args) {
@@ -58,16 +57,10 @@ func main() {
 		opts.Notice = addNotice(text, opts.Notice, err)
 	}
 
-	// слежение живёт до конца программы, поэтому канал закрывается здесь
-	done := make(chan struct{})
-	defer close(done)
 	if opts.Config.UI.AutoReload {
-		changes, watchErr := watch.Start(dir, maxWatchedDirs, done)
-		if watchErr != nil {
-			opts.Notice = addNotice(opts.Text, opts.Notice, watchErr)
-		} else {
-			opts.Changes = changes
-		}
+		ticker := time.NewTicker(pollInterval)
+		defer ticker.Stop()
+		opts.Ticks = ticker.C
 	}
 
 	model, err := loadWithNotice(opts)

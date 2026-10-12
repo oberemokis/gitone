@@ -3,57 +3,108 @@ package tui_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/layout"
-	"gitone/internal/tui"
 )
 
-// Изменение файла на диске и сигнал из канала: экран обновляется без r.
-func TestChangeSignalReloadsWithoutKey(t *testing.T) {
+// editedRepo это репозиторий с закоммиченным a.txt «one» и правкой «two» в
+// рабочей копии, открытый с таймером ticks.
+func editedRepo(t *testing.T, ticks <-chan time.Time, root layout.Node) (string, tea.Model) {
+	t.Helper()
+
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
 
-	changes := make(chan struct{}, 1)
-	opts := options(repo, layout.Focus())
-	opts.Changes = changes
-	model := resize(open(t, opts), 100, 20)
+	opts := options(repo, root)
+	opts.Ticks = ticks
+	return repo, resize(open(t, opts), 120, 20)
+}
+
+// Правка на диске и тик таймера: экран обновляется без r.
+func TestTickReloadsWithoutKey(t *testing.T) {
+	repo, model := editedRepo(t, oneTick(), layout.Focus())
 
 	write(t, repo, "a.txt", "three\n")
-	changes <- struct{}{}
-	// сигнал последний: закрытый канал отпускает ожидание следующего
-	close(changes)
+	model = settle(model, model.Init(), 3)
 
-	for _, signal := range runAll(model.Init()) {
-		var next tea.Cmd
-		model, next = model.Update(signal)
-		for _, reply := range runAll(next) {
-			model, _ = model.Update(reply)
-		}
-	}
-
-	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "three") {
-		t.Fatalf("после сигнала экран не обновился:\n%s", body)
+	if body := screenText(model); !strings.Contains(body, "three") {
+		t.Fatalf("после тика экран не обновился:\n%s", body)
 	}
 }
 
-// Закрытый канал слежения сообщает о себе в подвале.
-func TestStoppedWatchShowsNotice(t *testing.T) {
-	changes := make(chan struct{})
-	close(changes)
+// Опрос тихий: пока git читает дифф, подвал тот же, загрузка не мигает.
+func TestTickLeavesFooterAlone(t *testing.T) {
+	_, model := editedRepo(t, oneTick(), layout.Focus())
+	before := footerOf(model)
 
-	opts := options("", layout.Focus())
-	opts.Changes = changes
-	model := resize(tui.New(opts, nil), 100, 20)
+	model, _ = model.Update(model.Init()())
 
-	for _, msg := range runAll(model.Init()) {
-		model, _ = model.Update(msg)
+	if got := footerOf(model); got != before {
+		t.Fatalf("подвал после тика %q, want %q", got, before)
 	}
+}
 
-	if footer := screenOf(model)[len(screenOf(model))-1]; !strings.Contains(footer, "watching stopped") {
-		t.Fatalf("в подвале %q, ожидалось сообщение об остановке", footer)
+// git add из другого терминала: отметка индекса появляется без нажатия.
+func TestTickShowsStageFromOutside(t *testing.T) {
+	repo, model := editedRepo(t, oneTick(), layout.Default())
+
+	runGit(t, repo, "add", "a.txt")
+	model = settle(model, model.Init(), 3)
+
+	if body := screenText(model); !strings.Contains(body, "● a.txt") {
+		t.Fatalf("после тика нет отметки индекса:\n%s", body)
+	}
+}
+
+// Терминал получил фокус: дифф перечитывается сразу, не дожидаясь тика.
+func TestFocusReloads(t *testing.T) {
+	repo, model := editedRepo(t, make(chan time.Time), layout.Focus())
+
+	write(t, repo, "a.txt", "three\n")
+	model, cmd := model.Update(tea.FocusMsg{})
+	model = settle(model, cmd, 2)
+
+	if body := screenText(model); !strings.Contains(body, "three") {
+		t.Fatalf("после фокуса экран не обновился:\n%s", body)
+	}
+}
+
+// Без автообновления фокус ничего не читает.
+func TestFocusWithoutAutoReloadDoesNothing(t *testing.T) {
+	_, model := editedRepo(t, nil, layout.Focus())
+
+	if _, cmd := model.Update(tea.FocusMsg{}); cmd != nil {
+		t.Fatal("фокус без таймера запустил чтение")
+	}
+}
+
+// Опрос рабочего дерева, вернувшийся после открытия коммита из лога, дифф
+// коммита не затирает.
+func TestLatePollKeepsCommitDiff(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	// первый коммит лог не открывает, нужен второй
+	write(t, repo, "b.txt", "bee\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+
+	opts := options(repo, layout.Focus())
+	opts.Ticks = oneTick()
+	model := resize(open(t, opts), 120, 20)
+
+	model, polling := model.Update(model.Init()())
+	model = openAsync(model, key('l'))
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, cmd, 2)
+	model = settle(model, polling, 2)
+
+	if body := screenText(model); strings.Contains(body, "two") || !strings.Contains(body, "bee") {
+		t.Fatalf("want дифф коммита с b.txt, опрос со старыми аргументами его затёр:\n%s", body)
 	}
 }

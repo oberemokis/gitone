@@ -1,54 +1,77 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
+	"maps"
+	"reflect"
+	"slices"
+	"time"
 
-	"gitone/internal/i18n"
-	"gitone/internal/keymap"
+	tea "charm.land/bubbletea/v2"
 )
 
-// changedMsg приходит, когда в рабочей копии что-то изменилось: канал слежения
-// прислал сигнал.
-type changedMsg struct{}
+// Автообновление как в lazygit: файлы не слушаются, репозиторий опрашивается
+// по таймеру. Слежение через fsnotify в большом репозитории упиралось в лимит
+// дескрипторов и не видело git add из другого терминала (решение в #81).
 
-// watchStoppedMsg приходит, когда слежение остановилось и канал закрыт.
-type watchStoppedMsg struct{}
+// tickMsg приходит от таймера опроса.
+type tickMsg struct{}
 
-// waitChange ждёт один сигнал. Без канала слежения ждать нечего, и команды нет.
-// Ожидание возобновляется после каждого сигнала, иначе второе изменение не
-// дошло бы до экрана.
-func waitChange(changes <-chan struct{}) tea.Cmd {
-	if changes == nil {
+// polledMsg несёт итог опроса и аргументы, с которыми он читал дифф.
+type polledMsg struct {
+	reloadMsg
+	args []string
+}
+
+// waitTick ждёт один тик. Без таймера ждать нечего, и команды нет. Ожидание
+// возобновляется после каждого тика, иначе второй тик не дошёл бы до модели.
+func waitTick(ticks <-chan time.Time) tea.Cmd {
+	if ticks == nil {
 		return nil
 	}
 
 	return func() tea.Msg {
-		if _, ok := <-changes; !ok {
-			return watchStoppedMsg{}
+		if _, ok := <-ticks; !ok {
+			return nil
 		}
-		return changedMsg{}
+		return tickMsg{}
 	}
 }
 
-// changed перечитывает дифф по сигналу слежения. Сигнал съеден, поэтому
-// ожидание возобновляется сразу: следующее изменение не должно ждать. Во время
-// загрузки дифф только помечается устаревшим и перечитается после неё.
-func (m Model) changed() (tea.Model, tea.Cmd) {
-	if m.loading {
-		m.stale = true
-		return m, waitChange(m.changes)
-	}
-
-	m, reloadCmd := m.startReload()
-	return m, tea.Batch(reloadCmd, waitChange(m.changes))
+// ticked опрашивает репозиторий и ждёт следующий тик.
+func (m Model) ticked() (tea.Model, tea.Cmd) {
+	m, pollCmd := m.poll()
+	return m, tea.Batch(pollCmd, waitTick(m.ticks))
 }
 
-// watchStopped подсказывает клавишу перечитывания, если она не отключена.
-func (m Model) watchStopped() string {
-	keys := m.keys.KeysFor(keymap.DiffReload)
-	if len(keys) == 0 {
-		return m.text.Text("watch.stoppedNoKey", nil)
+// poll читает дифф без следа на экране: подвал не мигает, вопрос discard не
+// закрывается. Пока идёт опрос или перечитывание по r, второй не нужен:
+// следующий тик всё равно придёт.
+func (m Model) poll() (Model, tea.Cmd) {
+	if m.loading || m.polling {
+		return m, nil
 	}
 
-	return m.text.Text("watch.stopped", i18n.Args{"key": displayKey(keys[0])})
+	m.polling = true
+	dir, args := m.dir, m.args
+	return m, func() tea.Msg {
+		return polledMsg{reloadMsg: readDiff(dir, args), args: args}
+	}
+}
+
+// polled ставит итог опроса. Ошибку покажет r: опрос повторял бы её каждые
+// две секунды. Опрос со старыми аргументами (пока он шёл, открыли коммит из
+// лога) и одинаковый дифф экран не трогают, подсветка не пересчитывается
+// впустую.
+func (m Model) polled(msg polledMsg) Model {
+	m.polling = false
+	if msg.err != nil || m.loading || !slices.Equal(msg.args, m.args) {
+		return m
+	}
+	if reflect.DeepEqual(msg.files, m.files) && maps.Equal(msg.staged, m.staged) {
+		return m
+	}
+
+	m = m.applyReload(msg.files)
+	m.staged = msg.staged
+	return m
 }

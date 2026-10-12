@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -206,11 +207,19 @@ func pressReload(t *testing.T, model tea.Model) tea.Model {
 	return model
 }
 
+// oneTick это таймер опроса с одним тиком. Канал закрыт: ожидание следующего
+// тика возвращается сразу, иначе runAll ждал бы его вечно.
+func oneTick() <-chan time.Time {
+	ticks := make(chan time.Time, 1)
+	ticks <- time.Time{}
+	close(ticks)
+	return ticks
+}
+
 // runAll выполняет команду, как Bubble Tea: части пакетной команды идут
 // одновременно. Ждёт все части и возвращает ответы в порядке пакета, а не в
-// порядке прихода. Ожидание сигнала слежения возвращается только по сигналу
-// или закрытию канала, поэтому тест со слежением закрывает канал после
-// последнего сигнала.
+// порядке прихода. Ожидание тика возвращается только по тику или закрытию
+// канала, поэтому тест с таймером берёт закрытый канал из oneTick.
 func runAll(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
 		return nil
