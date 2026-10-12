@@ -4,11 +4,6 @@ package git
 // выполняются, автор берётся из git config, редактор не открывается. Отказ хука
 // или пустой индекс приходят ошибкой git.
 func Commit(dir string, subject string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	_, err = run(call{dir: root}, "commit", "-m", subject)
+	_, err := inRoot(dir, "commit", "-m", subject)
 	return err
 }
