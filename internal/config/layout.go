@@ -3,8 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-
-	"gitone/internal/i18n"
 )
 
 // LayoutFile это layouts/<имя>.json как он записан. Проверку дерева делает
@@ -19,27 +17,10 @@ type LayoutNode struct {
 	Direction string       `json:"direction"`
 	Children  []LayoutNode `json:"children"`
 	Pane      string       `json:"pane"`
-	Size      Size         `json:"size"`
-}
-
-// Size это размер как он записан: «30%», число ячеек или пусто. Число 6 и
-// строка «6» дают одно значение.
-type Size string
-
-func (s *Size) UnmarshalJSON(data []byte) error {
-	var text string
-	if json.Unmarshal(data, &text) == nil {
-		*s = Size(text)
-		return nil
-	}
-
-	var number json.Number
-	if json.Unmarshal(data, &number) == nil {
-		*s = Size(number)
-		return nil
-	}
-
-	return i18n.New("layout.sizeType", nil)
+	// Size это размер как он записан: «30%», число ячеек или пусто. Сырой он
+	// потому, что json.Unmarshaler не знает путь узла, а ошибка типа должна его
+	// назвать: разбирает размер layout через StringOrNumber.
+	Size json.RawMessage `json:"size"`
 }
 
 // ReadLayout читает layouts/<name>.json. Файла нет, значит found false без

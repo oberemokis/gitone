@@ -79,7 +79,7 @@
   "layout.paneTwice": "{path}.pane: pane \"{pane}\" is already in the layout",
   "layout.percentOver": "{path}.children: percents add up to {percent}, more than 100",
   "layout.percentRange": "{path}: \"{size}\" is out of range 1%-100%",
-  "layout.sizeType": "size: a size must be a string or a number",
+  "layout.sizeType": "{path}: a size must be a string or a number",
   "layout.unknownPane": "{path}.pane: unknown pane \"{pane}\", available: {panes}",
   "list.noMatches": "No matches",
   "log.column.author": "Author",

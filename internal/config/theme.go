@@ -70,19 +70,12 @@ func decodeTheme(data []byte) (ThemeFile, error) {
 func colorsOf(section string, raw map[string]json.RawMessage) (map[string]Color, error) {
 	colors := make(map[string]Color, len(raw))
 	for _, key := range slices.Sorted(maps.Keys(raw)) {
-		var text string
-		if json.Unmarshal(raw[key], &text) == nil {
-			colors[key] = Color(text)
-			continue
+		text, ok := StringOrNumber(raw[key])
+		if !ok {
+			return nil, i18n.New("theme.colorType", i18n.Args{"section": section, "key": key})
 		}
 
-		var number json.Number
-		if json.Unmarshal(raw[key], &number) == nil {
-			colors[key] = Color(number)
-			continue
-		}
-
-		return nil, i18n.New("theme.colorType", i18n.Args{"section": section, "key": key})
+		colors[key] = Color(text)
 	}
 
 	return colors, nil

@@ -1,6 +1,7 @@
 package layout_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestBuildChecksTree(t *testing.T) {
-	files := config.LayoutNode{Pane: "files", Size: "30%"}
+	files := config.LayoutNode{Pane: "files", Size: json.RawMessage(`"30%"`)}
 	diff := config.LayoutNode{Pane: "diff"}
 
 	tests := []struct {
@@ -51,12 +52,12 @@ func TestBuildChecksTree(t *testing.T) {
 		},
 		{
 			name:    "сумма процентов больше ста",
-			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: "60%"}, {Pane: "diff", Size: "50%"}}},
+			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: json.RawMessage(`"60%"`)}, {Pane: "diff", Size: json.RawMessage(`"50%"`)}}},
 			wantErr: "more than 100",
 		},
 		{
 			name:    "размер не похож на размер",
-			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: "wide"}, diff}},
+			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: json.RawMessage(`"wide"`)}, diff}},
 			wantErr: "root.children[0].size",
 		},
 	}
@@ -208,6 +209,64 @@ func TestSinglePaneTakesWholeScreen(t *testing.T) {
 
 	if got.Pane != "diff" || got.Width != 90 || got.Height != 12 {
 		t.Errorf("focus %+v, ожидался дифф на весь экран", got)
+	}
+}
+
+// Число 6 и строка «6» дают одно значение, null значит «без размера».
+func TestBuildSizeFromJSON(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want layout.Size
+	}{
+		{raw: `6`, want: layout.Size{Cells: 6}},
+		{raw: `"6"`, want: layout.Size{Cells: 6}},
+		{raw: `"30%"`, want: layout.Size{Percent: 30}},
+		{raw: `null`, want: layout.Size{}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.raw, func(t *testing.T) {
+			file := config.LayoutFile{Root: config.LayoutNode{Pane: "diff", Size: json.RawMessage(tc.raw)}}
+
+			got, err := layout.Build(file)
+
+			if err != nil || got.Size != tc.want {
+				t.Errorf("Build(size %s) = %+v, %v, want size %+v", tc.raw, got.Size, err, tc.want)
+			}
+		})
+	}
+}
+
+// Ошибка типа у size называет узел, как остальные ошибки раскладки: её
+// разбирает layout, а не json.Unmarshaler, которому путь неизвестен.
+func TestLoadSizeTypeNamesNode(t *testing.T) {
+	tests := []struct {
+		name string
+		size string
+	}{
+		{name: "объект", size: `{}`},
+		{name: "логическое значение", size: `true`},
+		{name: "массив", size: `[30]`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(dir, "layouts"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			content := `{"root":{"direction":"row","children":[{"pane":"files"},{"pane":"diff","size":` + tc.size + `}]}}`
+			if err := os.WriteFile(filepath.Join(dir, "layouts", "x.json"), []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := layout.Load(dir, "x")
+
+			want := "layouts/x.json: root.children[1].size: a size must be a string or a number"
+			if err == nil || err.Error() != want {
+				t.Errorf("Load(layouts/x.json с size %s) error = %v, want %q", tc.size, err, want)
+			}
+		})
 	}
 }
 

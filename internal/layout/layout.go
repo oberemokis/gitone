@@ -3,6 +3,7 @@
 package layout
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
@@ -105,18 +106,30 @@ func buildContainer(node config.LayoutNode, size Size, path string, seen map[str
 	return result, nil
 }
 
-func parseSize(text config.Size, path string) (Size, error) {
+// parseSize переводит размер из файла: «30%», число ячеек строкой или числом
+// либо пусто. Тип значения проверяется здесь, а не при чтении JSON, чтобы
+// ошибка назвала узел.
+func parseSize(raw json.RawMessage, path string) (Size, error) {
+	if len(raw) == 0 {
+		return Size{}, nil
+	}
+
+	text, ok := config.StringOrNumber(raw)
+	if !ok {
+		return Size{}, i18n.New("layout.sizeType", i18n.Args{"path": path})
+	}
+
 	switch {
 	case text == "":
 		return Size{}, nil
-	case percentSize.MatchString(string(text)):
-		value, _ := strconv.Atoi(strings.TrimSuffix(string(text), "%"))
+	case percentSize.MatchString(text):
+		value, _ := strconv.Atoi(strings.TrimSuffix(text, "%"))
 		if value < 1 || value > 100 {
 			return Size{}, i18n.New("layout.percentRange", i18n.Args{"path": path, "size": text})
 		}
 		return Size{Percent: value}, nil
-	case cellSize.MatchString(string(text)):
-		value, _ := strconv.Atoi(string(text))
+	case cellSize.MatchString(text):
+		value, _ := strconv.Atoi(text)
 		if value < 1 {
 			return Size{}, i18n.New("layout.cellsPositive", i18n.Args{"path": path})
 		}

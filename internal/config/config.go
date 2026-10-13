@@ -145,6 +145,23 @@ func decodeStrict(data []byte, target any) error {
 	return nil
 }
 
+// StringOrNumber читает значение, которое в файле пишут строкой или числом:
+// число 8 и строка «8» дают одно значение. ok false значит другой тип JSON
+// или пустое значение. Ошибку по ней строит вызывающий, ему известен путь
+// узла, а json.Unmarshaler его не знает.
+func StringOrNumber(raw json.RawMessage) (text string, ok bool) {
+	if json.Unmarshal(raw, &text) == nil {
+		return text, true
+	}
+
+	var number json.Number
+	if json.Unmarshal(raw, &number) == nil {
+		return number.String(), true
+	}
+
+	return "", false
+}
+
 // Dir возвращает каталог настроек: $XDG_CONFIG_HOME/gitone, а без переменной
 // ~/.config/gitone. Относительный $XDG_CONFIG_HOME (чаще нераскрытая тильда из
 // launchctl или environment.d) игнорируется, как велит спецификация XDG: его
