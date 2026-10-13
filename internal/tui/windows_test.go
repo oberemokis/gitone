@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -135,6 +136,32 @@ func TestListKeepsFooterMessage(t *testing.T) {
 		if !strings.Contains(footerOf(model), "no changes to save in stash") {
 			t.Fatalf("после %s подвал = %q, want сообщение на месте", press, footerOf(model))
 		}
+	}
+}
+
+// Длинный список занимает всю высоту тела, без лишней пустой строки под окном
+// (#153). На экране 100 на 20 тело 14 строк: без отступов окна, заголовка,
+// подсказки, обоих с пустой строкой, и строки заголовков столбцов на 31 ветку
+// остаётся 7 строк, и текущая, последняя в списке, видна целиком.
+func TestBranchWindowUsesFullBodyHeight(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "a\n")
+	commitAll(t, repo)
+	for number := 1; number <= 30; number++ {
+		runGit(t, repo, "branch", fmt.Sprintf("b%02d", number))
+	}
+
+	screen := screenOf(openAsync(resize(open(t, options(repo, layout.Focus())), 100, 20), key('B')))
+
+	if shown := strings.Count(strings.Join(screen, "\n"), " ago"); shown != 7 {
+		t.Errorf("строк списка %d, want 7:\n%s", shown, strings.Join(screen, "\n"))
+	}
+	if last := rowWith(t, screen, "main"); !strings.Contains(last, "main (current)") {
+		t.Errorf("последняя строка списка обрезана: %q", last)
+	}
+	// строки тела 3-16: подсказка на 15-й, под ней отступ окна
+	if hint := rowWith(t, screen, "enter switch"); hint != screen[15] {
+		t.Errorf("подсказка не в предпоследней строке тела:\n%s", strings.Join(screen, "\n"))
 	}
 }
 

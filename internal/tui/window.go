@@ -267,10 +267,10 @@ func (l list) rowWidth(screenWidth int) int {
 // прокручивается так, чтобы курсор оставался видимым.
 func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	width := l.windowWidth(screenWidth)
-	// без отступов окна, заголовка с пустой строкой под ним и подсказки с
-	// пустой строкой над ней, заголовков столбцов и поиска с пустой строкой
-	// под ним
-	chrome := 7
+	// без двух отступов окна, заголовка с пустой строкой под ним и подсказки
+	// с пустой строкой над ней (по две строки), заголовков столбцов (одна) и
+	// поиска с пустой строкой под ним (две) (#153)
+	chrome := 6
 	if l.header != "" {
 		chrome++
 	}
@@ -279,7 +279,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	}
 	shown := max(min(len(l.rows), screenHeight-chrome), 1)
 	if l.fill {
-		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-chrome+1, 1)
+		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-chrome, 1)
 	}
 	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
 	content := width - 2*windowPaddingX
@@ -319,7 +319,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	}
 
 	// окно на весь экран держит высоту и с коротким списком
-	for l.fill && len(lines) < shown+chrome-5 {
+	for l.fill && len(lines) < shown+chrome-4 {
 		lines = append(lines, "")
 	}
 

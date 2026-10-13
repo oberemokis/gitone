@@ -70,9 +70,9 @@ func TestLateLogErrorReachesFooter(t *testing.T) {
 	}
 }
 
-// Длинный список stash показывает столько же строк, сколько лог и ветки:
-// высота тела минус семь (отступы окна, заголовок с пустой строкой, подсказка
-// с пустой строкой и строка запаса).
+// Длинный список stash занимает всю высоту тела: высота тела минус шесть
+// (отступы окна, заголовок с пустой строкой, подсказка с пустой строкой), без
+// строки запаса (#153).
 func TestLongStashListUsesCommonMargin(t *testing.T) {
 	repo, _ := threeFileRepo(t)
 	for index := range 15 {
@@ -87,7 +87,7 @@ func TestLongStashListUsesCommonMargin(t *testing.T) {
 	shown := strings.Count(strings.Join(screenOf(model), "\n"), "stash@{")
 	// высота 20: заголовок и подвал, оба с пустыми строками над и под ними,
 	// оставляют телу 14 строк
-	if want := 14 - 7; shown != want {
+	if want := 14 - 6; shown != want {
 		t.Fatalf("строк stash на экране %d, ожидалось %d", shown, want)
 	}
 }
