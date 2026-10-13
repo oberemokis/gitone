@@ -102,6 +102,137 @@ func TestSecondReloadWhileLoadingIsIgnored(t *testing.T) {
 	}
 }
 
+// lateReply доставляет модели ответ чтения reading (r, enter в логе или в
+// stash), которое началось до смены каталога или аргументов. Возвращает экран
+// сразу после ответа и модель, дочитавшую новый дифф до конца: пока новое
+// чтение не пришло, запоздавший ответ экран менять не должен.
+func lateReply(model tea.Model, reading tea.Cmd) (atOnce string, settled tea.Model) {
+	// в пакете первым идёт шаг спиннера, вторым ответ git
+	reply := runAll(reading)[1]
+	model, restart := model.Update(reply)
+	return screenText(model), settle(model, restart, 3)
+}
+
+// r ещё читает дифф основного дерева, а пользователь уже выбрал соседнее:
+// запоздавший ответ про прежнее дерево не ложится на экран. x, y после этого
+// трогают файл дерева, которое на экране, а не соседнее.
+func TestStaleReloadAfterWorktreeSwitchShowsNewTree(t *testing.T) {
+	repo, side, model := twoWorktrees(t)
+
+	model, reading := model.Update(key('r'))
+	model = openAsync(model, key('W'))
+	model, _ = model.Update(key('j'))
+	model, switching := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, switching, 2)
+
+	// чтение успело увидеть правку, которой на экране ещё нет
+	write(t, repo, "a.txt", "main-late\n")
+	before := screenText(model)
+	atOnce, model := lateReply(model, reading)
+
+	if atOnce != before {
+		t.Fatalf("запоздавший ответ изменил экран:\n%s", atOnce)
+	}
+	if screen := screenText(model); !strings.Contains(screen, "side-edit") || strings.Contains(screen, "main-") {
+		t.Fatalf("на экране не дифф side-tree:\n%s", screen)
+	}
+	if footer := footerOf(model); !strings.HasPrefix(footer, " B side   W side-tree") {
+		t.Fatalf("подвал %q, ожидался side-tree слева", footer)
+	}
+
+	model, _ = model.Update(key('x'))
+	model, discarding := model.Update(key('y'))
+	settle(model, discarding, 3)
+
+	if got := readText(t, filepath.Join(repo, "a.txt")); got != "main-late\n" {
+		t.Fatalf("файл основного дерева %q, ожидалась нетронутая правка main-late", got)
+	}
+	if got := readText(t, filepath.Join(side, "a.txt")); got != "one\n" {
+		t.Fatalf("файл side-tree %q, ожидался откат к one", got)
+	}
+}
+
+// Открыт коммит из лога, его дифф ещё читается, и пользователь жмёт b: ответ с
+// диффом коммита на экран не идёт, там дифф рабочего дерева.
+func TestStaleCommitDiffAfterBackShowsWorkingTree(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "commit-edit\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "work-edit\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+
+	model = openAsync(model, key('l'))
+	model, reading := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model, _ = model.Update(key('b'))
+
+	before := screenText(model)
+	atOnce, model := lateReply(model, reading)
+
+	if atOnce != before {
+		t.Fatalf("запоздавший дифф коммита изменил экран:\n%s", atOnce)
+	}
+	if screen := screenText(model); !strings.Contains(screen, "work-edit") {
+		t.Fatalf("на экране не дифф запуска:\n%s", screen)
+	}
+}
+
+// Дифф stash открывают, пока идёт r: ответ с диффом рабочего дерева на экран не
+// идёт, там дифф stash.
+func TestStaleReloadAfterStashEnterShowsStash(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "stash-edit\n")
+	runGit(t, repo, "stash", "push", "-q")
+	write(t, repo, "a.txt", "work-edit\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+
+	model, reading := model.Update(key('r'))
+	model = openAsync(model, key('Z'))
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	// чтение успело увидеть правку, которой на экране ещё нет
+	write(t, repo, "a.txt", "work-late\n")
+	before := screenText(model)
+	atOnce, model := lateReply(model, reading)
+
+	if atOnce != before {
+		t.Fatalf("запоздавший дифф рабочего дерева изменил экран:\n%s", atOnce)
+	}
+	if screen := screenText(model); !strings.Contains(screen, "stash-edit") || strings.Contains(screen, "work-") {
+		t.Fatalf("на экране не дифф stash:\n%s", screen)
+	}
+}
+
+// r во время чтения не пропадает: git уже прочитал дифф, правка пришла после
+// этого, и r показывает её вторым чтением, а не прячет за первым.
+func TestReloadPressedWhileLoadingReadsAgain(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+
+	model, first := model.Update(key('r'))
+	replies := runAll(first)
+	write(t, repo, "a.txt", "three\n")
+	model, second := model.Update(key('r'))
+	if second != nil {
+		t.Fatal("второй r во время загрузки запустил ещё одно перечитывание")
+	}
+	for _, reply := range replies {
+		var again tea.Cmd
+		model, again = model.Update(reply)
+		model = settle(model, again, 3)
+	}
+
+	if screen := screenText(model); !strings.Contains(screen, "three") {
+		t.Fatalf("правка после первого чтения не на экране:\n%s", screen)
+	}
+}
+
 func TestReloadErrorKeepsOldDiffUntilNextKey(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")

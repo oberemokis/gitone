@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/diff"
@@ -39,12 +41,21 @@ func Locate(dir string) (git.Location, error) {
 	return git.Locate(dir)
 }
 
-// reloadMsg несёт итог перечитывания: новый дифф, индекс, ветку или ошибку git.
+// reloadMsg несёт итог перечитывания: каталог и аргументы, с которыми читали,
+// новый дифф, индекс, ветку или ошибку git.
 type reloadMsg struct {
+	dir      string
+	args     []string
 	files    []diff.File
 	staged   map[string]bool
 	location git.Location
 	err      error
+}
+
+// fits говорит, что ответ прочитан для диффа, который открыт сейчас: пока git
+// читал, W, лог, stash или b могли сменить каталог или аргументы.
+func (msg reloadMsg) fits(m Model) bool {
+	return msg.dir == m.dir && slices.Equal(msg.args, m.args)
 }
 
 // reload читает дифф и индекс в команде, а не в Update, чтобы модель оставалась
@@ -60,22 +71,28 @@ func reload(dir string, args []string) tea.Cmd {
 func readDiff(dir string, args []string) reloadMsg {
 	files, err := Load(dir, args)
 	if err != nil {
-		return reloadMsg{err: err}
+		return reloadMsg{dir: dir, args: args, err: err}
 	}
 
 	staged, err := Staged(dir)
 	if err != nil {
-		return reloadMsg{err: err}
+		return reloadMsg{dir: dir, args: args, err: err}
 	}
 
 	location, err := Locate(dir)
-	return reloadMsg{files: files, staged: staged, location: location, err: err}
+	return reloadMsg{dir: dir, args: args, files: files, staged: staged, location: location, err: err}
 }
 
 // reloaded ставит перечитанный дифф на экран, а ошибку git в подвал. Если за
-// время загрузки gitone сам что-то поменял, загрузка идёт ещё раз.
+// время загрузки gitone сам что-то поменял, загрузка идёт ещё раз. Ответ про
+// другой каталог или другие аргументы на экран не идёт, как у опроса: его
+// место занимает чтение нового диффа.
 func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
+	if !msg.fits(m) {
+		return m.startReload()
+	}
+
 	// ponytail: окно поиска, открытое во время загрузки, показывает список
 	// до перечитывания, выбор при этом ищется по имени в новом. Открыть
 	// окно заново обновит список.
