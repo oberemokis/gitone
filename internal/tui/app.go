@@ -651,7 +651,7 @@ func (m Model) panes(placed layout.Placed) string {
 	case placed.Pane == "files":
 		return filespane.View(m.labels(), m.current, noChanges, m.colors, placed.Width, placed.Height)
 	case len(m.files) == 0:
-		return lipgloss.Place(placed.Width, placed.Height, lipgloss.Center, lipgloss.Center, noChanges)
+		return m.emptyBody(noChanges, placed.Width, placed.Height)
 	default:
 		return m.view.View()
 	}
@@ -665,6 +665,22 @@ func (m Model) panes(placed layout.Placed) string {
 		return lipgloss.JoinVertical(lipgloss.Left, parts...)
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+}
+
+// emptyBody рисует тело без изменений: надпись посередине, под ней после
+// пустой строки клавиши окон колонкой по центру (#196). Список режется по
+// высоте тела, а надпись стоит там же, где стояла без него, и видна всегда.
+func (m Model) emptyBody(noChanges string, width, height int) string {
+	content := noChanges
+	if hints := emptyHints(m.colors, m.text, m.keys); len(hints) > 0 {
+		// клавиши в колонку по левому краю, а колонка и надпись по центру
+		content = lipgloss.JoinVertical(lipgloss.Center, noChanges, "", lipgloss.JoinVertical(lipgloss.Left, hints...))
+	}
+
+	lines := append(make([]string, (height-1)/2), strings.Split(content, "\n")...)
+	lines = lines[:min(len(lines), max(height, 1))]
+
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Top, strings.Join(lines, "\n"))
 }
 
 // labels это подписи файлов для панели: имя и статус, если он не просто
