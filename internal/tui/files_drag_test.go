@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/layout"
 )
@@ -57,6 +58,89 @@ func TestFilesWidthSurvivesToggle(t *testing.T) {
 
 	if after := textColumn(t, toggleFiles(toggleFiles(model)), "new a"); after != dragged {
 		t.Errorf("после f дважды дифф с колонки %d, want %d", after, dragged)
+	}
+}
+
+// screenWidth это ширина самой широкой строки экрана.
+func screenWidth(model tea.Model) int {
+	widest := 0
+	for _, line := range screenOf(model) {
+		widest = max(widest, ansi.StringWidth(line))
+	}
+	return widest
+}
+
+// Панель, вытянутая до 80 колонок из 100, после сужения окна до 70 уступает
+// диффу его 20 колонок, строки остаются в экране (#151).
+func TestFilesWidthClampedWhenWindowShrinks(t *testing.T) {
+	model := dragMouse(toggleFiles(openLayout(t, layout.Default(), 100)), 20, 80, bodyRow+5)
+
+	narrow := resize(model, 70, 20)
+
+	// текст диффа стоит на 5 колонок правее его левого края
+	if got := textColumn(t, narrow, "new a"); got != 55 {
+		t.Errorf("после сужения до 70 дифф с колонки %d, want 55", got)
+	}
+	if got := screenWidth(narrow); got != 70 {
+		t.Errorf("после сужения до 70 строки шириной %d, want 70", got)
+	}
+}
+
+// Экран уже суммы пределов 12 и 20: мышь не применяется, панель как в
+// раскладке, 20% от 30 колонок.
+func TestFilesWidthIgnoredOnTinyWindow(t *testing.T) {
+	model := dragMouse(toggleFiles(openLayout(t, layout.Default(), 100)), 20, 80, bodyRow+5)
+
+	tiny := resize(model, 30, 20)
+
+	if got := textColumn(t, tiny, "new a"); got != 11 {
+		t.Errorf("на экране 30 дифф с колонки %d, want 11", got)
+	}
+	if got := screenWidth(tiny); got != 30 {
+		t.Errorf("на экране 30 строки шириной %d, want 30", got)
+	}
+}
+
+// Сужение окна не стирает ширину, выбранную мышью: после возврата размера
+// панель снова 80 колонок.
+func TestFilesWidthReturnsWithWindow(t *testing.T) {
+	model := dragMouse(toggleFiles(openLayout(t, layout.Default(), 100)), 20, 80, bodyRow+5)
+
+	back := resize(resize(model, 30, 20), 100, 20)
+
+	if got := textColumn(t, back, "new a"); got != 85 {
+		t.Errorf("после возврата до 100 дифф с колонки %d, want 85", got)
+	}
+}
+
+// После сужения стык стоит на краю урезанной панели и тянется мышью: панель
+// 50 колонок из 70, стык это колонки 49 и 50.
+func TestDragFilesEdgeAfterShrink(t *testing.T) {
+	model := resize(dragMouse(toggleFiles(openLayout(t, layout.Default(), 100)), 20, 80, bodyRow+5), 70, 20)
+
+	for _, grab := range []int{49, 50} {
+		dragged := dragMouse(model, grab, grab-10, bodyRow+5)
+		if after := textColumn(t, dragged, "new a"); after != 45 {
+			t.Errorf("стык из колонки %d: дифф с колонки %d, want 45", grab, after)
+		}
+	}
+}
+
+// Колонки рядом со стыком (18 и 21 при стыке 19 и 20) панель не тянут: в 18
+// кончается строка b.txt, клик открывает файл, в 21 начинается дифф.
+func TestClickBesideFilesEdgeDoesNotDrag(t *testing.T) {
+	model := toggleFiles(openLayout(t, layout.Default(), 100))
+
+	opened := dragMouse(model, 18, 28, bodyRow+2)
+	if file := openedFile(screenOf(opened)); file != "b.txt" {
+		t.Errorf("клик в колонку 18 открыл %q, want b.txt", file)
+	}
+	if after := textColumn(t, opened, "new b"); after != 25 {
+		t.Errorf("после клика в колонку 18 дифф с колонки %d, want 25", after)
+	}
+
+	if after := textColumn(t, dragMouse(model, 21, 31, bodyRow+2), "new a"); after != 25 {
+		t.Errorf("после клика в колонку 21 дифф с колонки %d, want 25", after)
 	}
 }
 

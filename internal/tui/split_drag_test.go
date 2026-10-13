@@ -20,6 +20,19 @@ func TestDragSplitWidensLeftHalf(t *testing.T) {
 	}
 }
 
+// Колонки рядом со стыком (68 и 71 при стыке 69 и 70) половины не тянут.
+func TestClickBesideSplitEdgeDoesNotDrag(t *testing.T) {
+	model := openLayout(t, layout.Focus(), 140)
+	before := textColumn(t, model, "new a")
+
+	for _, grab := range []int{68, 71} {
+		dragged := dragMouse(model, grab, grab+10, bodyRow+3)
+		if after := textColumn(t, dragged, "new a"); after != before {
+			t.Errorf("клик в колонку %d: правая половина с колонки %d, want %d", grab, after, before)
+		}
+	}
+}
+
 // Половина не уже 20 колонок.
 func TestDragSplitStopsAtLimits(t *testing.T) {
 	model := openLayout(t, layout.Focus(), 140)
