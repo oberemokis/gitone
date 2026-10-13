@@ -55,6 +55,25 @@ func (p *parser) headerLine(line string) {
 	}
 }
 
+// blobs это хэши версий из строки «index <старый>..<новый> <режим>». Хэш из
+// нулей значит, что версии нет. У конфликта слияния старых версий несколько
+// («a,b..c»), такой строке хэшей нет.
+func blobs(index string) (old, new string) {
+	ids, _, _ := strings.Cut(index, " ")
+	old, new, found := strings.Cut(ids, "..")
+	if !found || strings.Contains(old, ",") {
+		return "", ""
+	}
+
+	present := func(hash string) string {
+		if strings.Trim(hash, "0") == "" {
+			return ""
+		}
+		return hash
+	}
+	return present(old), present(new)
+}
+
 // fileHeader разбирает строку заголовка обычного файла. Незнакомая строка
 // возвращает false и уходит в сырую запись, чтобы не пропасть молча.
 func (p *parser) fileHeader(line string) bool {
@@ -64,8 +83,9 @@ func (p *parser) fileHeader(line string) bool {
 	}
 
 	switch {
-	case strings.HasPrefix(line, "index "),
-		strings.HasPrefix(line, "similarity index "),
+	case strings.HasPrefix(line, "index "):
+		file.OldBlob, file.NewBlob = blobs(strings.TrimPrefix(line, "index "))
+	case strings.HasPrefix(line, "similarity index "),
 		strings.HasPrefix(line, "dissimilarity index "):
 	case strings.HasPrefix(line, "new file mode "):
 		file.Status = StatusAdded

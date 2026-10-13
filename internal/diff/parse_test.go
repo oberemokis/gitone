@@ -433,10 +433,48 @@ func TestParse(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := diff.Parse(tc.input)
+			got := withoutBlobs(diff.Parse(tc.input))
 
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("Parse(%q) =\n%+v\nwant\n%+v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+// withoutBlobs убирает хэши версий: здесь проверяется устройство файлов, а
+// хэши проверяет TestParseBlobs.
+func withoutBlobs(files []diff.File) []diff.File {
+	for index := range files {
+		files[index].OldBlob, files[index].NewBlob = "", ""
+	}
+	return files
+}
+
+// Хэши обеих версий берутся из строки index. Хэш из нулей значит, что этой
+// версии нет: у нового файла нет старой, у удалённого новой (#140). У
+// конфликта слияния версий три, такой файл в контексте не красится.
+func TestParseBlobs(t *testing.T) {
+	header := func(index string) string {
+		return lines("diff --git a/a.vue b/a.vue", index, "--- a/a.vue", "+++ b/a.vue", "@@ -1 +1 @@", "-old", "+new")
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		old, new string
+	}{
+		{name: "изменённый файл", input: header("index 0ff3bbb4c..9bebd18aa 100644"), old: "0ff3bbb4c", new: "9bebd18aa"},
+		{name: "новый файл", input: header("index 0000000000..3e75765abc"), old: "", new: "3e75765abc"},
+		{name: "удалённый файл", input: header("index de98044abc..0000000000"), old: "de98044abc", new: ""},
+		{name: "конфликт слияния", input: header("index ba2906d,2299c37..0000000"), old: "", new: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			files := diff.Parse(tc.input)
+			if len(files) != 1 || files[0].OldBlob != tc.old || files[0].NewBlob != tc.new {
+				t.Fatalf("хэши %q и %q, want %q и %q", files[0].OldBlob, files[0].NewBlob, tc.old, tc.new)
 			}
 		})
 	}

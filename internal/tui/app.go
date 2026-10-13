@@ -81,6 +81,8 @@ type Model struct {
 	files      []diff.File
 	current    int
 	view       diffview.Model
+	// reading ключ версий файла, которые сейчас читаются (versions.go)
+	reading string
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
@@ -142,8 +144,20 @@ func (m Model) Init() tea.Cmd {
 	return waitTick(m.ticks)
 }
 
+// Update разбирает сообщение, а после него следит, чтобы открытый
+// однофайловый компонент красился по файлу целиком (versions.go).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if model, isModel := next.(Model); isModel {
+		return model.wantVersions(cmd)
+	}
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case versionsMsg:
+		m = m.storeVersions(msg)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m = m.resize()

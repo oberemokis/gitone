@@ -49,6 +49,11 @@ type Model struct {
 	longest int
 	// share доля левой половины split, 0 значит пополам (split.go)
 	share float64
+	// versionKey ключ версий, по которым сейчас раскрашен файл, пусто при
+	// подсветке по хункам; versions подсветка по версиям файла целиком
+	// (versions.go)
+	versionKey string
+	versions   map[string]sides
 }
 
 func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
@@ -83,6 +88,7 @@ func (m Model) Reload(file diff.File) Model {
 func (m Model) withFile(file diff.File) Model {
 	m.file = file
 	m.oldCode, m.newCode = highlight(syntax.Detect(cmp.Or(file.NewPath, file.OldPath)), file)
+	m.versionKey = ""
 	return m
 }
 

@@ -45,6 +45,11 @@ type File struct {
 	Binary  bool
 	OldMode string
 	NewMode string
+	// Хэши версий из строки index, пусто у версии, которой нет. По ним git
+	// отдаёт файл целиком для подсветки в контексте (#140). Объекта с хэшем
+	// новой версии правки вне индекса в git нет: git его только вычисляет.
+	OldBlob string
+	NewBlob string
 	Hunks   []Hunk
 	Added   int
 	Removed int

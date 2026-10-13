@@ -199,14 +199,16 @@ type piece struct {
 }
 
 // pieces режет текст по всем границам сразу: отрезков слов и категорий. Внутри
-// одного куска ни слово, ни категория не меняются.
+// одного куска ни слово, ни категория не меняются. Граница за концом текста
+// встаёт на конец: подсветка по файлу целиком (#140) знает строку длиннее
+// обрезанной в диффе, а файл мог измениться после диффа.
 func pieces(text string, changed []diff.Span, code []syntax.Span) []piece {
 	cuts := []int{0, len(text)}
 	for _, span := range changed {
 		cuts = append(cuts, span.Start, span.End)
 	}
 	for _, span := range code {
-		cuts = append(cuts, span.Start, span.End)
+		cuts = append(cuts, min(span.Start, len(text)), min(span.End, len(text)))
 	}
 	slices.Sort(cuts)
 	cuts = slices.Compact(cuts)

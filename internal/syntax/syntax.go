@@ -110,8 +110,10 @@ func (l Lexer) Lines(lines []string) [][]Span {
 // подошедший шаблон запроса, как в tree-sitter: запросы upstream написаны под
 // этот порядок, общее (identifier) @variable стоит в конце и не должно
 // затирать функции. Highlighter из gotreesitter отдаёт победу позднему
-// шаблону, поэтому запрос выполняется здесь. Вложенный узел перекрывает
-// внешний: код внутри ${…} шаблонной строки красится как код.
+// шаблону, поэтому запрос выполняется здесь. Захват без вида (variable,
+// punctuation) узел не занимает: в запросе JavaScript общее (identifier)
+// @variable стоит первым и иначе гасило бы имена вызовов (#140). Вложенный
+// узел перекрывает внешний: код внутри ${…} шаблонной строки красится как код.
 func (l Lexer) paint(source []byte) []Kind {
 	language := l.entry.Language()
 	query, err := compiled(l.entry.Name, l.query, language)
@@ -132,11 +134,12 @@ func (l Lexer) paint(source []byte) []Kind {
 	best := map[[2]uint32]capture{}
 	for _, match := range query.Execute(tree) {
 		for _, found := range match.Captures {
+			kind := kindOf(found.Name)
 			key := [2]uint32{found.Node.StartByte(), found.Node.EndByte()}
-			if old, seen := best[key]; seen && old.pattern <= match.PatternIndex {
+			if old, seen := best[key]; kind == "" || seen && old.pattern <= match.PatternIndex {
 				continue
 			}
-			best[key] = capture{start: key[0], end: key[1], kind: kindOf(found.Name), pattern: match.PatternIndex}
+			best[key] = capture{start: key[0], end: key[1], kind: kind, pattern: match.PatternIndex}
 		}
 	}
 
@@ -154,6 +157,10 @@ func (l Lexer) paint(source []byte) []Kind {
 		for at := found.start; at < found.end && int(at) < len(kinds); at++ {
 			kinds[at] = found.kind
 		}
+	}
+
+	if l.Embeds() {
+		l.inject(tree.RootNode(), language, source, kinds)
 	}
 	return kinds
 }
