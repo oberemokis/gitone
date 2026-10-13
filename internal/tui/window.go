@@ -158,6 +158,26 @@ func (m Model) typeSearch(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// paste кладёт вставку из буфера в открытое текстовое поле: тему коммита,
+// поиск файлов или поиск в списке. Уходит первая строка: перевод строки
+// сработал бы как enter и отправил коммит. Без открытого поля вставка ничего
+// не делает (#153).
+func (m Model) paste(content string) Model {
+	line, _, _ := strings.Cut(content, "\n")
+	line = strings.TrimSuffix(line, "\r")
+
+	switch {
+	case m.active == commitWindow:
+		m.subject += line
+	case m.active == pickerWindow:
+		m.picker = m.picker.Type(line)
+	case m.searching && (m.active == logWindow || m.active == branchWindow || m.active == worktreeWindow):
+		m.query += line
+		m.cursor = 0
+	}
+	return m
+}
+
 // matching оставляет элементы, в тексте которых есть запрос без учёта
 // регистра. Без запроса список как есть.
 func matching[T any](items []T, query string, text func(T) string) []T {

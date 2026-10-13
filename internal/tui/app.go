@@ -178,6 +178,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resize()
 	case tea.KeyPressMsg:
 		return m.keyPress(msg)
+	case tea.PasteMsg:
+		m = m.paste(msg.Content)
 	// окно лежит поверх диффа: крутить то, что закрыто, нечем и незачем (#150).
 	// Вопрос discard окна не рисует, под ним дифф виден и крутится.
 	case tea.MouseWheelMsg:
