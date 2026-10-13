@@ -1,10 +1,12 @@
 package git_test
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 )
 
 // Stash уносит правку и возвращает файл к HEAD. Apply возвращает правку и
@@ -51,5 +53,32 @@ func TestStashPushWithNothingFails(t *testing.T) {
 
 	if err := git.StashPush(repo); err == nil {
 		t.Fatal("stash без правок прошёл")
+	}
+}
+
+// Сдвинутый указатель подмодуля git stash push игнорирует: отвечает «No local
+// changes to save» с кодом 0 и stash не создаёт. Для проверки «нечего
+// сохранять» подмодуль тоже не правка.
+func TestStashPushIgnoresSubmodulePointer(t *testing.T) {
+	upstream := newRepo(t)
+	write(t, upstream, "lib.txt", "one\n")
+	commitAll(t, upstream)
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", upstream, "sub")
+	runGit(t, repo, "commit", "-q", "-m", "add submodule")
+	sub := filepath.Join(repo, "sub")
+	write(t, sub, "lib.txt", "two\n")
+	runGit(t, sub, "commit", "-q", "-a", "-m", "next")
+
+	err := git.StashPush(repo)
+
+	var refusal *i18n.Error
+	if !errors.As(err, &refusal) || refusal.Key != "git.nothingToStash" {
+		t.Fatalf("StashPush error = %v, ожидался отказ git.nothingToStash", err)
+	}
+	if listed := runGit(t, repo, "stash", "list"); listed != "" {
+		t.Fatalf("stash создан: %q", listed)
 	}
 }

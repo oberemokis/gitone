@@ -35,7 +35,9 @@ func Stashes(dir string) ([]Stash, error) {
 // StashPush сохраняет отслеженные правки в stash. Неотслеженные файлы не
 // трогаются: их в stash не берём, см. решения в задаче. Без правок git
 // сообщает об успехе, поэтому проверяем сами: иначе пользователь думал бы, что
-// правки сохранены.
+// правки сохранены. Подмодули в проверке не считаются: git stash push их
+// игнорирует и на одном сдвинутом указателе отвечает «No local changes to save»
+// с кодом 0.
 func StashPush(dir string) error {
 	return failed("stash push", stashPush(dir))
 }
@@ -46,7 +48,7 @@ func stashPush(dir string) error {
 		return err
 	}
 
-	if _, err := run(call{dir: root}, "diff", "--quiet", "HEAD", "--"); err == nil {
+	if _, err := run(call{dir: root}, "diff", "--quiet", "--ignore-submodules", "HEAD", "--"); err == nil {
 		return i18n.New("git.nothingToStash", nil)
 	}
 
