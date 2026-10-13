@@ -51,17 +51,26 @@ func (m Model) prefixWidth() int {
 // колонке unified (тогда правая 0).
 func (m Model) codeWidths() (int, int) {
 	if m.effectiveMode() == ModeSplit {
-		left := m.width / 2
+		left := m.splitLeft()
 		return left - m.prefixWidth(), m.width - left - m.prefixWidth()
 	}
 	return m.width - m.prefixWidth(), 0
 }
 
+// visibleWidth это ширина кода в самой узкой колонке: половины split бывают
+// разной ширины (#122).
+func (m Model) visibleWidth() int {
+	left, right := m.codeWidths()
+	if m.effectiveMode() == ModeSplit {
+		return min(left, right)
+	}
+	return left
+}
+
 // maxShift это сдвиг, при котором конец самой длинной строки встаёт к правому
 // краю самой узкой колонки.
 func (m Model) maxShift() int {
-	visible, _ := m.codeWidths()
-	return max(m.longest-visible, 0)
+	return max(m.longest-m.visibleWidth(), 0)
 }
 
 // hasBar: полоса прокрутки нужна, только когда есть что сдвигать.
@@ -74,8 +83,7 @@ func (m Model) hasBar() bool {
 // нижних полублоков, без фона клетки: она вдвое тоньше строки (#100). Длина
 // ползунка это видимая доля самой длинной строки, место это сдвиг.
 func (m Model) scrollbar() string {
-	visible, _ := m.codeWidths()
-	thumb := max(m.width*visible/m.longest, 1)
+	thumb := max(m.width*m.visibleWidth()/m.longest, 1)
 	start := min(m.width*m.shift/m.longest, m.width-thumb)
 	if m.shift == m.maxShift() {
 		start = m.width - thumb

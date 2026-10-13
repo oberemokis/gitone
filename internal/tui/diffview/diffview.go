@@ -47,6 +47,8 @@ type Model struct {
 	wrap    bool
 	shift   int
 	longest int
+	// share доля левой половины split, 0 значит пополам (split.go)
+	share float64
 }
 
 func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
