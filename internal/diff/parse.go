@@ -56,12 +56,12 @@ func (p *parser) headerLine(line string) {
 }
 
 // blobs это хэши версий из строки «index <старый>..<новый> <режим>». Хэш из
-// нулей значит, что версии нет. У конфликта слияния старых версий несколько
-// («a,b..c»), такой строке хэшей нет.
+// нулей значит, что версии нет. Запятая в хэшах («a,b..c») бывает только у
+// `diff --cc`, а он уходит в сырую запись раньше разбора заголовков.
 func blobs(index string) (old, new string) {
 	ids, _, _ := strings.Cut(index, " ")
 	old, new, found := strings.Cut(ids, "..")
-	if !found || strings.Contains(old, ",") {
+	if !found {
 		return "", ""
 	}
 

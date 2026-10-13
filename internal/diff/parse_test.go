@@ -511,7 +511,18 @@ func TestParseBlobs(t *testing.T) {
 		{name: "изменённый файл", input: header("index 0ff3bbb4c..9bebd18aa 100644"), old: "0ff3bbb4c", new: "9bebd18aa"},
 		{name: "новый файл", input: header("index 0000000000..3e75765abc"), old: "", new: "3e75765abc"},
 		{name: "удалённый файл", input: header("index de98044abc..0000000000"), old: "de98044abc", new: ""},
-		{name: "конфликт слияния", input: header("index ba2906d,2299c37..0000000"), old: "", new: ""},
+		{name: "конфликт слияния идёт сырой записью без хэшей", input: lines(
+			"diff --cc a.vue",
+			"index ba2906d0666cf726c7eaadd2cd3db615dedfdf3a,2299c37978265a95cbe835a4b0f0bbf15aad5549..0000000000000000000000000000000000000000",
+			"--- a/a.vue",
+			"+++ b/a.vue",
+			"@@@ -1,1 -1,1 +1,5 @@@",
+			"++<<<<<<< HEAD",
+			" +main",
+			"++=======",
+			"+ side",
+			"++>>>>>>> side",
+		), old: "", new: ""},
 	}
 
 	for _, tc := range tests {
