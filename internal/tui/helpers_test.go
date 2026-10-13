@@ -160,9 +160,10 @@ const (
 	bodyRow   = 3
 )
 
-// headerText это строка заголовка без стрелок по краям (#120) и пробелов.
+// headerText это строка заголовка без стрелок по краям (#120), клавиш рядом с
+// ними (#195) и пробелов. Клавиши здесь встроенные: «[» и «]».
 func headerText(screen []string) string {
-	return strings.TrimSpace(strings.Trim(strings.TrimSpace(screen[headerRow]), "‹›"))
+	return strings.Trim(screen[headerRow], "‹›[] ")
 }
 
 // openedFile читает путь открытого файла из заголовка: первое слово.
