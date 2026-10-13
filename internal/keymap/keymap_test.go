@@ -68,6 +68,58 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+// Ссылка на keybinds.json или на каталог настроек, которая существует и ведёт в
+// никуда, не то же, что отсутствие файла: клавиши пользователя есть и не
+// читаются, молча подменять их встроенными нельзя.
+func TestLoadBrokenSymlinkIsError(t *testing.T) {
+	tests := []struct {
+		name string
+		// ссылка от корня временного каталога, каталог настроек это settings
+		link string
+	}{
+		{name: "файл", link: "settings/keybinds.json"},
+		{name: "каталог настроек", link: "settings"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			link := filepath.Join(root, tc.link)
+			if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Join(root, "gone"), link); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := keymap.Load(filepath.Join(root, "settings"))
+
+			if err == nil || !strings.HasPrefix(err.Error(), "keybinds.json") {
+				t.Errorf("Load(ссылка %s на то, чего нет) error = %v, want error starting with keybinds.json", tc.link, err)
+			}
+		})
+	}
+}
+
+// Ссылка на существующий каталог без keybinds.json остаётся отсутствием файла.
+func TestLoadDirectorySymlinkWithoutFileIsNotError(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "dotfiles")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "settings")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	km, err := keymap.Load(link)
+
+	if got := km.KeysFor(keymap.AppQuit); err != nil || !slices.Equal(got, []string{"q", "ctrl+c"}) {
+		t.Fatalf("Load(ссылка на каталог без keybinds.json) = %q, %v; want встроенные клавиши без ошибки", got, err)
+	}
+}
+
 // Имена клавиш сверяются с тем, что отдаёт KeyPressMsg.String(): клавиша,
 // которой Bubble Tea не пришлёт, молча мертва, поэтому это ошибка загрузки.
 // Ошибка называет действие и клавишу.
