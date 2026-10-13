@@ -57,6 +57,9 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.active == pickerWindow {
 		return m.pickerKey(key)
 	}
+	if next, handled := m.helpKey(key.String()); handled {
+		return next, nil
+	}
 	return m.handleAction(m.keys.ActionFor(key.String()))
 }
 
@@ -81,7 +84,7 @@ func (m Model) windowBox() string {
 	}
 
 	if m.helpOpen {
-		return helpBox(m.colors, m.text, width, m.keys)
+		return helpBox(m.colors, m.text, width, height, m.helpTop, m.keys)
 	}
 	return ""
 }

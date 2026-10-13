@@ -11,9 +11,17 @@ import (
 	"gitone/internal/tui/zone"
 )
 
-// ctrl+p показываем как «ctrl p», так читается в подвале critique
+// ctrl+p показываем как «ctrl p», так читается в подвале critique. Последний
+// «+» это сама клавиша, а не разделитель: «+» остаётся «+», «ctrl++» читается
+// «ctrl +».
 func displayKey(key string) string {
-	return strings.ReplaceAll(key, "+", " ")
+	head, plus := strings.CutSuffix(key, "+")
+	head = strings.ReplaceAll(head, "+", " ")
+	if plus {
+		head += "+"
+	}
+
+	return head
 }
 
 // firstKey это первая клавиша действия для подсказки, пусто у отключённого.

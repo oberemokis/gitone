@@ -60,6 +60,46 @@ func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
 	}
 }
 
+// Клавиша «+» остаётся «+» в подвале и в строке справки: пробелом «+» заменяется
+// только как разделитель модификаторов, «ctrl++» читается «ctrl +».
+func TestPlusKeyIsShown(t *testing.T) {
+	tests := []struct {
+		name, keybinds string
+		press          tea.KeyPressMsg
+		wantFooter     string
+		wantHelpRow    string
+	}{
+		{name: "плюс", keybinds: `{"keybinds":{"app.help":"+"}}`, press: key('+'), wantFooter: "+ help", wantHelpRow: " +"},
+		{name: "ctrl плюс", keybinds: `{"keybinds":{"app.help":"ctrl++"}}`, press: tea.KeyPressMsg{Code: '+', Mod: tea.ModCtrl}, wantFooter: "ctrl + help", wantHelpRow: "ctrl +"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			model := openWithKeys(loadKeys(t, tc.keybinds))
+			if footer := footerOf(model); !strings.Contains(footer, tc.wantFooter) {
+				t.Fatalf("в подвале %q, want %q", footer, tc.wantFooter)
+			}
+
+			model, _ = model.Update(tc.press)
+			row := rowWith(t, screenOf(model), "Toggle this help")
+			if !strings.HasSuffix(strings.TrimSpace(row), tc.wantHelpRow) {
+				t.Fatalf("строка справки %q, want окончание %q", row, tc.wantHelpRow)
+			}
+		})
+	}
+}
+
+// В вопросе discard клавиша ответа «+» тоже видна.
+func TestQuestionShowsPlusKey(t *testing.T) {
+	repo, _ := threeFileRepo(t)
+	model := openWithKeybinds(t, repo, `{"keybinds":{"question.yes":"+"}}`, 100)
+	model, _ = model.Update(key('x'))
+
+	if footer := footerOf(model); !strings.Contains(footer, "? + yes") {
+		t.Fatalf("в вопросе %q, want «? + yes»", footer)
+	}
+}
+
 // Отключённая справка не открывается, а отключённые клавиши закрытия не
 // роняют отрисовку: справка без клавиши закрытия остаётся работоспособной.
 func TestDisabledActionsDoNotBreakScreen(t *testing.T) {
