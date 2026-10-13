@@ -101,20 +101,27 @@ func decode(data []byte) (Config, error) {
 // readFile читает файл настроек. found false без ошибки значит, что файла нет.
 // ErrNotExist приходит и от битой символической ссылки (dotfiles через stow,
 // перенесённый репозиторий), но тогда настройки есть и не читаются: молча
-// подменять их встроенными нельзя. Lstat смотрит на саму ссылку.
+// подменять их встроенными нельзя. Ссылкой может быть сам файл или каталог, в
+// котором он лежит: Lstat файла в каталоге-ссылке тоже отвечает ErrNotExist.
 func readFile(path string) (data []byte, found bool, err error) {
 	data, err = os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		if _, statErr := os.Lstat(path); errors.Is(statErr, fs.ErrNotExist) {
-			return nil, false, nil
-		}
-		return nil, false, err
+	if errors.Is(err, fs.ErrNotExist) && !dangling(path) && !dangling(filepath.Dir(path)) {
+		return nil, false, nil
 	}
 	if err != nil {
 		return nil, false, err
 	}
 
 	return data, true, nil
+}
+
+// dangling говорит, что путь существует как символическая ссылка, но ведёт в
+// никуда: Lstat видит ссылку, Stat уже нет.
+func dangling(path string) bool {
+	_, linkErr := os.Lstat(path)
+	_, targetErr := os.Stat(path)
+
+	return linkErr == nil && errors.Is(targetErr, fs.ErrNotExist)
 }
 
 // readNamed читает <sub>/<name>.json из каталога настроек, например тему или

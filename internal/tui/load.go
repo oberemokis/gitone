@@ -2,6 +2,7 @@ package tui
 
 import (
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -39,6 +40,20 @@ func Staged(dir string) (map[string]bool, error) {
 // Locate называет ветку и worktree для подвала.
 func Locate(dir string) (git.Location, error) {
 	return git.Locate(dir)
+}
+
+// Printable готовит текст ошибки к печати в stderr, когда интерфейс ещё не
+// запущен: cmd/gitone не знает пакет diff, а текст из git (имя ветки, отказ
+// хука) проходит мимо границы показа в окнах. Каждая строка идёт через
+// diff.Printable отдельно: переводы строк многострочного отказа git остаются,
+// ESC и `\r` становятся значками.
+func Printable(text string) string {
+	lines := strings.Split(text, "\n")
+	for index, line := range lines {
+		lines[index] = diff.Printable(line)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // reloadMsg несёт итог перечитывания: каталог и аргументы, с которыми читали,

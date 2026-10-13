@@ -108,6 +108,51 @@ func TestLocateDetachedHashMatchesWorktreesDespiteAbbrev(t *testing.T) {
 	}
 }
 
+// В большом репозитории префикс из 7 символов бывает у двух объектов, и
+// rev-parse --short=7 отдаёт тогда 8 и больше. Подвал и окно worktree всё равно
+// показывают одни и те же 7 символов полного хэша.
+func TestLocateDetachedHashMatchesWorktreesOnPrefixCollision(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	hash := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	plantPrefixCollision(t, repo, hash)
+	runGit(t, repo, "switch", "-q", "--detach")
+	if short := strings.TrimSpace(runGit(t, repo, "rev-parse", "--short=7", "HEAD")); len(short) <= 7 {
+		t.Fatalf("rev-parse --short=7 отдал %q: коллизия префикса не создана", short)
+	}
+
+	got, err := git.Locate(repo)
+	if err != nil {
+		t.Fatalf("Locate: %v", err)
+	}
+	if got.Branch != hash[:7] {
+		t.Fatalf("Locate.Branch = %q, want %q", got.Branch, hash[:7])
+	}
+
+	worktrees, err := git.Worktrees(repo)
+	if err != nil {
+		t.Fatalf("Worktrees: %v", err)
+	}
+	if len(worktrees) != 1 || worktrees[0].Branch != got.Branch {
+		t.Fatalf("Worktrees = %+v, want одно дерево с веткой %q", worktrees, got.Branch)
+	}
+}
+
+// plantPrefixCollision кладёт в репозиторий пустой файл-объект с именем, которое
+// от hash отличается восьмым символом: для сокращения хэша git смотрит только на
+// имена, содержимое он не читает.
+func plantPrefixCollision(t *testing.T, repo, hash string) {
+	t.Helper()
+
+	eighth := "0"
+	if hash[7] == '0' {
+		eighth = "1"
+	}
+	name := hash[:7] + eighth + hash[8:]
+	write(t, repo, filepath.Join(".git", "objects", name[:2], name[2:]), "")
+}
+
 // В репозитории без коммитов ветка уже названа, хэша ещё нет.
 func TestLocateUnbornBranch(t *testing.T) {
 	repo := newRepo(t)

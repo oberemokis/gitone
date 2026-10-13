@@ -76,12 +76,9 @@ func runUpdate(text i18n.Dictionary) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.ResponseHeaderTimeout = headerTimeout
-
 	u := updater{
 		base:    releaseBase,
-		client:  &http.Client{Transport: transport},
+		client:  newClient(),
 		current: version,
 		exe:     exe,
 		goos:    runtime.GOOS,
@@ -111,6 +108,16 @@ const (
 	headerTimeout = 30 * time.Second
 	idleTimeout   = 30 * time.Second
 )
+
+// newClient это клиент update: заголовки ответа ждёт headerTimeout, а общего
+// Client.Timeout нет, он оборвал бы бинарник на медленном канале. Функцией он
+// собран ради теста, который держит оба правила.
+func newClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = headerTimeout
+
+	return &http.Client{Transport: transport}
+}
 
 // run ставит новую версию, а при любом отказе оставляет бинарник прежним.
 // Сборка из исходников (версия dev) не обновляется: она бывает новее

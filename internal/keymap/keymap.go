@@ -193,10 +193,15 @@ func Default() Keymap {
 }
 
 // Load читает keybinds.json из каталога. Файла нет, значит встроенные клавиши.
-// Файл с ошибкой отбрасывается целиком, как config.json.
+// Файл с ошибкой отбрасывается целиком, как config.json. Ссылка, которая ведёт
+// в никуда, ошибка, хоть ReadFile и отвечает на неё ErrNotExist: это и ссылка
+// keybinds.json, и ссылка вместо каталога настроек. Правило то же, что у
+// config.readFile: по графу пакетов keymap не может импортировать config, ради
+// десяти строк стрелку не заводим.
 func Load(dir string) (Keymap, error) {
-	data, err := os.ReadFile(filepath.Join(dir, fileName))
-	if errors.Is(err, fs.ErrNotExist) {
+	path := filepath.Join(dir, fileName)
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) && !dangling(path) && !dangling(dir) {
 		return Default(), nil
 	}
 	if err != nil {
@@ -209,6 +214,15 @@ func Load(dir string) (Keymap, error) {
 	}
 
 	return km, nil
+}
+
+// dangling говорит, что путь существует как символическая ссылка, но ведёт в
+// никуда: Lstat видит ссылку, Stat уже нет.
+func dangling(path string) bool {
+	_, linkErr := os.Lstat(path)
+	_, targetErr := os.Stat(path)
+
+	return linkErr == nil && errors.Is(targetErr, fs.ErrNotExist)
 }
 
 type file struct {

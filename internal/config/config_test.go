@@ -141,6 +141,69 @@ func TestBrokenSymlinkIsError(t *testing.T) {
 	}
 }
 
+// Ссылка на каталог настроек, который ведёт в никуда, даёт ENOENT и на файле
+// внутри: Lstat файла отвечает так же, как при его отсутствии. Ошибкой это
+// остаётся, настройки не подменяются встроенными молча.
+func TestBrokenDirectorySymlinkIsError(t *testing.T) {
+	tests := []struct {
+		name string
+		// каталог, который становится ссылкой, от корня временного каталога
+		link string
+		// префикс ошибки: путь файла от каталога настроек
+		prefix string
+		read   func(dir string) error
+	}{
+		{name: "каталог настроек", link: "", prefix: "config.json", read: func(dir string) error {
+			_, err := config.Load(dir)
+			return err
+		}},
+		{name: "каталог тем", link: "themes", prefix: "themes/midnight.json", read: func(dir string) error {
+			_, _, err := config.ReadTheme(dir, "midnight")
+			return err
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			dir := filepath.Join(root, "settings")
+			link := filepath.Join(dir, tc.link)
+			if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Join(root, "gone"), link); err != nil {
+				t.Fatal(err)
+			}
+
+			err := tc.read(dir)
+
+			if err == nil || !strings.HasPrefix(err.Error(), tc.prefix) {
+				t.Errorf("чтение %s (ссылка на каталог, которого нет) error = %v, want error starting with %q", tc.name, err, tc.prefix)
+			}
+		})
+	}
+}
+
+// Ссылка на существующий каталог без файла настроек остаётся отсутствием файла:
+// ошибка нужна только там, где настройки есть и не читаются.
+func TestDirectorySymlinkWithoutFileIsNotError(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "dotfiles")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "settings")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := config.Load(link)
+
+	if err != nil || got != config.Default() {
+		t.Fatalf("Load(ссылка на каталог без config.json) = %+v, %v; want значения по умолчанию без ошибки", got, err)
+	}
+}
+
 func TestDir(t *testing.T) {
 	tests := []struct {
 		name string

@@ -46,7 +46,7 @@ func parseWorktree(block string) (Worktree, bool) {
 			worktree.Path = value
 		case "HEAD":
 			// строка ветки идёт после HEAD и заменит хэш
-			worktree.Branch = value[:min(len(value), 7)]
+			worktree.Branch = shortHash(value)
 		case "branch":
 			worktree.Branch = strings.TrimPrefix(value, "refs/heads/")
 		case "bare", "prunable":

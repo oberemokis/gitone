@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/layout"
 )
@@ -63,6 +64,36 @@ func TestFileNameWithEscapesIsPrintableInFilesPane(t *testing.T) {
 	// панель в 20 колонок обрезает имя, значки начала имени видны
 	if body := screenText(model); !strings.Contains(body, "evil␛]0;PWNED") {
 		t.Errorf("в панели файлов нет значков:\n%s", body)
+	}
+	noEscapes(t, model)
+}
+
+// Таб в имени файла занимает четыре колонки и в заголовке, и в панели файлов:
+// он раскрывается до измерения и обрезки. Раскрытый после (Render дописывает
+// пробелы сам, ansi.StringWidth считает таб нулевым) он расширил бы строку
+// панели и сдвинул столбец диффа справа.
+func TestFileNameWithTabIsExpandedInHeaderAndFilesPane(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a\tb.txt", "old\n")
+	commitAll(t, repo)
+	write(t, repo, "a\tb.txt", "new\n")
+
+	model := toggleFiles(resize(open(t, options(repo, layout.Default())), 100, 20))
+	screen := screenOf(model)
+
+	header := screen[headerRow]
+	if !strings.Contains(header, "a    b.txt") {
+		t.Errorf("в заголовке таб не раскрыт в четыре пробела: %q", header)
+	}
+	if width := ansi.StringWidth(header); width != 100 {
+		t.Errorf("строка заголовка шире экрана: %d колонок, want 100: %q", width, header)
+	}
+	pane := rowWith(t, screen, "› a")
+	if !strings.Contains(pane, "› a    b.txt") {
+		t.Errorf("в панели файлов таб не раскрыт в четыре пробела: %q", pane)
+	}
+	if width := ansi.StringWidth(pane); width != 100 {
+		t.Errorf("строка панели файлов шире экрана: %d колонок, want 100: %q", width, pane)
 	}
 	noEscapes(t, model)
 }

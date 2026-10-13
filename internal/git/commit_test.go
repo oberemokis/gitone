@@ -3,6 +3,7 @@ package git_test
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,18 @@ import (
 func lastSubject(t *testing.T, repo string) string {
 	t.Helper()
 	return strings.TrimSpace(runGit(t, repo, "log", "-1", "--format=%s"))
+}
+
+// stopsOnConflict запускает git, который должен остановиться на конфликте и
+// оставить операцию незавершённой.
+func stopsOnConflict(t *testing.T, repo string, args ...string) {
+	t.Helper()
+
+	command := exec.Command("git", args...)
+	command.Dir = repo
+	if out, err := command.CombinedOutput(); err == nil {
+		t.Fatalf("git %v прошёл без конфликта:\n%s", args, out)
+	}
 }
 
 func TestCommitRecordsSubject(t *testing.T) {
@@ -45,6 +58,78 @@ func TestCommitWithNothingStagedFails(t *testing.T) {
 	}
 	if err.Error() != "commit: nothing to commit" {
 		t.Fatalf("ошибка %q, ожидалось «commit: nothing to commit»", err)
+	}
+}
+
+// Завершение слияния с деревом, равным HEAD (`merge --no-commit -s ours`),
+// проходит: индекс не отличается от HEAD, но MERGE_HEAD просит коммит слияния.
+func TestCommitFinishesMergeWithTreeEqualToHead(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "other")
+	write(t, repo, "b.txt", "other\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+	runGit(t, repo, "merge", "-q", "--no-commit", "-s", "ours", "other")
+
+	if err := git.Commit(repo, "слияние"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if got := lastSubject(t, repo); got != "слияние" {
+		t.Fatalf("тема коммита %q", got)
+	}
+	if parents := strings.Fields(runGit(t, repo, "log", "-1", "--format=%P")); len(parents) != 2 {
+		t.Fatalf("родителей %d, ожидался коммит слияния с двумя", len(parents))
+	}
+}
+
+// Cherry-pick, остановленный конфликтом, и revert при разрешении в пользу HEAD
+// оставляют индекс равным HEAD. Решает git: пустой коммит он не делает, и этот
+// отказ приходит его собственной ошибкой, а не отказом из словаря.
+func TestCommitDuringCherryPickAndRevertLeavesDecisionToGit(t *testing.T) {
+	tests := []struct {
+		name  string
+		start func(t *testing.T, repo string)
+	}{
+		{
+			name: "cherry-pick",
+			start: func(t *testing.T, repo string) {
+				runGit(t, repo, "switch", "-q", "-c", "other", "HEAD~")
+				write(t, repo, "a.txt", "other\n")
+				commitAll(t, repo)
+				runGit(t, repo, "switch", "-q", "main")
+				stopsOnConflict(t, repo, "cherry-pick", "other")
+			},
+		},
+		{
+			name: "revert",
+			start: func(t *testing.T, repo string) {
+				stopsOnConflict(t, repo, "revert", "--no-edit", "HEAD~")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", "one\n")
+			commitAll(t, repo)
+			write(t, repo, "a.txt", "two\n")
+			commitAll(t, repo)
+			write(t, repo, "a.txt", "three\n")
+			commitAll(t, repo)
+			tc.start(t, repo)
+			runGit(t, repo, "checkout", "-q", "--ours", "a.txt")
+			runGit(t, repo, "add", "a.txt")
+
+			err := git.Commit(repo, "после остановки")
+
+			var refusal *i18n.Error
+			if err == nil || errors.As(err, &refusal) {
+				t.Fatalf("ошибка %v, ожидался отказ самого git, а не отказ из словаря", err)
+			}
+		})
 	}
 }
 
