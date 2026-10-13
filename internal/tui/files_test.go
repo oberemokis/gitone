@@ -70,7 +70,7 @@ func TestPickerFiltersBySubsequenceAndOpensChoice(t *testing.T) {
 	if got := openedFile(after); got != "internal/tui/app.go" {
 		t.Fatalf("после enter открыт %q", got)
 	}
-	if body := strings.Join(after, "\n"); strings.Contains(body, "Search") || !strings.Contains(after[headerRow], "(2/3)") {
+	if body := strings.Join(after, "\n"); strings.Contains(body, "esc close") || !strings.Contains(after[headerRow], "(2/3)") {
 		t.Fatalf("окно не закрылось или счётчик не сменился:\n%s", body)
 	}
 }
@@ -98,7 +98,7 @@ func TestPickerTakesQuitAndHelpKeysAsText(t *testing.T) {
 	}
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if screen := strings.Join(screenOf(model), "\n"); strings.Contains(screen, "Search") || strings.Contains(screen, "q?") {
+	if screen := strings.Join(screenOf(model), "\n"); strings.Contains(screen, "esc close") || strings.Contains(screen, "q?") {
 		t.Fatalf("esc не закрыл окно:\n%s", screen)
 	}
 }
@@ -134,7 +134,7 @@ func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 
 	screen := screenOf(model)
-	if !strings.Contains(screen[bodyRow], "old a.txt") || !strings.Contains(strings.Join(screen, "\n"), "Search") {
+	if !strings.Contains(screen[bodyRow], "old a.txt") || !strings.Contains(strings.Join(screen, "\n"), "esc close") {
 		t.Fatalf("окно не лежит поверх диффа с видимыми краями:\n%s", strings.Join(screen, "\n"))
 	}
 }

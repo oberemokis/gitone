@@ -49,7 +49,7 @@ func TestPickerChoiceOfGoneFileKeepsOpenFile(t *testing.T) {
 	if got := openedFile(screen); got != "b.txt" {
 		t.Fatalf("открыт %q, ожидался b.txt:\n%s", got, strings.Join(screen, "\n"))
 	}
-	if strings.Contains(strings.Join(screen, "\n"), "Search") {
+	if strings.Contains(strings.Join(screen, "\n"), "esc close") {
 		t.Fatalf("окно поиска не закрылось:\n%s", strings.Join(screen, "\n"))
 	}
 }

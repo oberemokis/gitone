@@ -457,27 +457,44 @@ func (m Model) openPicker() Model {
 		items[index] = picker.Item{Label: fileTitle(file, m.text), Detail: statusLabel(file.Status, m.text)}
 	}
 
-	noMatches := "files.noMatches"
-	if len(m.files) == 0 {
-		noMatches = "files.none"
-	}
-	texts := picker.Texts{
-		Title:      m.text.Text("files.title", nil),
-		Search:     m.text.Text("files.search", nil),
-		NoMatches:  m.text.Text(noMatches, nil),
-		CloseKey:   firstKey(m.keys, keymap.SearchClose),
-		CloseLabel: m.text.Text("window.close", nil),
-	}
 	keys := picker.Keys{
 		Choose: m.keys.KeysFor(keymap.SearchChoose),
 		Close:  m.keys.KeysFor(keymap.SearchClose),
 		Up:     m.keys.KeysFor(keymap.SearchUp),
 		Down:   m.keys.KeysFor(keymap.SearchDown),
 	}
-	m.picker = picker.New(texts, keys, items, m.colors)
+	m.picker = picker.New(keys, items)
 	m.active = pickerWindow
 	m.helpOpen = false
 	return m
+}
+
+// pickerBox рисует поиск файлов тем же списком, что лог и ветки (#137):
+// строка поиска «/ запрос» открыта всегда, у выбранного файла «›», статус
+// файла справа приглушённый, внизу подсказка выбора. Без файлов вместо
+// списка надпись об этом, а не о пустом поиске.
+func pickerBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, files picker.Model, noFiles bool, screenWidth, screenHeight int) string {
+	noMatches := text.Text("files.noMatches", nil)
+	if noFiles {
+		noMatches = text.Text("files.none", nil)
+	}
+
+	box := list{
+		title:  text.Text("files.title", nil),
+		close:  closeHint(colors, keys, text, keymap.SearchClose),
+		width:  90,
+		cursor: files.Selected(),
+	}.withSearch(colors, text, keys, files.Query(), true, noMatches)
+	box.hint = windowHint(colors, keys, text, keymap.SearchChoose)
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	muted := panel.Foreground(colors.TextMuted)
+	width := box.rowWidth(screenWidth)
+	for _, item := range files.Shown() {
+		box.rows = append(box.rows, justify(panel, width, panel.Render(item.Label), muted.Render(item.Detail)))
+	}
+
+	return box.view(colors, screenWidth, screenHeight)
 }
 
 // openFile открывает файл по номеру в диффе. За краями списка ничего не
