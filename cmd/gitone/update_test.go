@@ -429,6 +429,23 @@ func TestFetchStalledBody(t *testing.T) {
 	})
 }
 
+// Клиент update ждёт заголовки ответа не дольше 30 секунд, а общего потолка на
+// загрузку не ставит: Client.Timeout оборвал бы бинарник на медленном канале.
+func TestNewClientBoundsHeadersButNotWholeDownload(t *testing.T) {
+	client := newClient()
+
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport = %T, want *http.Transport", client.Transport)
+	}
+	if transport.ResponseHeaderTimeout != 30*time.Second {
+		t.Errorf("ResponseHeaderTimeout = %v, want 30s", transport.ResponseHeaderTimeout)
+	}
+	if client.Timeout != 0 {
+		t.Errorf("Client.Timeout = %v, want 0: общего потолка на загрузку нет", client.Timeout)
+	}
+}
+
 func TestNewer(t *testing.T) {
 	tests := []struct {
 		candidate, current string
