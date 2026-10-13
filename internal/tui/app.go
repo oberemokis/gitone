@@ -184,12 +184,16 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		m = m.paste(msg.Content)
 	// окно лежит поверх диффа: крутить то, что закрыто, нечем и незачем (#150).
-	// Вопрос discard окна не рисует, под ним дифф виден и крутится.
+	// Вопрос discard окна не рисует, под ним дифф виден и крутится. Колесо в
+	// окне-списке двигает его курсор (#197).
 	case tea.MouseWheelMsg:
-		if m.helpOverflow() > 0 {
+		switch {
+		case m.helpOverflow() > 0:
 			m = m.wheelHelp(msg.Button)
-		} else if m.active == noWindow || m.active == discardWindow {
+		case m.active == noWindow || m.active == discardWindow:
 			m.view = m.wheel(msg)
+		default:
+			m = m.wheelList(msg.Button)
 		}
 	case tea.MouseClickMsg:
 		if msg.Button == tea.MouseLeft {

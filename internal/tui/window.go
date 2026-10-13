@@ -106,14 +106,55 @@ func (m Model) navigate(key tea.KeyPressMsg, count int) (next Model, cmd tea.Cmd
 		m.active = noWindow
 		return m, nil, true
 	case m.keys.Is(keymap.ListDown, pressed):
-		m.cursor = min(m.cursor+1, max(count-1, 0))
-		return m, nil, true
+		return m.moveCursor(1, count), nil, true
 	case m.keys.Is(keymap.ListUp, pressed):
-		m.cursor = max(m.cursor-1, 0)
-		return m, nil, true
+		return m.moveCursor(-1, count), nil, true
 	}
 
 	return m, nil, false
+}
+
+// moveCursor сдвигает курсор на delta строк списка из count строк, не дальше
+// первой и последней.
+func (m Model) moveCursor(delta, count int) Model {
+	m.cursor = max(min(m.cursor+delta, count-1), 0)
+	return m
+}
+
+// wheelList двигает курсор открытого списка колесом: щелчок это wheelStep
+// нажатий list.down или list.up подряд. Вбок списку двигаться некуда. Вопрос
+// об удалении stash и поле коммита курсора не имеют, колесо их пропускает.
+// Список прокручивается при рисовании за курсором, поле поиска колесу не
+// мешает: курсор ходит по найденному.
+func (m Model) wheelList(button tea.MouseButton) Model {
+	var delta int
+	switch button {
+	case tea.MouseWheelDown:
+		delta = 1
+	case tea.MouseWheelUp:
+		delta = -1
+	default:
+		return m
+	}
+
+	switch m.active {
+	case pickerWindow:
+		m.picker = m.picker.Move(delta * wheelStep)
+	case logWindow:
+		// шаг за шагом, как клавиши: строки соединения графа курсор перешагивает
+		shown := m.logShown()
+		for range wheelStep {
+			m.cursor = commitRow(shown, m.cursor, m.moveCursor(delta, len(shown)).cursor)
+		}
+	case branchWindow:
+		m = m.moveCursor(delta*wheelStep, len(m.branchesShown()))
+	case worktreeWindow:
+		m = m.moveCursor(delta*wheelStep, len(m.worktreesShown()))
+	case stashWindow:
+		m = m.moveCursor(delta*wheelStep, len(m.stashes))
+	}
+
+	return m
 }
 
 // searchKey разбирает поиск в списке лога, веток и worktree (#110, #118):

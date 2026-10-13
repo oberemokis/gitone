@@ -80,9 +80,9 @@ func (m Model) HandleKey(key tea.KeyPressMsg) (Model, Outcome) {
 		}
 		return m, Chosen
 	case slices.Contains(m.keys.Up, pressed):
-		m.selected = max(m.selected-1, 0)
+		m = m.Move(-1)
 	case slices.Contains(m.keys.Down, pressed):
-		m.selected = min(m.selected+1, max(len(m.matches)-1, 0))
+		m = m.Move(1)
 	case pressed == "backspace":
 		if m.query != "" {
 			_, size := utf8.DecodeLastRuneInString(m.query)
@@ -103,6 +103,13 @@ func (m Model) HandleKey(key tea.KeyPressMsg) (Model, Outcome) {
 func (m Model) Type(text string) Model {
 	m.query += text
 	return m.filter()
+}
+
+// Move сдвигает выделение на delta позиций среди найденных, не дальше первой
+// и последней: так его двигают клавиши и колесо мыши.
+func (m Model) Move(delta int) Model {
+	m.selected = max(min(m.selected+delta, len(m.matches)-1), 0)
+	return m
 }
 
 // Select ставит выделение на позицию среди найденных (Shown), например по
