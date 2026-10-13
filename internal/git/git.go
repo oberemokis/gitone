@@ -263,8 +263,9 @@ func run(options call, args ...string) (string, error) {
 			return string(out), nil
 		}
 
-		// часть сообщений git пишет в stdout: «nothing to commit» идёт туда же
-		message := cmp.Or(strings.TrimSpace(string(exitError.Stderr)), strings.TrimSpace(string(out)))
+		// часть сообщений git пишет в stdout: конфликт `stash apply` идёт туда.
+		// Отказ без единой строки (хук с `exit 1`) называется кодом выхода.
+		message := cmp.Or(strings.TrimSpace(string(exitError.Stderr)), strings.TrimSpace(string(out)), exitError.Error())
 		return "", &gitError{message: message, exit: exitError}
 	}
 
