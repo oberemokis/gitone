@@ -234,6 +234,34 @@ func TestReloadPressedWhileLoadingReadsAgain(t *testing.T) {
 	}
 }
 
+// Шаг спиннера прежней загрузки приходит, когда пробел уже запустил новую: его
+// цепочка обрывается, а цепочка новой загрузки идёт дальше. Две цепочки
+// крутили бы спиннер вдвое быстрее.
+func TestSpinnerTickOfFinishedLoadDoesNotStartSecondChain(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+
+	model, first := model.Update(key('r'))
+	// в пакете первым идёт шаг спиннера, вторым ответ git
+	oldReply := runAll(first)
+	oldTick, oldRead := oldReply[0], oldReply[1]
+	model, _ = model.Update(oldRead)
+
+	model, staging := model.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	model, restart := model.Update(runAll(staging)[0])
+	newTick := runAll(restart)[0]
+
+	if _, cmd := model.Update(oldTick); cmd != nil {
+		t.Error("шаг прежней загрузки продолжил свою цепочку спиннера")
+	}
+	if _, cmd := model.Update(newTick); cmd == nil {
+		t.Error("шаг идущей загрузки не продолжил цепочку спиннера")
+	}
+}
+
 // openSecondLink открывает дифф, где файл link стал симлинком: две записи с
 // одним путём, удалённая «content» и добавленная «target». Открыта вторая.
 func openSecondLink(t *testing.T, ticks <-chan time.Time) (string, tea.Model) {

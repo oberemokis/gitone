@@ -34,7 +34,9 @@ type Model struct {
 	dir     string
 	args    []string
 	loading bool
-	// spin кадр спиннера загрузки в подвале
+	// load номер последней начатой загрузки: шаги спиннера других загрузок
+	// отбрасываются; spin кадр спиннера в подвале
+	load int
 	spin int
 	// stale: правка gitone пришла во время загрузки, после неё нужно перечитать ещё раз
 	stale bool
@@ -204,9 +206,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case polledMsg:
 		m = m.polled(msg)
 	case spinMsg:
-		if m.loading {
+		if m.loading && msg.load == m.load {
 			m.spin++
-			return m, spinTick()
+			return m, spinTick(m.load)
 		}
 	case reloadMsg:
 		return m.reloaded(msg)
@@ -282,10 +284,11 @@ func (m Model) startReload() (Model, tea.Cmd) {
 	}
 
 	m.loading = true
+	m.load++
 	m.stale = false
 	m.spin = 0
 	m = m.dropQuestion()
-	return m, tea.Batch(spinTick(), reload(m.dir, m.args))
+	return m, tea.Batch(spinTick(m.load), reload(m.dir, m.args))
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать
