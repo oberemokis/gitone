@@ -9,6 +9,7 @@ import (
 
 	"gitone/internal/git"
 	"gitone/internal/layout"
+	"gitone/internal/tui"
 )
 
 // Пробел ставит текущий файл в индекс. Отметки в панели нет (#99): индекс
@@ -154,45 +155,59 @@ func TestDiscardCopyKeepsSource(t *testing.T) {
 }
 
 // Пока на экране не дифф рабочего дерева, пробел и x ничего не меняют: путь из
-// чужого диффа указал бы на правку, которой на экране нет.
+// чужого диффа указал бы на правку, которой на экране нет. Заметка зовёт
+// клавишу b, только если b ведёт к диффу рабочего дерева: при запуске с
+// аргументами она вернула бы к аргументам запуска, то есть к такому же виду.
 func TestReadOnlyViewsLeaveWorktreeAndIndex(t *testing.T) {
-	views := map[string]func(t *testing.T) (string, tea.Model){
-		"коммит из лога": func(t *testing.T) (string, tea.Model) {
-			repo := editedTwiceRepo(t)
-			model := resize(open(t, options(repo, layout.Focus())), 100, 20)
-			model = openAsync(model, key('l'))
-			model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-			return repo, settle(model, cmd, 4)
-		},
-		"staged": func(t *testing.T) (string, tea.Model) {
-			repo := editedTwiceRepo(t)
-			opts := options(repo, layout.Focus())
-			opts.Args = []string{"--staged"}
-			return repo, resize(open(t, opts), 100, 20)
-		},
+	const (
+		backNote = "this view is read-only, press b to return to the working tree"
+		argsNote = "this view is read-only, run gitone without arguments"
+	)
+	commitFromLog := func(t *testing.T, opts tui.Options) tea.Model {
+		model := resize(open(t, opts), 100, 20)
+		model = openAsync(model, key('l'))
+		model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		return settle(model, cmd, 4)
+	}
+	views := map[string]struct {
+		args []string
+		open func(t *testing.T, opts tui.Options) tea.Model
+		note string
+	}{
+		"коммит из лога": {open: commitFromLog, note: backNote},
+		"staged": {args: []string{"--staged"}, open: func(t *testing.T, opts tui.Options) tea.Model {
+			return resize(open(t, opts), 100, 20)
+		}, note: argsNote},
+		"коммит из лога при запуске с аргументами": {args: []string{"--staged"}, open: commitFromLog, note: argsNote},
 	}
 
-	const note = "press b to return to the working tree"
 	for name, view := range views {
+		start := func(t *testing.T) (string, tea.Model) {
+			repo := editedTwiceRepo(t)
+			opts := options(repo, layout.Focus())
+			opts.Args = view.args
+			return repo, view.open(t, opts)
+		}
+
 		t.Run(name+"/space", func(t *testing.T) {
-			repo, model := view(t)
+			repo, model := start(t)
 
 			model, cmd := model.Update(space)
 			model = settle(model, cmd, 4)
 
 			assertEditsKept(t, repo)
-			if footer := footerOf(model); !strings.Contains(footer, note) {
-				t.Fatalf("подвал = %q, want заметку", footer)
+			if footer := footerOf(model); !strings.Contains(footer, view.note) {
+				t.Fatalf("подвал = %q, want заметку %q", footer, view.note)
 			}
 		})
 
 		t.Run(name+"/discard", func(t *testing.T) {
-			repo, model := view(t)
+			repo, model := start(t)
 
 			model, _ = model.Update(key('x'))
 			footer := footerOf(model)
-			if strings.Contains(footer, "Discard changes") || !strings.Contains(footer, note) {
-				t.Fatalf("подвал = %q, want заметку без вопроса", footer)
+			if strings.Contains(footer, "Discard changes") || !strings.Contains(footer, view.note) {
+				t.Fatalf("подвал = %q, want заметку %q без вопроса", footer, view.note)
 			}
 			answerYes(model)
 

@@ -72,8 +72,12 @@ func (m Model) target() (paths []string, note string) {
 	switch {
 	case len(paths) == 0:
 		return nil, m.text.Text("stage.noFile", nil)
-	case len(m.args) > 0:
+	case len(m.args) > 0 && len(m.baseArgs) == 0:
 		return nil, m.text.Text("stage.viewOnly", i18n.Args{"key": firstKey(m.keys, keymap.DiffWorkingTree)})
+	case len(m.args) > 0:
+		// b вернул бы к аргументам запуска, а это тоже вид только для просмотра:
+		// совет с клавишей вёл бы в то же место
+		return nil, m.text.Text("stage.viewOnlyArgs", nil)
 	}
 
 	return paths, ""
