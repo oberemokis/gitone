@@ -10,13 +10,21 @@ import (
 // стоила 17 мс. ponytail: горизонтальной прокрутке понадобится больше.
 const maxLineRunes = 1024
 
-// clean готовит строку файла к выводу в терминал. Содержимое файла не должно
-// управлять терминалом: `\r` из CRLF возвращает курсор в начало строки и
-// ломает колонки split, escape-коды красят экран и сбрасывают фон строки.
-// Поэтому управляющие символы заменяются значками U+2400–U+2421, а таб
-// остаётся, его раскрывает экран.
+// clean готовит строку файла к выводу: срезает концевой `\r` перевода строки
+// CRLF и обрезает длинную строку.
 func clean(text string) string {
-	text = strings.ToValidUTF8(strings.TrimSuffix(truncate(text), "\r"), string(utf8.RuneError))
+	return Printable(truncate(strings.TrimSuffix(text, "\r")))
+}
+
+// Printable готовит текст из диффа к выводу в терминал. Содержимое файла и
+// имя файла не должны управлять терминалом: `\r` возвращает курсор в начало
+// строки и ломает колонки split, escape-коды красят экран и сбрасывают фон
+// строки. Поэтому управляющие символы заменяются значками U+2400–U+2421, C1 и
+// битые байты на U+FFFD, а таб остаётся, его раскрывает экран. Пути
+// File.OldPath и File.NewPath остаются сырыми: они нужны git как есть, а на
+// экран идут через Printable.
+func Printable(text string) string {
+	text = strings.ToValidUTF8(text, string(utf8.RuneError))
 
 	return strings.Map(func(char rune) rune {
 		switch {
