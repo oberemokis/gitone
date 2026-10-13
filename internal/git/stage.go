@@ -10,14 +10,32 @@ import (
 
 // Stage добавляет пути в индекс. Удалённый файл тоже: add -A берёт и удаление.
 func Stage(dir string, paths []string) error {
-	_, err := inRoot(dir, append([]string{"add", "-A", "--"}, paths...)...)
-	return failed("add", err)
+	return failed("add", stage(dir, paths))
+}
+
+func stage(dir string, paths []string) error {
+	root, err := topLevel(dir)
+	if err != nil {
+		return err
+	}
+
+	_, err = run(literal(root), append([]string{"add", "-A", "--"}, paths...)...)
+	return err
 }
 
 // Unstage убирает пути из индекса. Правка в рабочем дереве остаётся на месте.
 func Unstage(dir string, paths []string) error {
-	_, err := inRoot(dir, append([]string{"restore", "--staged", "--"}, paths...)...)
-	return failed("restore", err)
+	return failed("restore", unstage(dir, paths))
+}
+
+func unstage(dir string, paths []string) error {
+	root, err := topLevel(dir)
+	if err != nil {
+		return err
+	}
+
+	_, err = run(literal(root), append([]string{"restore", "--staged", "--"}, paths...)...)
+	return err
 }
 
 // Discard отменяет правки путей. Файл, который есть в HEAD, возвращается к нему
@@ -35,14 +53,14 @@ func discard(dir string, paths []string) error {
 	}
 
 	for _, path := range paths {
-		if _, err := run(call{dir: root}, "cat-file", "-e", "HEAD:"+path); err == nil {
-			if _, err := run(call{dir: root}, "restore", "--source=HEAD", "--staged", "--worktree", "--", path); err != nil {
+		if _, err := run(literal(root), "cat-file", "-e", "HEAD:"+path); err == nil {
+			if _, err := run(literal(root), "restore", "--source=HEAD", "--staged", "--worktree", "--", path); err != nil {
 				return err
 			}
 			continue
 		}
 
-		if _, err := run(call{dir: root}, "rm", "-f", "--cached", "--ignore-unmatch", "--quiet", "--", path); err != nil {
+		if _, err := run(literal(root), "rm", "-f", "--cached", "--ignore-unmatch", "--quiet", "--", path); err != nil {
 			return err
 		}
 		if err := os.Remove(filepath.Join(root, path)); err != nil && !errors.Is(err, fs.ErrNotExist) {
