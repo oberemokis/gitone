@@ -284,7 +284,10 @@ func (m Model) placement() layout.Placed {
 // убирается из дерева, открытая встаёт туда, куда её поставила раскладка, а
 // в раскладке без неё слева, как в default. Открыть панель решает
 // пользователь, поэтому узкий экран её не прячет. Ширина, вытянутая мышью,
-// заменяет ширину раскладки.
+// заменяет ширину раскладки, но урезается по экрану при каждом чтении, а не
+// при перетаскивании (#151): после сужения окна дифф не остаётся без места,
+// а после возврата размера ширина мыши действует снова. Если и урезанная
+// ширина меньше minFilesWidth, действует раскладка.
 func (m Model) arrangement() layout.Node {
 	root := layout.Default()
 	switch {
@@ -294,8 +297,8 @@ func (m Model) arrangement() layout.Node {
 		root = m.layout
 	}
 
-	if m.filesWidth > 0 {
-		return layout.Resized(root, "files", layout.Size{Cells: m.filesWidth})
+	if width := min(m.filesWidth, m.width-minDiffWidth); width >= minFilesWidth {
+		return layout.Resized(root, "files", layout.Size{Cells: width})
 	}
 	return root
 }
