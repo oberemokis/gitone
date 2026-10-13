@@ -240,3 +240,19 @@ func TestListRowsKeepWindowBackground(t *testing.T) {
 		}
 	}
 }
+
+// В окне веток автор и дата у правого края, как в логе: дата кончается под
+// «close», а отметка текущей стоит сразу за именем (#131).
+func TestBranchDateAtRightEdge(t *testing.T) {
+	_, model := branchesWith(t)
+	screen := screenOf(model)
+
+	end := column(rowWith(t, screen, "close"), "close") + len("close")
+	row := rowWith(t, screen, "(current)")
+	if date := relativeDate.FindString(row); column(row, date)+len(date) != end {
+		t.Errorf("дата кончается в колонке %d, want %d: %q", column(row, date)+len(date), end, row)
+	}
+	if got, want := column(row, "(current)"), column(row, "main")+len("main")+1; got != want {
+		t.Errorf("(current) с колонки %d, want %d сразу за именем: %q", got, want, row)
+	}
+}
