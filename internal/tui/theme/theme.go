@@ -22,6 +22,7 @@ type Theme struct {
 	BackgroundPanel color.Color
 	Primary         color.Color
 	Accent          color.Color
+	Worktree        color.Color
 	DiffAdded       color.Color
 	DiffRemoved     color.Color
 	DiffAddedBg     color.Color
@@ -52,6 +53,7 @@ func Dark() Theme {
 		BackgroundPanel:     lipgloss.Color("#141414"),
 		Primary:             lipgloss.Color("#fab283"),
 		Accent:              lipgloss.Color("#9d7cd8"),
+		Worktree:            lipgloss.Color("#e5c07b"),
 		DiffAdded:           lipgloss.Color("#3fb950"),
 		DiffRemoved:         lipgloss.Color("#f85149"),
 		DiffAddedBg:         lipgloss.Color("#0d1f16"),
@@ -136,6 +138,7 @@ func (t *Theme) fields() map[string]*color.Color {
 		"backgroundPanel":     &t.BackgroundPanel,
 		"primary":             &t.Primary,
 		"accent":              &t.Accent,
+		"worktree":            &t.Worktree,
 		"diffAdded":           &t.DiffAdded,
 		"diffRemoved":         &t.DiffRemoved,
 		"diffAddedBg":         &t.DiffAddedBg,

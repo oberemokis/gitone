@@ -50,16 +50,44 @@ func TestFooterLocationKeysFollowKeymap(t *testing.T) {
 	}
 }
 
-// Клавиша яркая, имя приглушённое, как в подсказках справа.
-func TestFooterLocationKeyStandsOut(t *testing.T) {
-	raw := mutedTheme(t).View().Content
+const (
+	// accent и worktree встроенной темы в ANSI
+	accentFg   = "38;2;157;124;216"
+	worktreeFg = "38;2;229;192;123"
+)
+
+// Слева ветка цветом accent, worktree цветом worktree, а клавиши B и W
+// остаются цветом текста, как подсказки справа.
+func TestFooterLocationColors(t *testing.T) {
+	repo, model := threeFileRepo(t)
+	raw := model.View().Content
 
 	// в сыром выводе «q» и « quit» разделены кодами цвета
-	if code := styleBefore(t, raw, " quit", "B"); strings.Contains(code, mutedFg) {
-		t.Errorf("клавиша B приглушена: %q", code)
+	if code := styleBefore(t, raw, " quit", "main"); !strings.Contains(code, accentFg) {
+		t.Errorf("ветка не цветом accent: %q", code)
 	}
-	if code := styleBefore(t, raw, " quit", "main"); !strings.Contains(code, mutedFg) {
-		t.Errorf("ветка не приглушена: %q", code)
+	if code := styleBefore(t, raw, " quit", filepath.Base(repo)); !strings.Contains(code, worktreeFg) {
+		t.Errorf("worktree не цветом worktree: %q", code)
+	}
+	for _, name := range []string{"B", "W"} {
+		code := styleBefore(t, raw, " quit", name)
+		if strings.Contains(code, accentFg) || strings.Contains(code, worktreeFg) || strings.Contains(code, mutedFg) {
+			t.Errorf("клавиша %s не цветом текста: %q", name, code)
+		}
+	}
+}
+
+// Цвет worktree в подвале берётся из роли темы, а не зашит в код.
+func TestFooterWorktreeFollowsTheme(t *testing.T) {
+	repo, _ := threeFileRepo(t)
+	custom := theme.Dark()
+	custom.Worktree = lipgloss.Color("#ff0000")
+	opts := options(repo, layout.Focus())
+	opts.Theme = custom
+	raw := resize(open(t, opts), 100, 20).View().Content
+
+	if code := styleBefore(t, raw, " quit", filepath.Base(repo)); !strings.Contains(code, "38;2;255;0;0") {
+		t.Errorf("worktree в подвале не цветом темы: %q", code)
 	}
 }
 

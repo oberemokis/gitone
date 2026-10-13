@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"image/color"
 	"slices"
 	"strconv"
 	"strings"
@@ -183,21 +184,21 @@ func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap) []
 // locationLabel это ветка и worktree для левого края, каждое со своей
 // клавишей окна, как подсказки справа: «B main   W gitone» (#108). Клавиша
 // берётся из keymap, отключённое окно оставляет одно имя. Клик по паре
-// открывает окно, как её клавиша (#119).
+// открывает окно, как её клавиша (#119). Ветка идёт цветом accent, worktree
+// цветом своей роли, клавиши цветом текста.
 func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap) string {
 	if location.Branch == "" {
 		return ""
 	}
 
-	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
-	pair := func(action keymap.Action, name string) string {
+	pair := func(action keymap.Action, nameColor color.Color, name string) string {
 		if key := firstKey(keys, action); key != "" {
-			return pressable(action, keyHint(lipgloss.NewStyle(), colors, key, name))
+			return pressable(action, coloredHint(lipgloss.NewStyle(), nameColor, key, name))
 		}
-		return muted.Render(name)
+		return lipgloss.NewStyle().Foreground(nameColor).Render(name)
 	}
 
-	return pair(keymap.AppBranches, visible(location.Branch)) + "   " + pair(keymap.AppWorktrees, visible(location.Worktree))
+	return pair(keymap.AppBranches, colors.Accent, visible(location.Branch)) + "   " + pair(keymap.AppWorktrees, colors.Worktree, visible(location.Worktree))
 }
 
 // spinnerFrames это спиннер из точек Брайля, как у opencode и lazygit.
