@@ -237,12 +237,14 @@ func (l list) rowWidth(screenWidth int) int {
 func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	width := l.windowWidth(screenWidth)
 	// без отступов окна, заголовка с пустой строкой под ним и подсказки с
-	// пустой строкой над ней
+	// пустой строкой над ней, заголовков столбцов и поиска с пустой строкой
+	// под ним
 	chrome := 7
-	for _, extra := range []string{l.header, l.search} {
-		if extra != "" {
-			chrome++
-		}
+	if l.header != "" {
+		chrome++
+	}
+	if l.search != "" {
+		chrome += 2
 	}
 	shown := max(min(len(l.rows), screenHeight-chrome), 1)
 	if l.fill {
@@ -256,8 +258,9 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	muted := panel.Foreground(colors.TextMuted)
 
 	lines := []string{windowTitle(colors, content, l.title, l.close), ""}
+	// поиск отделён пустыми строками сверху и снизу (#133)
 	if l.search != "" {
-		lines = append(lines, ansi.Truncate(l.search, content, "…"))
+		lines = append(lines, ansi.Truncate(l.search, content, "…"), "")
 	}
 	if l.header != "" && len(l.rows) > 0 {
 		lines = append(lines, panel.Render(ansi.Truncate("  "+l.header, content, "…")))
