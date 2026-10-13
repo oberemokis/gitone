@@ -90,7 +90,7 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 	titles := []string{text.Text("branches.column.name", nil), text.Text("branches.column.author", nil), text.Text("branches.column.date", nil)}
 	authorWidth, dateWidth := ansi.StringWidth(titles[1]), ansi.StringWidth(titles[2])
 	for _, branch := range branches {
-		authorWidth = max(authorWidth, ansi.StringWidth(branch.Author))
+		authorWidth = max(authorWidth, ansi.StringWidth(cellText(branch.Author)))
 		dateWidth = max(dateWidth, ansi.StringWidth(branch.When))
 	}
 	widths := []int{0, min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
