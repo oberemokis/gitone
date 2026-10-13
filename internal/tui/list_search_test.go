@@ -116,6 +116,58 @@ func TestWorktreeSearchFilters(t *testing.T) {
 	}
 }
 
+// enter после фильтра переводит на найденное дерево, а не на то, что стоит под
+// курсором в полном списке: курсор после набора на первой строке, а там текущее
+// дерево.
+func TestWorktreeSearchEnterSwitchesToFound(t *testing.T) {
+	_, _, model := twoWorktrees(t)
+
+	model = typeText(openAsync(model, key('W')), "/side")
+	model, _ = model.Update(enter)
+	model, cmd := model.Update(enter)
+	model = settle(model, cmd, 3)
+
+	if screen := screenText(model); !strings.Contains(screen, "side-edit") || strings.Contains(screen, "main-edit") {
+		t.Fatalf("после enter не дифф side-tree:\n%s", screen)
+	}
+	if footer := footerOf(model); !strings.HasPrefix(footer, " B side   W side-tree") {
+		t.Fatalf("подвал %q, want side-tree слева", footer)
+	}
+}
+
+// Открытие окна сбрасывает запрос: фильтр, оставленный в одном списке, не
+// просачивается в следующий. Запрос «alpha» оставляет в каждом окне одну запись
+// из двух, вторая видна только без фильтра.
+func TestOpeningWindowResetsSearch(t *testing.T) {
+	repo := commitSubjects(t, "init", "alpha one", "beta two")
+	runGit(t, repo, "branch", "alpha-b")
+	runGit(t, repo, "branch", "beta-b")
+	runGit(t, repo, "worktree", "add", "-q", "-b", "alpha-w", filepath.Join(t.TempDir(), "wt-alpha"))
+
+	for _, tc := range []struct {
+		name         string
+		first, again rune
+		unfiltered   string
+	}{
+		{name: "ветки, потом лог", first: 'B', again: 'l', unfiltered: "beta two"},
+		{name: "лог, потом ветки", first: 'l', again: 'B', unfiltered: "beta-b"},
+		{name: "лог, потом worktree", first: 'l', again: 'W', unfiltered: "(current)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := resize(open(t, options(repo, layout.Focus())), 120, 30)
+			model = typeText(openAsync(model, key(tc.first)), "/alpha")
+			model, _ = model.Update(enter)
+			model, _ = model.Update(escape)
+
+			screen := screenText(openAsync(model, key(tc.again)))
+
+			if !strings.Contains(screen, tc.unfiltered) || strings.Contains(screen, "/ alpha") {
+				t.Fatalf("окно %c открылось с фильтром прежнего окна:\n%s", tc.again, screen)
+			}
+		})
+	}
+}
+
 // list.search переназначается для всех списков сразу.
 func TestRemappedListSearch(t *testing.T) {
 	repo, _ := branchesWith(t, "fix-one", "feat-two")

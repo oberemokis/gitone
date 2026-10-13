@@ -87,10 +87,17 @@ func TestLogSearchEnterKeepsFilter(t *testing.T) {
 		t.Fatalf("курсор не на втором найденном: %q", row)
 	}
 
+	// Под курсором второй найденный, а без фильтра на этой строке «feat: two».
+	// В диффе «fix: one» стоят «- init» и «+ fix: one», в диффе соседнего
+	// «- fix: one» и «+ feat: two»: подстрока «one» есть в обоих.
 	model, cmd := model.Update(enter)
 	model = settle(model, cmd, 3)
-	if screen := screenText(model); strings.Contains(screen, "Log") || !strings.Contains(screen, "one") {
+	screen := screenText(model)
+	if strings.Contains(screen, "Log") || !strings.Contains(screen, "- init") || !strings.Contains(screen, "+ fix: one") {
 		t.Fatalf("enter не открыл найденный коммит:\n%s", screen)
+	}
+	if strings.Contains(screen, "feat: two") {
+		t.Fatalf("enter открыл соседний коммит вместо найденного:\n%s", screen)
 	}
 }
 
