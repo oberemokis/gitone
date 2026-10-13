@@ -173,6 +173,36 @@ func TestPatternPriority(t *testing.T) {
 	})
 }
 
+// gotreesitter не проверяет #is-not? local: шаблон ((identifier)
+// @function.method (#is-not? local)) ловил бы каждый идентификатор Ruby.
+// Таблицы областей видимости у нас нет, поэтому такие шаблоны пропускаются:
+// ложная функция хуже ненайденной (#160). Имена с собственным шаблоном
+// (объявление метода, вызов через точку) красятся как раньше.
+func TestIsNotLocalPatternsSkipped(t *testing.T) {
+	ruby := []string{
+		"def total(list)",
+		"  sum = 0",
+		"  list.each { |row| sum += row.price }",
+		"end",
+	}
+	js := []string{"console.log(1);", "const load = require;"}
+
+	checkKinds(t, []kindCase{
+		{name: "ruby: объявление метода", path: "a.rb", lines: ruby, line: 0, text: "total", want: syntax.Function},
+		{name: "ruby: параметр метода", path: "a.rb", lines: ruby, line: 0, text: "list", want: ""},
+		{name: "ruby: локальная переменная", path: "a.rb", lines: ruby, line: 1, text: "sum", want: ""},
+		{name: "ruby: получатель вызова", path: "a.rb", lines: ruby, line: 2, text: "list", want: ""},
+		{name: "ruby: параметр блока", path: "a.rb", lines: ruby, line: 2, text: "row", want: ""},
+		{name: "ruby: вызов с блоком", path: "a.rb", lines: ruby, line: 2, text: "each", want: syntax.Function},
+		{name: "ruby: вызов через точку", path: "a.rb", lines: ruby, line: 2, text: "price", want: syntax.Function},
+		// встроенные имена JS стоят под #is-not? local: подсветить console и
+		// require, не отличив их от локальных, нельзя
+		{name: "js: console без таблицы областей", path: "a.js", lines: js, line: 0, text: "console", want: ""},
+		{name: "js: require без таблицы областей", path: "a.js", lines: js, line: 1, text: "require", want: ""},
+		{name: "js: метод через точку", path: "a.js", lines: js, line: 0, text: "log", want: syntax.Function},
+	})
+}
+
 // Многострочный комментарий окрашен во всех своих строках: разбирается вся
 // сторона хунка, а не строка.
 func TestMultilineComment(t *testing.T) {

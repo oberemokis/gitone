@@ -216,10 +216,18 @@ func compiled(name, source string, language *ts.Language) (compiledQuery, error)
 	query, err := ts.NewQuery(source, language)
 	entry := compiledQuery{Query: query, err: err}
 	if err == nil {
-		for index := range query.PatternCount() {
-			start, _ := query.StartByteForPattern(uint32(index))
-			end, _ := query.EndByteForPattern(uint32(index))
+		for index := range uint32(query.PatternCount()) {
+			start, _ := query.StartByteForPattern(index)
+			end, _ := query.EndByteForPattern(index)
 			entry.depth = append(entry.depth, patternDepth(source[start:end]))
+
+			// gotreesitter не проверяет #is-not? local, и такой шаблон ловит
+			// каждый идентификатор. Таблицы областей видимости нет, а ложная
+			// функция хуже ненайденной: шаблон выключается целиком (#160).
+			properties, _ := query.PropertyPredicatesForPattern(index)
+			if slices.ContainsFunc(properties, func(p ts.QueryPropertyPredicate) bool { return p.Property == "local" && !p.Positive }) {
+				query.DisablePattern(index)
+			}
 		}
 	}
 	queries.Store(name, entry)
