@@ -84,9 +84,9 @@ const (
 	ListSearchCancel Action = "listSearch.cancel"
 )
 
-// Группа в справке. Порядок групп задаёт первое появление категории в
-// списке, подряд клавиши одной категории стоять не обязаны. Заголовок группы
-// берётся из словаря по ключу category.<категория>.
+// Category это группа в справке. Порядок групп задаёт первое появление
+// категории в списке, подряд клавиши одной категории стоять не обязаны.
+// Заголовок группы берётся из словаря по ключу category.<категория>.
 type Category string
 
 const (
@@ -216,6 +216,9 @@ type file struct {
 	Keybinds map[string]json.RawMessage `json:"keybinds"`
 }
 
+// decode читает keybinds.json. Строгий разбор JSON (неизвестное поле и текст
+// после объекта) скопирован из config.decodeStrict: по графу пакетов keymap
+// не может импортировать config, ради восьми строк стрелку не заводим.
 func decode(data []byte) (Keymap, error) {
 	var f file
 
@@ -486,7 +489,9 @@ func defaults() []Binding {
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{Action: HelpClose, Keys: []string{"esc"}},
 
-		// окна: в подвал и справку не идут, клавиши видны в подсказке окна
+		// окна: в подвал и справку не идут, их клавиши перечислены в
+		// docs/config.md. Подсказка окна показывает не все: навигации
+		// (list.up, list.down, search.up, search.down) в ней нет
 		{Action: ListUp, Keys: []string{"k", "up"}},
 		{Action: ListDown, Keys: []string{"j", "down"}},
 		{Action: ListClose, Keys: []string{"esc"}},
