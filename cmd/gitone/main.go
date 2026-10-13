@@ -137,7 +137,10 @@ func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	return tui.New(opts, files), err
 }
 
+// exit печатает ошибку до запуска интерфейса. Текст может нести то, чем
+// управляется терминал (отказ git повторяет имя ветки или вывод хука), поэтому
+// он проходит ту же очистку, что и поля в окнах.
 func exit(text string) {
-	fmt.Fprintln(os.Stderr, text)
+	fmt.Fprintln(os.Stderr, tui.Printable(text))
 	os.Exit(1)
 }
