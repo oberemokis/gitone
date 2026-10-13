@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -10,6 +11,10 @@ import (
 	"gitone/internal/layout"
 	"gitone/internal/tui/theme"
 )
+
+// escKey это клавиша esc как слово: «Description» в окне коммита содержит «esc»
+// внутри слова.
+var escKey = regexp.MustCompile(`\besc\b`)
 
 // windowOpeners открывают каждое окно поверх диффа. Заголовок окна по тексту.
 var windowOpeners = []struct {
@@ -72,7 +77,7 @@ func TestWindowTitlesLookAlike(t *testing.T) {
 				t.Errorf("под заголовком не пустая строка: %q", below)
 			}
 			for _, line := range screen[row+1:] {
-				if strings.Contains(line, "esc") {
+				if escKey.MatchString(line) {
 					t.Errorf("esc остался ниже заголовка: %q", line)
 				}
 			}

@@ -77,7 +77,7 @@ func (m Model) windowBox() string {
 	case pickerWindow:
 		return pickerBox(m.colors, m.text, m.keys, m.picker, len(m.files) == 0, width, height)
 	case commitWindow:
-		return commitBox(m.colors, m.text, m.keys, m.subject, width)
+		return commitBox(m.colors, m.text, m.keys, m.subject, m.description, m.commitField, width)
 	case logWindow:
 		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.query, m.searching, width, height)
 	case branchWindow:
@@ -123,7 +123,8 @@ func (m Model) moveCursor(delta, count int) Model {
 
 // wheelList двигает курсор открытого списка колесом: щелчок это wheelStep
 // нажатий list.down или list.up подряд. Вбок списку двигаться некуда. Вопрос
-// об удалении stash и поле коммита курсора не имеют, колесо их пропускает.
+// об удалении stash курсора не имеет, колесо его пропускает. Окно коммита до
+// сюда не доходит: его колесо прокручивает описание (wheelCommit).
 // Список прокручивается при рисовании за курсором, поле поиска колесу не
 // мешает: курсор ходит по найденному.
 func (m Model) wheelList(button tea.MouseButton) Model {
@@ -199,15 +200,17 @@ func (m Model) typeSearch(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// paste кладёт вставку из буфера в открытое текстовое поле: тему коммита,
-// поиск файлов или поиск в списке. Уходит первая строка: перевод строки
-// сработал бы как enter и отправил коммит. Без открытого поля вставка ничего
-// не делает (#153).
+// paste кладёт вставку из буфера в открытое текстовое поле: тему и описание
+// коммита, поиск файлов или поиск в списке. В описание идёт вся вставка, в
+// остальные поля первая строка: перевод строки сработал бы как enter и отправил
+// коммит. Без открытого поля вставка ничего не делает (#153).
 func (m Model) paste(content string) Model {
 	line, _, _ := strings.Cut(content, "\n")
 	line = strings.TrimSuffix(line, "\r")
 
 	switch {
+	case m.active == commitWindow && m.commitField == descriptionField:
+		m.description = m.description.Type(content)
 	case m.active == commitWindow:
 		m.subject += line
 	case m.active == pickerWindow:

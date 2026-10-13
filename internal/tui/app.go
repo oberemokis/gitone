@@ -16,6 +16,7 @@ import (
 	"gitone/internal/keymap"
 	"gitone/internal/layout"
 	"gitone/internal/tui/diffview"
+	"gitone/internal/tui/editor"
 	filespane "gitone/internal/tui/pane/files"
 	"gitone/internal/tui/picker"
 	"gitone/internal/tui/theme"
@@ -53,10 +54,13 @@ type Model struct {
 	// active окно, которое получает клавиши; cursor курсор открытого списка
 	active window
 	cursor int
-	// данные окон: пути под вопросом discard, тема коммита, записи списков
-	confirm    []string
-	subject    string
-	logEntries []git.LogEntry
+	// данные окон: пути под вопросом discard, тема и описание коммита и поле, в
+	// которое они набираются, записи списков
+	confirm     []string
+	subject     string
+	description editor.Model
+	commitField commitField
+	logEntries  []git.LogEntry
 	// поиск в логе, ветках и worktree: запрос и открытое поле (window.go).
 	// Окно открыто одно, поэтому поиск общий, открытие окна его сбрасывает.
 	query     string
@@ -190,6 +194,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case m.helpOverflow() > 0:
 			m = m.wheelHelp(msg.Button)
+		case m.active == commitWindow:
+			m = m.wheelCommit(msg.Button)
 		case m.active == noWindow || m.active == discardWindow:
 			m.view = m.wheel(msg)
 		default:
@@ -302,6 +308,7 @@ func (m Model) resize() Model {
 	if area, found := paneArea(m.placement(), "diff", image.Point{}); found {
 		m.view = m.view.SetSize(area.Dx(), area.Dy())
 	}
+	m.description = m.description.Resize(commitFieldSize(m.width, m.bodyHeight()))
 	return m
 }
 
