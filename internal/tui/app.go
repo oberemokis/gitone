@@ -85,6 +85,10 @@ type Model struct {
 	view    diffview.Model
 	// reading ключ версий файла, которые сейчас читаются (versions.go)
 	reading string
+	// now часы для отбрасывания двойного клика, closing последний клик,
+	// закрывший окно (click.go)
+	now     func() time.Time
+	closing closedClick
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
@@ -106,6 +110,9 @@ type Options struct {
 	Location git.Location
 	// Text тексты интерфейса на выбранном языке, нулевое значение английское
 	Text i18n.Dictionary
+	// Now часы для отбрасывания двойного клика (#150), nil значит time.Now.
+	// Тесты подставляют свои, чтобы не ждать.
+	Now func() time.Time
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -124,7 +131,13 @@ func New(opts Options, files []diff.File) Model {
 		view = view.SetFile(files[0])
 	}
 
+	now := opts.Now
+	if now == nil {
+		now = time.Now
+	}
+
 	return Model{
+		now:      now,
 		dir:      opts.Dir,
 		args:     opts.Args,
 		baseArgs: opts.Args,
@@ -165,10 +178,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resize()
 	case tea.KeyPressMsg:
 		return m.keyPress(msg)
+	// окно лежит поверх диффа: крутить то, что закрыто, нечем и незачем (#150).
+	// Вопрос discard окна не рисует, под ним дифф виден и крутится.
 	case tea.MouseWheelMsg:
 		if m.helpOverflow() > 0 {
 			m = m.wheelHelp(msg.Button)
-		} else {
+		} else if m.active == noWindow || m.active == discardWindow {
 			m.view = m.wheel(msg)
 		}
 	case tea.MouseClickMsg:
