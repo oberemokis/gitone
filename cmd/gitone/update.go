@@ -211,6 +211,12 @@ func (u updater) fetch(ctx context.Context, url string) ([]byte, []*neturl.URL, 
 
 	response, err := client.Do(request)
 	if err != nil {
+		// Do называет в ошибке последний адрес цепочки, то есть подписанный
+		// адрес хранилища
+		var urlErr *neturl.Error
+		if errors.As(err, &urlErr) {
+			urlErr.URL = url
+		}
 		return nil, nil, err
 	}
 	defer response.Body.Close()

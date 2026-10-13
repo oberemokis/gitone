@@ -197,6 +197,28 @@ func TestUpdateWithoutNetwork(t *testing.T) {
 	}
 }
 
+// Сбой после переадресации приходит от http.Client с последним адресом цепочки,
+// а это подписанный адрес хранилища: подпись в сообщение попасть не должна.
+func TestUpdateTransportErrorNamesRequestedURL(t *testing.T) {
+	storage := httptest.NewServer(http.NotFoundHandler())
+	signed := storage.URL + "/assets/checksums?sig=secret"
+	storage.Close()
+	server := httptest.NewServer(http.RedirectHandler(signed, http.StatusFound))
+	t.Cleanup(server.Close)
+	base := server.URL + "/releases"
+	exe := installed(t)
+
+	_, err := newUpdater(base, "0.3.0", exe).run(t.Context())
+
+	requested := base + "/latest/download/checksums.txt"
+	if err == nil || !strings.Contains(err.Error(), requested) {
+		t.Errorf("run() error = %v, want с адресом %s", err, requested)
+	}
+	if err != nil && strings.Contains(err.Error(), "sig=secret") {
+		t.Errorf("run() error = %v, want без подписи адреса хранилища", err)
+	}
+}
+
 // Подсказка зависит от системы: на Windows sudo нет, а пути в тексте стоят в
 // кавычках, потому что в них бывают пробелы («C:\Program Files\gitone»).
 func TestUpdateWithoutWritePermission(t *testing.T) {
