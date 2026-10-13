@@ -16,6 +16,13 @@ version: 2
 
 project_name: gitone
 
+# Без грамматик из GITONE_TAGS сборка берёт все двести, копилефтные тоже.
+# Хук идёт через sh -c: goreleaser сам переменные в аргументах не раскрывает,
+# и голый test -n "$GITONE_TAGS" сравнивал бы с литералом.
+before:
+  hooks:
+    - sh -c 'test -n "$GITONE_TAGS"'
+
 builds:
   - id: gitone
     main: ./cmd/gitone
