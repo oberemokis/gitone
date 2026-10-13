@@ -9,7 +9,8 @@ import (
 
 // Длинная строка либо переносится (diff.wrap), либо сдвигается вбок вместе
 // со всем кодом файла. Оба режима видят кусок кода с колонки skip: при сдвиге
-// это shift, при переносе номер куска на ширину колонки (#87).
+// это shift, при переносе начало куска, которое режет по границам символов
+// (#87).
 
 // WithWrap включает перенос длинных строк (diff.wrap в config.json).
 func (m Model) WithWrap(wrap bool) Model {
@@ -105,59 +106,106 @@ func cells(style lipgloss.Style, count int) string {
 	return style.Render(strings.Repeat(halfBlock, count))
 }
 
+// chunk это кусок строки файла при переносе: его номер, 0 у первого, и колонка
+// кода, с которой кусок начинается на левой и правой стороне split. У каждой
+// стороны свои колонки: символы разной ширины режут половины в разных местах.
+type chunk struct {
+	part  int
+	skips [2]int
+}
+
 // parts режет строку файла на строки экрана. Без переноса она одна, с
 // переносом столько, сколько нужно самой длинной из её сторон.
 func (m Model) parts(row line) []line {
-	count := 1
-	if m.wrap {
-		left, right := row.textWidths()
-		leftWidth, rightWidth := m.codeWidths()
-		count = max(pieceCount(left, leftWidth), pieceCount(right, rightWidth))
+	if !m.wrap {
+		return []line{row}
 	}
 
-	result := make([]line, count)
-	for part := range count {
+	left, right := row.texts()
+	leftWidth, rightWidth := m.codeWidths()
+	if row.notice != nil {
+		// сырая строка занимает панель целиком
+		leftWidth = m.width
+	}
+	leftCuts, rightCuts := cuts(left, leftWidth), cuts(right, rightWidth)
+
+	result := make([]line, max(len(leftCuts), len(rightCuts))-1)
+	for part := range result {
 		row.part = part
+		// у стороны с меньшим числом кусков остаток пуст: колонка за концом текста
+		row.skips = [2]int{leftCuts[min(part, len(leftCuts)-1)], rightCuts[min(part, len(rightCuts)-1)]}
 		result[part] = row
 	}
 	return result
 }
 
-// skip это колонка кода, с которой начинается видимая часть строки шириной
-// width.
-func (m Model) skip(part, width int) int {
+// cuts это колонки, где текст режется на куски шириной не больше width: начало
+// каждого куска и в конце ширина текста. Режет по границам кластеров: символ,
+// не поместившийся в хвост куска, целиком уходит в начало следующего, а не
+// теряется на стыке. Кластер шире куска остаётся в куске один.
+func cuts(text string, width int) []int {
+	if width <= 0 {
+		return []int{0, ansi.StringWidth(text)}
+	}
+
+	cuts, column := []int{0}, 0
+	for text != "" {
+		cluster, size := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
+		text = text[len(cluster):]
+
+		if start := cuts[len(cuts)-1]; column > start && column+size > start+width {
+			cuts = append(cuts, column)
+		}
+		column += size
+	}
+	return append(cuts, column)
+}
+
+// skip это колонка кода, с которой начинается видимая часть строки на стороне
+// side: сдвиг, а при переносе начало куска.
+func (m Model) skip(at chunk, side int) int {
 	if m.wrap {
-		return part * width
+		return at.skips[side]
 	}
 	return m.shift
 }
 
-// pieceCount это число кусков ширины size в тексте ширины width, не меньше
-// одного.
-func pieceCount(width, size int) int {
-	if size <= 0 || width <= size {
-		return 1
-	}
-	return (width + size - 1) / size
-}
-
-// textWidths это ширина кода строки: левой и правой стороны split или
-// единственной стороны unified. Таб считается четырьмя пробелами, как при
-// отрисовке, значок ␍ одной клеткой.
-func (l line) textWidths() (int, int) {
+// texts это код строки как он стоит на экране: левой и правой стороны split
+// или единственной стороны unified, у сырой строки её текст. Таб занимает
+// четыре пробела, как при отрисовке, значок ␍ одну клетку.
+func (l line) texts() (string, string) {
 	switch {
 	case l.split != nil:
-		return textWidth(l.split.Left.Text, l.split.Left.CR), textWidth(l.split.Right.Text, l.split.Right.CR)
+		return shown(l.split.Left.Text, l.split.Left.CR), shown(l.split.Right.Text, l.split.Right.CR)
 	case l.unified != nil:
-		return textWidth(l.unified.Text, l.unified.CR), 0
+		return shown(l.unified.Text, l.unified.CR), ""
+	case l.notice != nil && l.notice.plain:
+		return shown(l.notice.text, false), ""
 	}
-	return 0, 0
+	return "", ""
 }
 
-func textWidth(text string, cr bool) int {
+func shown(text string, cr bool) string {
 	if cr {
 		text += crMark
 	}
 
-	return ansi.StringWidth(strings.ReplaceAll(text, "\t", tabSpaces))
+	return strings.ReplaceAll(text, "\t", tabSpaces)
+}
+
+// textWidths это ширина кода строки по сторонам, как texts.
+func (l line) textWidths() (int, int) {
+	left, right := l.texts()
+	return ansi.StringWidth(left), ansi.StringWidth(right)
+}
+
+// extent это ширина строки в колонках кода, от неё зависит самый дальний сдвиг.
+// Сырая строка занимает панель целиком, поэтому с неё вычитается то, на что
+// панель шире кода: сдвиг, при котором виден её конец, тот же, что у кода.
+func (m Model) extent(row line) int {
+	left, right := row.textWidths()
+	if row.notice != nil {
+		return left - (m.width - m.visibleWidth())
+	}
+	return max(left, right)
 }

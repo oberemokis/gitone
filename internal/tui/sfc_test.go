@@ -115,6 +115,80 @@ func TestUnreadableVersionKeepsHunkHighlight(t *testing.T) {
 	}
 }
 
+// colorBefore это последний SGR перед первым text в строке экрана с кодами.
+func colorBefore(t *testing.T, line, text string) string {
+	t.Helper()
+
+	at := strings.Index(line, text)
+	if at < 0 {
+		t.Fatalf("в строке нет %q: %q", text, line)
+	}
+	codes := sgr.FindAllString(line[:at], -1)
+	return codes[len(codes)-1]
+}
+
+// Управляющий символ в строке файла экран показывает значком из трёх байт, а
+// в версии из git он один байт: подсветка по версиям должна ложиться на то же
+// место, что подсветка по хункам. Цвет ключевого слова на const справа от
+// значка, а не на соседних буквах, и ни одной руны, разрезанной пополам.
+func TestVersionHighlightFollowsPrintableText(t *testing.T) {
+	withControl := func(answer string) string {
+		return strings.Replace(vueComponent(answer), "const answer", "/*\v*/ const answer", 1)
+	}
+	repo := newRepo(t)
+	write(t, repo, "App.vue", withControl("41"))
+	commitAll(t, repo)
+	write(t, repo, "App.vue", withControl("42"))
+
+	model := openSized(t, repo, 140, 30)
+
+	row := rowOf(screenOf(model), "answer = 41")
+	if row < 0 || !strings.Contains(screenOf(model)[row], "/*␋*/ const answer = 41") {
+		t.Fatalf("на экране нет строки со значком ␋:\n%s", screenText(model))
+	}
+	for side, code := range constColors(t, model, "answer = 41") {
+		if !strings.Contains(code, keywordColor) {
+			t.Errorf("const в версии %d не цветом ключевого слова: %q", side, code)
+		}
+	}
+	line := strings.Split(model.View().Content, "\n")[row]
+	if strings.Contains(colorBefore(t, line, "answer"), keywordColor) {
+		t.Errorf("answer цветом ключевого слова: %q", line)
+	}
+	if strings.ContainsRune(line, '�') {
+		t.Errorf("в строке есть разрезанная руна: %q", line)
+	}
+}
+
+// Файл с CRLF и комментарием на несколько строк: в версии из git у строк есть
+// `\r`, в диффе его нет. Отрезок многострочного комментария доходит до конца
+// строки версии, поэтому его обрезают по длине строки диффа, иначе экран падает
+// на `slice bounds out of range`. Цвета на месте, значков ␍ нет.
+func TestVersionHighlightWithCRLFAndMultilineComment(t *testing.T) {
+	crlf := func(answer string) string {
+		text := strings.Replace(vueComponent(answer), "const answer", "/* first\n   second */\nconst answer", 1)
+		return strings.ReplaceAll(text, "\n", "\r\n")
+	}
+	repo := newRepo(t)
+	write(t, repo, "App.vue", crlf("41"))
+	commitAll(t, repo)
+	write(t, repo, "App.vue", crlf("42"))
+
+	model := openSized(t, repo, 140, 30)
+
+	if !strings.Contains(screenText(model), "answer = 42") {
+		t.Fatalf("дифф не показан:\n%s", screenText(model))
+	}
+	for side, code := range constColors(t, model, "answer = 41") {
+		if !strings.Contains(code, keywordColor) {
+			t.Errorf("const в версии %d не цветом ключевого слова: %q", side, code)
+		}
+	}
+	if strings.Contains(screenText(model), "␍") {
+		t.Errorf("в обычном CRLF-файле появился значок ␍:\n%s", screenText(model))
+	}
+}
+
 // Новый компонент: старой версии нет, новая красится по файлу целиком.
 func TestNewVueFileHighlightedFromFile(t *testing.T) {
 	repo := newRepo(t)

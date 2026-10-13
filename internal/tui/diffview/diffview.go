@@ -121,17 +121,26 @@ type position struct {
 	old    bool
 }
 
+// topPosition берёт первую строку с номером, начиная с верхней: у разрыва между
+// хунками и пометки «No newline» номеров нет, и верх по такой строке в другом
+// виде указал бы на другое место. Служебная строка (надпись над файлом) верх не
+// определяет, он остаётся по индексу.
 func (m Model) topPosition() position {
-	if m.scroll >= len(m.lines) {
+	if m.scroll >= len(m.lines) || m.lines[m.scroll].notice != nil {
 		return position{}
 	}
 
-	oldNumber, newNumber := m.lines[m.scroll].numbers()
-	if newNumber > 0 {
-		return position{number: newNumber}
+	for _, line := range m.lines[m.scroll:] {
+		oldNumber, newNumber := line.numbers()
+		switch {
+		case newNumber > 0:
+			return position{number: newNumber}
+		case oldNumber > 0:
+			return position{number: oldNumber, old: true}
+		}
 	}
 
-	return position{number: oldNumber, old: true}
+	return position{}
 }
 
 // seek ставит наверх первую строку с номером не меньше искомого: номера на
@@ -235,10 +244,9 @@ func (m Model) rebuild() Model {
 	m.numberWidth = len(strconv.Itoa(largest))
 
 	m.longest = 0
-	m.lines = m.notices()
-	for _, row := range rows {
-		left, right := row.textWidths()
-		m.longest = max(m.longest, left, right)
+	m.lines = nil
+	for _, row := range append(m.notices(), rows...) {
+		m.longest = max(m.longest, m.extent(row))
 		m.lines = append(m.lines, m.parts(row)...)
 	}
 
@@ -281,12 +289,12 @@ func shortMode(mode string) string {
 }
 
 // line это строка экрана до отрисовки. Заполнено ровно одно из split, unified
-// и notice. part это номер куска строки файла при переносе, 0 у первого.
+// и notice. chunk это кусок строки файла при переносе (wrap.go).
 type line struct {
 	split   *diff.SplitRow
 	unified *diff.UnifiedRow
 	notice  *notice
-	part    int
+	chunk
 }
 
 // notice это служебная строка вместо строки файла. plain значит текст как
