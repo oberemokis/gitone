@@ -63,13 +63,15 @@ func header(width int, files []diff.File, current int, colors theme.Theme, text 
 
 // fileTitle это имя файла для заголовка и списка: у переименования оба пути,
 // у удалённого старый. Пути в File сырые, имя из чужого репозитория может
-// нести escape-коды, поэтому на экран оно идёт через diff.Printable.
+// нести escape-коды и таб, поэтому на экран оно идёт через visible: таб
+// раскрывается до измерения и обрезки, иначе строка панели и заголовка выходила
+// бы шире экрана.
 func fileTitle(file diff.File, text i18n.Dictionary) string {
 	if file.Status == diff.StatusRenamed || file.Status == diff.StatusCopied {
-		return diff.Printable(file.OldPath + " → " + file.NewPath)
+		return visible(file.OldPath + " → " + file.NewPath)
 	}
 
-	return diff.Printable(cmp.Or(file.NewPath, file.OldPath, text.Text("screen.gitOutput", nil)))
+	return visible(cmp.Or(file.NewPath, file.OldPath, text.Text("screen.gitOutput", nil)))
 }
 
 // tabSpaces это таб в тексте на экране, как в diffview: Render раскрывает его
