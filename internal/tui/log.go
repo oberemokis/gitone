@@ -74,13 +74,25 @@ func commitRow(entries []git.LogEntry, from, to int) int {
 	return from
 }
 
-// logShown это коммиты под фильтром поиска: запрос в хэше, теме или авторе.
+// logShown это коммиты под фильтром поиска: запрос в начале хэша либо в теме
+// или авторе. Хэш сравнивается по префиксу: видно семь символов из сорока, и
+// подстрока по всем сорока оставляла бы коммиты, где запрос нигде не виден
+// (#153). Полный хэш из буфера начинается с видимых семи и находит коммит.
 // Ищется по загруженным коммитам, без вызова git. У строк соединения графа
 // текста нет, под фильтром они уходят.
 func (m Model) logShown() []git.LogEntry {
-	return matching(m.logEntries, m.query, func(entry git.LogEntry) string {
-		return entry.Hash + "\x00" + entry.Subject + "\x00" + entry.Author
-	})
+	if m.query == "" {
+		return m.logEntries
+	}
+
+	query := strings.ToLower(m.query)
+	var shown []git.LogEntry
+	for _, entry := range m.logEntries {
+		if strings.HasPrefix(entry.Hash, query) || strings.Contains(strings.ToLower(entry.Subject+"\x00"+entry.Author), query) {
+			shown = append(shown, entry)
+		}
+	}
+	return shown
 }
 
 // Ширина столбцов лога: граф и хэш короткие, автор и дата по самому длинному
