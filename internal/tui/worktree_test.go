@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -87,6 +88,43 @@ func TestLatePollKeepsSwitchedWorktree(t *testing.T) {
 
 	if screen := screenText(model); strings.Contains(screen, "main-edit") {
 		t.Fatalf("опрос старого каталога затёр дифф side-tree:\n%s", screen)
+	}
+}
+
+// Запертое дерево на отключённом диске git держит в списке без prunable. Выбор
+// такого дерева оставляет прежнее, в подвале причина, а W, b и l работают.
+func TestWorktreeSwitchToMissingDirectoryKeepsCurrentTree(t *testing.T) {
+	repo, side, model := twoWorktrees(t)
+	runGit(t, repo, "worktree", "lock", side)
+	if err := os.RemoveAll(side); err != nil {
+		t.Fatal(err)
+	}
+	// длинный путь временного каталога не должен обрезать причину в подвале
+	model = resize(model, 300, 20)
+
+	model = openAsync(model, key('W'))
+	model, _ = model.Update(key('j'))
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, cmd, 3)
+
+	if screen := screenText(model); !strings.Contains(screen, "main-edit") {
+		t.Fatalf("прежний дифф пропал с экрана:\n%s", screen)
+	}
+	if footer := footerOf(model); !strings.Contains(footer, "side-tree: no such file or directory") {
+		t.Fatalf("в подвале %q, ожидалась причина отказа", footer)
+	}
+
+	for press, title := range map[rune]string{'W': "Worktrees", 'B': "Branches", 'l': "Log"} {
+		opened := openAsync(model, key(press))
+		if screen := screenText(opened); !strings.Contains(screen, title) {
+			t.Errorf("после отказа клавиша %q не открыла окно %s:\n%s", press, title, screen)
+		}
+	}
+
+	model, cmd = model.Update(key('b'))
+	model = settle(model, cmd, 3)
+	if footer := footerOf(model); strings.Contains(footer, "no such file") {
+		t.Errorf("после отказа b читает дифф недоступного каталога: %q", footer)
 	}
 }
 
