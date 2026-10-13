@@ -88,7 +88,8 @@ func (l Lexer) inject(root *ts.Node, language *ts.Language, source []byte, kinds
 }
 
 // langAttribute это значение атрибута lang в открывающем теге элемента:
-// <script lang="ts"> даёт «ts». Без атрибута пустая строка.
+// <script lang="ts"> и <script lang=ts> дают «ts». Без атрибута или без
+// значения пустая строка.
 func langAttribute(element *ts.Node, language *ts.Language, source []byte) string {
 	text := func(node *ts.Node) string { return string(source[node.StartByte():node.EndByte()]) }
 	child := func(node *ts.Node, kind string) *ts.Node {
@@ -112,10 +113,12 @@ func langAttribute(element *ts.Node, language *ts.Language, source []byte) strin
 		if name := child(attribute, "attribute_name"); name == nil || text(name) != "lang" {
 			continue
 		}
+		value := child(attribute, "attribute_value")
 		if quoted := child(attribute, "quoted_attribute_value"); quoted != nil {
-			if value := child(quoted, "attribute_value"); value != nil {
-				return text(value)
-			}
+			value = child(quoted, "attribute_value")
+		}
+		if value != nil {
+			return text(value)
 		}
 	}
 	return ""

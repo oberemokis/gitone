@@ -336,6 +336,27 @@ func TestEmbeddedCode(t *testing.T) {
 	}
 }
 
+// lang без кавычек это допустимый HTML: значение лежит в attribute прямым
+// ребёнком, без quoted_attribute_value (#161).
+func TestEmbeddedUnquotedLang(t *testing.T) {
+	vue := []string{
+		"<script setup lang=ts>",
+		"const count: number = ref(0)",
+		"</script>",
+		"<style lang=scss>",
+		"$gap: 4px;",
+		".card { color: red; }",
+		"</style>",
+	}
+
+	checkKinds(t, []kindCase{
+		{name: "vue: тип в script lang=ts", path: "App.vue", lines: vue, line: 1, text: "number", want: syntax.Type},
+		// в CSS красится имя свойства, в SCSS значение
+		{name: "vue: значение в style lang=scss", path: "App.vue", lines: vue, line: 5, text: "red", want: syntax.String},
+		{name: "vue: свойство в style lang=scss", path: "App.vue", lines: vue, line: 5, text: "color", want: ""},
+	})
+}
+
 // Каждый узел кода внутри разметки разбирается заново, поэтому разбор файла
 // не должен стоить парсера и арены на узел (#161). Меряются выделенные байты,
 // а не время: тест не плавает. Без пула и Release файл в 300 строк и 600
