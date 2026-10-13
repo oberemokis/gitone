@@ -9,8 +9,11 @@ import (
 	"gitone/internal/tui/zone"
 )
 
-// filesEdgeTarget это место клика на стыке панели файлов и диффа (#121).
-const filesEdgeTarget = "edge:files"
+// Места клика на стыках: панели файлов и диффа (#121), половин split (#122).
+const (
+	filesEdgeTarget = "edge:files"
+	splitEdgeTarget = "edge:split"
+)
 
 // Пределы ширины панели файлов при перетаскивании: список ещё читается, а
 // диффу остаётся место.
@@ -24,9 +27,12 @@ const (
 // ничего не тянут.
 type drag struct {
 	active bool
-	x      int
-	width  int
-	// 1 у панели слева от диффа, -1 у панели справа
+	// split: тянут стык половин диффа, width это левая половина; иначе край
+	// панели файлов
+	split bool
+	x     int
+	width int
+	// 1 у панели слева от диффа и у стыка половин, -1 у панели справа
 	sign int
 }
 
@@ -46,30 +52,55 @@ func (m Model) filesEdge() (edge image.Rectangle, panel image.Rectangle, found b
 	return image.Rect(x, area.Min.Y, x+2, area.Max.Y), area, true
 }
 
-// startDrag начинает тянуть стык панели файлов из колонки x.
-func (m Model) startDrag(x int) Model {
-	_, panel, found := m.filesEdge()
-	if !found {
-		return m
+// splitEdge это стык половин split: последняя колонка левой и первая правой,
+// разделителя нет. В unified и без файлов стыка нет.
+func (m Model) splitEdge() (edge image.Rectangle, left int, found bool) {
+	area, found := paneArea(m.placement(), "diff", image.Pt(0, m.titleHeight()))
+	left, split := m.view.SplitLeft()
+	if !found || !split || len(m.files) == 0 {
+		return image.Rectangle{}, 0, false
 	}
 
-	sign := 1
-	if panel.Min.X > 0 {
-		sign = -1
+	x := area.Min.X + left - 1
+	return image.Rect(x, area.Min.Y, x+2, area.Max.Y), left, true
+}
+
+// startDrag начинает тянуть стык target из колонки x.
+func (m Model) startDrag(target string, x int) Model {
+	switch target {
+	case filesEdgeTarget:
+		if _, panel, found := m.filesEdge(); found {
+			sign := 1
+			if panel.Min.X > 0 {
+				sign = -1
+			}
+			m.drag = drag{active: true, x: x, width: panel.Dx(), sign: sign}
+		}
+	case splitEdgeTarget:
+		if _, left, found := m.splitEdge(); found {
+			m.drag = drag{active: true, split: true, x: x, width: left, sign: 1}
+		}
 	}
-	m.drag = drag{active: true, x: x, width: panel.Dx(), sign: sign}
 	return m
 }
 
-// dragTo ведёт стык за мышью: ширина панели меняется на столько колонок,
-// на сколько сдвинулась мышь, в пределах minFilesWidth и minDiffWidth.
-// Дифф получает новую ширину сразу.
+// dragTo ведёт стык за мышью: ширина меняется на столько колонок, на сколько
+// сдвинулась мышь. Панель файлов держится в пределах minFilesWidth и
+// minDiffWidth, и дифф получает новую ширину сразу; пределы половин держит
+// сам дифф.
 func (m Model) dragTo(x int) Model {
-	if !m.drag.active || m.width-minDiffWidth < minFilesWidth {
+	if !m.drag.active {
 		return m
 	}
 
 	width := m.drag.width + m.drag.sign*(x-m.drag.x)
+	if m.drag.split {
+		m.view = m.view.WithSplit(width)
+		return m
+	}
+	if m.width-minDiffWidth < minFilesWidth {
+		return m
+	}
 	m.filesWidth = min(max(width, minFilesWidth), m.width-minDiffWidth)
 	return m.resize()
 }
@@ -108,8 +139,12 @@ func paneArea(placed layout.Placed, pane string, origin image.Point) (image.Rect
 
 // edgeZones это места стыков, их кладут поверх строк панелей.
 func (m Model) edgeZones() []zone.Zone {
+	var zones []zone.Zone
 	if edge, _, found := m.filesEdge(); found {
-		return []zone.Zone{{Target: filesEdgeTarget, Area: edge}}
+		zones = append(zones, zone.Zone{Target: filesEdgeTarget, Area: edge})
 	}
-	return nil
+	if edge, _, found := m.splitEdge(); found {
+		zones = append(zones, zone.Zone{Target: splitEdgeTarget, Area: edge})
+	}
+	return zones
 }

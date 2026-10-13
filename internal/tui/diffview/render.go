@@ -60,14 +60,15 @@ func (m Model) renderUnified(row diff.UnifiedRow, part int) string {
 	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.Changed, spans, part)
 }
 
-// renderSplit делит ширину пополам. Половина без строки остаётся пустой и без
-// фона, чтобы было видно, с какой стороны строки нет.
+// renderSplit делит ширину на половины по стыку (split.go). Половина без
+// строки остаётся пустой и без фона, чтобы было видно, с какой стороны строки
+// нет.
 func (m Model) renderSplit(row diff.SplitRow, part int) string {
 	if row.Kind == diff.RowGap {
 		return ""
 	}
 
-	leftWidth := m.width / 2
+	leftWidth := m.splitLeft()
 	return m.half(leftWidth, row.Kind, row.Left, m.oldCode, part) + m.half(m.width-leftWidth, row.Kind, row.Right, m.newCode, part)
 }
 

@@ -36,8 +36,8 @@ func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
 	switch target {
 	case picker.CloseTarget:
 		return m.press(keymap.SearchClose)
-	case filesEdgeTarget:
-		return m.startDrag(x), nil
+	case filesEdgeTarget, splitEdgeTarget:
+		return m.startDrag(target, x), nil
 	}
 
 	return m, nil
