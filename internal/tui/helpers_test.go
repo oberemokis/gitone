@@ -116,9 +116,11 @@ func numberedLines(count int) string {
 
 // options это встроенные настройки, с которыми cmd/gitone запускается без
 // файлов настроек. Раскладка параметром: в layout.Focus() на экране один
-// дифф, и тесты диффа не видят панель файлов.
+// дифф, и тесты диффа не видят панель файлов. Заметки подвала в нём не гаснут:
+// settle доводит команды до конца и ждал бы таймер в пять секунд, а потом
+// стёр бы заметку, которую тест хочет увидеть. Гашение проверяет notice_test.go.
 func options(repo string, root layout.Node) tui.Options {
-	return tui.Options{Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root}
+	return tui.Options{Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true}
 }
 
 // open загружает дифф каталога opts.Dir с аргументами opts.Args, индекс и

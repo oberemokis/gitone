@@ -87,8 +87,7 @@ func (m Model) target() (paths []string, note string) {
 func (m Model) toggleStage() (tea.Model, tea.Cmd) {
 	paths, note := m.target()
 	if len(paths) == 0 {
-		m.notice = note
-		return m, nil
+		return m.putNotice(note, true), nil
 	}
 
 	return m, stageCmd(m.dir, paths, m.staged[stagedKey(m.files[m.current])])
@@ -98,8 +97,7 @@ func (m Model) toggleStage() (tea.Model, tea.Cmd) {
 func (m Model) askDiscard() Model {
 	paths, note := m.target()
 	if len(paths) == 0 {
-		m.notice = note
-		return m
+		return m.putNotice(note, true)
 	}
 
 	file := m.files[m.current]
@@ -107,8 +105,7 @@ func (m Model) askDiscard() Model {
 	m.confirm = paths
 	args := questionArgs(m.keys)
 	args["file"] = fileTitle(file, m.text)
-	m.notice = m.text.Text("discard.question", args)
-	return m
+	return m.putNotice(m.text.Text("discard.question", args), false)
 }
 
 // answerDiscard разбирает ответ на вопрос. Выполняет только question.yes:
