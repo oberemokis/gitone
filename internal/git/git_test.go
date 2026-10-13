@@ -51,6 +51,33 @@ func TestArgumentsGoToGitDiffWithoutUntrackedFiles(t *testing.T) {
 	wantStatuses(t, files, map[string]diff.Status{"staged.txt": diff.StatusModified})
 }
 
+// С --no-index и --exit-code git выходит с кодом 1, когда различия есть. Это
+// не отказ: на stdout лежит дифф.
+func TestExitCodeOneWithDiffIsNotAnError(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want map[string]diff.Status
+	}{
+		{name: "--no-index", args: []string{"--no-index", "a.txt", "b.txt"}, want: map[string]diff.Status{"b.txt": diff.StatusModified}},
+		{name: "--exit-code", args: []string{"--exit-code"}, want: map[string]diff.Status{"a.txt": diff.StatusModified}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", "one\n")
+			commitAll(t, repo)
+			write(t, repo, "a.txt", "three\n")
+			write(t, repo, "b.txt", "two\n")
+
+			files := load(t, repo, tc.args)
+
+			wantStatuses(t, files, tc.want)
+		})
+	}
+}
+
 func TestMoveInWorkingTreeIsShownAsRename(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\ntwo\nthree\nfour\nfive\n")
