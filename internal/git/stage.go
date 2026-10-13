@@ -65,7 +65,9 @@ const submoduleMode = "160000"
 
 // Discard отменяет правки путей. Файл, который есть в HEAD, возвращается к нему
 // вместе с индексом. Файл, которого в HEAD нет, убирается из индекса и с диска.
-// Подмодуль не отменяется: restore сдвинул бы его checkout и потерял коммиты.
+// Подмодуль не отменяется: restore сдвинул бы его checkout и потерял коммиты, а
+// у нового (его нет в HEAD) удаление оставило бы индекс изменённым при целом
+// каталоге на диске.
 // Ошибка git на файле из HEAD не трогает диск: решается по ls-tree, а не по
 // сбою restore, чтобы сбой не стёр правку.
 func Discard(dir string, paths []string) error {
@@ -95,10 +97,19 @@ func discard(dir string, paths []string) error {
 		if err != nil {
 			return err
 		}
+		tracked[i] = mode != ""
+
+		// Нового подмодуля нет в HEAD, он только в индексе: без этой проверки он
+		// шёл бы в ветку «нового файла», где rm --cached уже сменил индекс, а
+		// удалить непустой каталог не выходит.
+		if !tracked[i] {
+			if mode, err = indexMode(root, path); err != nil {
+				return err
+			}
+		}
 		if mode == submoduleMode {
 			return i18n.New("git.submoduleDiscard", i18n.Args{"path": path})
 		}
-		tracked[i] = mode != ""
 	}
 
 	for i, path := range paths {
@@ -125,6 +136,14 @@ func discard(dir string, paths []string) error {
 // репозитории нет объекта.
 func treeMode(root, base, path string) (string, error) {
 	out, err := run(literal(root), "ls-tree", base, "--", path)
+	mode, _, _ := strings.Cut(out, " ")
+	return mode, err
+}
+
+// indexMode возвращает режим записи пути в индексе, пустую строку, если пути
+// там нет.
+func indexMode(root, path string) (string, error) {
+	out, err := run(literal(root), "ls-files", "--stage", "--", path)
 	mode, _, _ := strings.Cut(out, " ")
 	return mode, err
 }

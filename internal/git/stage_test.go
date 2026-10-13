@@ -212,6 +212,33 @@ func TestDiscardRefusesSubmodule(t *testing.T) {
 	}
 }
 
+// Подмодуль, которого нет в HEAD, а в индексе он уже есть (git submodule add),
+// шёл в ветку «нового файла»: rm --cached менял индекс, потом os.Remove падал на
+// непустом каталоге. Отказ идёт до любой правки, индекс и диск остаются как были.
+func TestDiscardRefusesNewStagedSubmodule(t *testing.T) {
+	upstream := newRepo(t)
+	write(t, upstream, "lib.txt", "one\n")
+	commitAll(t, upstream)
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", upstream, "sub")
+	before := runGit(t, repo, "status", "--porcelain=v2")
+
+	err := git.Discard(repo, []string{"sub"})
+
+	var refusal *i18n.Error
+	if !errors.As(err, &refusal) || refusal.Key != "git.submoduleDiscard" {
+		t.Fatalf("Discard error = %v, ожидался отказ git.submoduleDiscard", err)
+	}
+	if after := runGit(t, repo, "status", "--porcelain=v2"); after != before {
+		t.Fatalf("git status изменился:\nдо:\n%s\nпосле:\n%s", before, after)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "sub", "lib.txt")); err != nil {
+		t.Fatalf("файл подмодуля пропал с диска: %v", err)
+	}
+}
+
 // Скобки в имени файла не шаблон: `pages/[id].vue` совпал бы и с `pages/i.vue`,
 // и отмена одного стирала бы правку другого.
 func TestDiscardTreatsPathAsLiteral(t *testing.T) {
