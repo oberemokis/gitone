@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -230,6 +231,60 @@ func TestReloadPressedWhileLoadingReadsAgain(t *testing.T) {
 
 	if screen := screenText(model); !strings.Contains(screen, "three") {
 		t.Fatalf("правка после первого чтения не на экране:\n%s", screen)
+	}
+}
+
+// openSecondLink открывает дифф, где файл link стал симлинком: две записи с
+// одним путём, удалённая «content» и добавленная «target». Открыта вторая.
+func openSecondLink(t *testing.T, ticks <-chan time.Time) (string, tea.Model) {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "link", "content\n")
+	commitAll(t, repo)
+	if err := os.Remove(filepath.Join(repo, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("target", filepath.Join(repo, "link")); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := options(repo, layout.Focus())
+	opts.Ticks = ticks
+	model := resize(open(t, opts), 100, 20)
+	model, _ = model.Update(key(']'))
+
+	return repo, model
+}
+
+// Перечитывание ищет открытую запись по подписи и статусу, а не по одному
+// пути: на второй записи link остаётся вторая, а не первая.
+func TestReloadKeepsSecondEntryOfSamePath(t *testing.T) {
+	_, model := openSecondLink(t, nil)
+
+	screen := screenOf(pressReload(t, model))
+
+	if header := headerText(screen); !strings.HasSuffix(header, "(2/2)") {
+		t.Fatalf("заголовок %q, ожидалась вторая запись (2/2)", header)
+	}
+	if body := strings.Join(screen, "\n"); !strings.Contains(body, "target") || strings.Contains(body, "content") {
+		t.Fatalf("на экране не добавленная запись link:\n%s", body)
+	}
+}
+
+// То же для опроса: появился новый файл, дифф изменился, открыта по-прежнему
+// вторая запись link.
+func TestPollKeepsSecondEntryOfSamePath(t *testing.T) {
+	repo, model := openSecondLink(t, oneTick())
+
+	write(t, repo, "z.txt", "zzz\n")
+	screen := screenOf(settle(model, model.Init(), 3))
+
+	if header := headerText(screen); !strings.HasSuffix(header, "(2/3)") {
+		t.Fatalf("заголовок %q, ожидалась вторая запись из трёх (2/3)", header)
+	}
+	if body := strings.Join(screen, "\n"); !strings.Contains(body, "target") || strings.Contains(body, "content") {
+		t.Fatalf("на экране не добавленная запись link:\n%s", body)
 	}
 }
 

@@ -453,11 +453,18 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// chosenFile ищет выбранную в окне запись в текущем диффе по подписи и статусу.
-// Окно строилось по списку на момент открытия, а дифф мог перечитаться, пока
-// оно открыто: номер записи тогда указал бы на другой файл. Подпись и статус
-// с обеих сторон собраны одним словарём, поэтому сравнение не зависит от
-// языка.
+// sameEntry говорит, что запись диффа это та, что пользователь видел под
+// подписью label и статусом status. Запись находят по подписи и статусу вместе:
+// у файла, ставшего симлинком, две записи с одним путём, удалённая и
+// добавленная. Подпись и статус с обеих сторон собраны одним словарём, поэтому
+// сравнение не зависит от языка.
+func sameEntry(file diff.File, text i18n.Dictionary, label, status string) bool {
+	return fileTitle(file, text) == label && statusLabel(file.Status, text) == status
+}
+
+// chosenFile ищет выбранную в окне запись в текущем диффе (sameEntry). Окно
+// строилось по списку на момент открытия, а дифф мог перечитаться, пока оно
+// открыто: номер записи тогда указал бы на другой файл.
 func (m Model) chosenFile() (int, bool) {
 	item, found := m.picker.SelectedItem()
 	if !found {
@@ -465,19 +472,20 @@ func (m Model) chosenFile() (int, bool) {
 	}
 
 	index := slices.IndexFunc(m.files, func(file diff.File) bool {
-		return fileTitle(file, m.text) == item.Label && statusLabel(file.Status, m.text) == item.Detail
+		return sameEntry(file, m.text, item.Label, item.Detail)
 	})
 	return index, index >= 0
 }
 
-// applyReload ставит новый дифф на место старого. Открытый файл остаётся
-// открытым, если он ещё в диффе, иначе открывается первый.
+// applyReload ставит новый дифф на место старого. Открытая запись остаётся
+// открытой, если она ещё в диффе (sameEntry), иначе открывается первая.
 func (m Model) applyReload(files []diff.File) Model {
 	kept := -1
 	if len(m.files) > 0 {
-		title := fileTitle(m.files[m.current], m.text)
+		open := m.files[m.current]
+		label, status := fileTitle(open, m.text), statusLabel(open.Status, m.text)
 		kept = slices.IndexFunc(files, func(file diff.File) bool {
-			return fileTitle(file, m.text) == title
+			return sameEntry(file, m.text, label, status)
 		})
 	}
 
