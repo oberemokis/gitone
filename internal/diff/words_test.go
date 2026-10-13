@@ -36,6 +36,21 @@ func TestWordSpans(t *testing.T) {
 		{name: "знаки считаются токенами", old: "a,b", new: "a;b", wantOld: []string{","}, wantNew: []string{";"}},
 		{name: "строки совпадают", old: "same text", new: "same text"},
 		{name: "переписана целиком", old: "alpha beta gamma", new: "x y z"},
+		// граница отрезка не заходит внутрь графемного кластера
+		{
+			name:    "эмодзи из ZWJ-последовательности подсвечивается целиком",
+			old:     "x 👨‍👩‍👧 y",
+			new:     "x 👨‍👩‍👦 y",
+			wantOld: []string{"👨‍👩‍👧"},
+			wantNew: []string{"👨‍👩‍👦"},
+		},
+		{
+			name:    "буква с комбинирующим знаком NFD подсвечивается целиком",
+			old:     "a café b",
+			new:     "a cafe b",
+			wantOld: []string{"café"},
+			wantNew: []string{"cafe"},
+		},
 	}
 
 	for _, tc := range tests {

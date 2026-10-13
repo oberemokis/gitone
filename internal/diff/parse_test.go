@@ -221,6 +221,21 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			name: "бинарный файл и смена прав с пробелом в пути берут путь из заголовка, поделив его пополам",
+			input: lines(
+				"diff --git a/Screen Shot.png b/Screen Shot.png",
+				"index f584f4041fdb85307f985f76fce8c128a0d12921..23753768bb600005216588c5e1daa8c86bd1143a 100644",
+				"Binary files a/Screen Shot.png and b/Screen Shot.png differ",
+				"diff --git a/run me.sh b/run me.sh",
+				"old mode 100644",
+				"new mode 100755",
+			),
+			want: []diff.File{
+				{OldPath: "Screen Shot.png", NewPath: "Screen Shot.png", Status: diff.StatusModified, Binary: true},
+				{OldPath: "run me.sh", NewPath: "run me.sh", Status: diff.StatusModified, OldMode: "100644", NewMode: "100755"},
+			},
+		},
+		{
 			name: "путь с кавычкой, с пробелом и не ASCII приходит без кавычек и концевого таба",
 			input: lines(
 				`diff --git "a/quo\"te.txt" "b/quo\"te.txt"`,
@@ -266,7 +281,7 @@ func TestParse(t *testing.T) {
 			want: []diff.File{{OldPath: `old"q.txt`, NewPath: `new"q.txt`, Status: diff.StatusRenamed}},
 		},
 		{
-			name: "перевод строки CRLF срезается, управляющие символы становятся видимыми значками",
+			name: "перевод строки CRLF срезается и остаётся признаком CR, управляющие символы становятся видимыми значками",
 			input: lines(
 				"diff --git a/crlf.txt b/crlf.txt",
 				"index cf9b2a8..1119ddb 100644",
@@ -285,8 +300,29 @@ func TestParse(t *testing.T) {
 				Added:   2,
 				Removed: 1,
 				Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
-					context("line one"), removed("line two"), added("line 2"), added("␛[31mred␛[0m\tend␡"),
+					{Kind: diff.LineContext, Text: "line one", CR: true},
+					{Kind: diff.LineRemoved, Text: "line two", CR: true},
+					{Kind: diff.LineAdded, Text: "line 2", CR: true},
+					added("␛[31mred␛[0m\tend␡"),
 				}}},
+			}},
+		},
+		{
+			name: "символ C1 и битый байт в строке становятся U+FFFD",
+			input: lines(
+				"diff --git a/c1.txt b/c1.txt",
+				"index 3367afd..3e75765 100644",
+				"--- a/c1.txt",
+				"+++ b/c1.txt",
+				"@@ -0,0 +1 @@",
+				"+a\u009bb\xffc",
+			),
+			want: []diff.File{{
+				OldPath: "c1.txt",
+				NewPath: "c1.txt",
+				Status:  diff.StatusModified,
+				Added:   1,
+				Hunks:   []diff.Hunk{{OldStart: 0, NewStart: 1, Lines: []diff.Line{added("a�b�c")}}},
 			}},
 		},
 		{
@@ -341,22 +377,19 @@ func TestParse(t *testing.T) {
 			}},
 		},
 		{
-			name: "строка длиннее 1024 символов обрезается при разборе",
-			input: lines(
-				"diff --git a/min.js b/min.js",
-				"index 1111111..2222222 100644",
-				"--- a/min.js",
-				"+++ b/min.js",
-				"@@ -0,0 +1 @@",
-				"+"+strings.Repeat("я", 1500),
-			),
-			want: []diff.File{{
-				OldPath: "min.js",
-				NewPath: "min.js",
-				Status:  diff.StatusModified,
-				Added:   1,
-				Hunks:   []diff.Hunk{{OldStart: 0, NewStart: 1, Lines: []diff.Line{added(strings.Repeat("я", 1024))}}},
-			}},
+			name:  "строка в 3000 символов остаётся целиком",
+			input: minifiedInput(strings.Repeat("я", 3000)),
+			want:  []diff.File{minifiedFile(strings.Repeat("я", 3000))},
+		},
+		{
+			name:  "строка ровно в 4096 символов остаётся целиком",
+			input: minifiedInput(strings.Repeat("я", 4096)),
+			want:  []diff.File{minifiedFile(strings.Repeat("я", 4096))},
+		},
+		{
+			name:  "строка длиннее 4096 символов обрезается, последний символ заменён на «…»",
+			input: minifiedInput(strings.Repeat("я", 5000)),
+			want:  []diff.File{minifiedFile(strings.Repeat("я", 4095) + "…")},
 		},
 		{
 			name: "управляющие символы в сырой записи тоже становятся значками",
@@ -442,6 +475,17 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// У строки «diff --git » нет путей, делить пополам нечего: разбор оставляет
+// файл с пустыми путями, а не падает на срезе.
+func TestParseHeaderWithoutPaths(t *testing.T) {
+	got := diff.Parse("diff --git \n")
+
+	want := []diff.File{{Status: diff.StatusModified}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Parse(%q) = %+v, want %+v", "diff --git \n", got, want)
+	}
+}
+
 // withoutBlobs убирает хэши версий: здесь проверяется устройство файлов, а
 // хэши проверяет TestParseBlobs.
 func withoutBlobs(files []diff.File) []diff.File {
@@ -467,7 +511,18 @@ func TestParseBlobs(t *testing.T) {
 		{name: "изменённый файл", input: header("index 0ff3bbb4c..9bebd18aa 100644"), old: "0ff3bbb4c", new: "9bebd18aa"},
 		{name: "новый файл", input: header("index 0000000000..3e75765abc"), old: "", new: "3e75765abc"},
 		{name: "удалённый файл", input: header("index de98044abc..0000000000"), old: "de98044abc", new: ""},
-		{name: "конфликт слияния", input: header("index ba2906d,2299c37..0000000"), old: "", new: ""},
+		{name: "конфликт слияния идёт сырой записью без хэшей", input: lines(
+			"diff --cc a.vue",
+			"index ba2906d0666cf726c7eaadd2cd3db615dedfdf3a,2299c37978265a95cbe835a4b0f0bbf15aad5549..0000000000000000000000000000000000000000",
+			"--- a/a.vue",
+			"+++ b/a.vue",
+			"@@@ -1,1 -1,1 +1,5 @@@",
+			"++<<<<<<< HEAD",
+			" +main",
+			"++=======",
+			"+ side",
+			"++>>>>>>> side",
+		), old: "", new: ""},
 	}
 
 	for _, tc := range tests {
@@ -477,6 +532,28 @@ func TestParseBlobs(t *testing.T) {
 				t.Fatalf("хэши %q и %q, want %q и %q", files[0].OldBlob, files[0].NewBlob, tc.old, tc.new)
 			}
 		})
+	}
+}
+
+// minifiedInput это дифф нового файла из одной строки text.
+func minifiedInput(text string) string {
+	return lines(
+		"diff --git a/min.js b/min.js",
+		"index 1111111..2222222 100644",
+		"--- a/min.js",
+		"+++ b/min.js",
+		"@@ -0,0 +1 @@",
+		"+"+text,
+	)
+}
+
+func minifiedFile(text string) diff.File {
+	return diff.File{
+		OldPath: "min.js",
+		NewPath: "min.js",
+		Status:  diff.StatusModified,
+		Added:   1,
+		Hunks:   []diff.Hunk{{OldStart: 0, NewStart: 1, Lines: []diff.Line{added(text)}}},
 	}
 }
 

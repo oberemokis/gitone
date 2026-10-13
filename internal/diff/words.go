@@ -3,6 +3,8 @@ package diff
 import (
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/rivo/uniseg"
 )
 
 // Span это отрезок строки в байтах: [Start, End).
@@ -26,13 +28,16 @@ type token struct {
 
 // tokens делит строку на слова, пробелы и знаки. Слово это подряд буквы,
 // цифры и подчёркивание, пробелы идут одним куском, любой другой знак
-// отдельным токеном.
+// отдельным токеном. Граница токена всегда на границе графемного кластера:
+// эмодзи из ZWJ-последовательности или буква с комбинирующим знаком не делится,
+// иначе отрезок подсветки резал бы кластер, а ширина кусков при отрисовке не
+// сходилась бы с шириной строки. Класс символа определяет первая руна кластера.
 func tokens(text string) []token {
 	var result []token
 
 	for index := 0; index < len(text); {
-		r, size := utf8.DecodeRuneInString(text[index:])
-		end := index + size
+		r, _ := utf8.DecodeRuneInString(text[index:])
+		end := index + clusterLen(text[index:])
 
 		switch {
 		case isWordRune(r):
@@ -48,17 +53,23 @@ func tokens(text string) []token {
 	return result
 }
 
-// extend сдвигает конец, пока символы подходят под признак.
+// extend сдвигает конец по кластерам, пока их первая руна подходит под признак.
 func extend(text string, end int, belongs func(rune) bool) int {
 	for end < len(text) {
-		r, size := utf8.DecodeRuneInString(text[end:])
+		r, _ := utf8.DecodeRuneInString(text[end:])
 		if !belongs(r) {
 			break
 		}
-		end += size
+		end += clusterLen(text[end:])
 	}
 
 	return end
+}
+
+// clusterLen это длина первого графемного кластера строки в байтах.
+func clusterLen(text string) int {
+	cluster, _, _, _ := uniseg.FirstGraphemeClusterInString(text, -1)
+	return len(cluster)
 }
 
 func isWordRune(r rune) bool {
@@ -154,11 +165,28 @@ func unmatchedSpans(tokens []token, matched []bool) []Span {
 	return spans
 }
 
-// wordMarks ставит пары в блоках: удалённые строки подряд, за ними добавленные.
+// mark это то, что строка получает от своей пары: изменённые слова и значок
+// CR.
+type mark struct {
+	changed []Span
+	cr      bool
+}
+
+// markPair размечает пару удалённой и добавленной строки. Значок CR нужен
+// тогда, когда строки совпадают текстом и различаются концом строки: без него
+// правка CRLF в LF выглядела бы парой одинаковых строк.
+func markPair(removed, added Line) (mark, mark) {
+	oldSpans, newSpans := wordSpans(removed.Text, added.Text)
+	endingOnly := removed.Text == added.Text && removed.CR != added.CR
+
+	return mark{oldSpans, endingOnly && removed.CR}, mark{newSpans, endingOnly && added.CR}
+}
+
+// pairMarks ставит пары в блоках: удалённые строки подряд, за ними добавленные.
 // Пара это строки на одной позиции в своих блоках, как в split. Лишние строки
 // пары не получают. Результат по индексу строки хунка.
-func wordMarks(lines []Line) map[int][]Span {
-	marks := make(map[int][]Span)
+func pairMarks(lines []Line) map[int]mark {
+	marks := make(map[int]mark)
 
 	for start := 0; start < len(lines); {
 		if lines[start].Kind != LineRemoved {
@@ -176,9 +204,7 @@ func wordMarks(lines []Line) map[int][]Span {
 		}
 
 		for offset := range min(end-start, addedEnd-end) {
-			oldSpans, newSpans := wordSpans(lines[start+offset].Text, lines[end+offset].Text)
-			marks[start+offset] = oldSpans
-			marks[end+offset] = newSpans
+			marks[start+offset], marks[end+offset] = markPair(lines[start+offset], lines[end+offset])
 		}
 
 		start = addedEnd

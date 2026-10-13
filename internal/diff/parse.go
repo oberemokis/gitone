@@ -56,12 +56,12 @@ func (p *parser) headerLine(line string) {
 }
 
 // blobs это хэши версий из строки «index <старый>..<новый> <режим>». Хэш из
-// нулей значит, что версии нет. У конфликта слияния старых версий несколько
-// («a,b..c»), такой строке хэшей нет.
+// нулей значит, что версии нет. Запятая в хэшах («a,b..c») бывает только у
+// `diff --cc`, а он уходит в сырую запись раньше разбора заголовков.
 func blobs(index string) (old, new string) {
 	ids, _, _ := strings.Cut(index, " ")
 	old, new, found := strings.Cut(ids, "..")
-	if !found || strings.Contains(old, ",") {
+	if !found {
 		return "", ""
 	}
 
@@ -135,17 +135,21 @@ func (p *parser) hunkLine(line string) {
 	file := p.current()
 	hunk := &file.Hunks[len(file.Hunks)-1]
 
+	// `\r` остаётся признаком: clean его срезает из текста, а по признаку
+	// видно правку, которая меняет только конец строки (CR на Line).
+	cr := strings.HasSuffix(line, "\r")
+
 	switch {
 	case strings.HasPrefix(line, "+"):
-		hunk.Lines = append(hunk.Lines, Line{Kind: LineAdded, Text: clean(line[1:])})
+		hunk.Lines = append(hunk.Lines, Line{Kind: LineAdded, Text: clean(line[1:]), CR: cr})
 		file.Added++
 		p.newLeft--
 	case strings.HasPrefix(line, "-"):
-		hunk.Lines = append(hunk.Lines, Line{Kind: LineRemoved, Text: clean(line[1:])})
+		hunk.Lines = append(hunk.Lines, Line{Kind: LineRemoved, Text: clean(line[1:]), CR: cr})
 		file.Removed++
 		p.oldLeft--
 	default:
-		hunk.Lines = append(hunk.Lines, Line{Kind: LineContext, Text: clean(strings.TrimPrefix(line, " "))})
+		hunk.Lines = append(hunk.Lines, Line{Kind: LineContext, Text: clean(strings.TrimPrefix(line, " ")), CR: cr})
 		p.oldLeft--
 		p.newLeft--
 	}

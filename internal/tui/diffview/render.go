@@ -57,7 +57,7 @@ func (m Model) renderUnified(row diff.UnifiedRow, part int) string {
 	// Один столбец номеров: у строки контекста старый и новый номер
 	// дублировали бы друг друга. Удалённая строка с её старым номером, а
 	// от добавленной с тем же номером её отличают знак и цвет.
-	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.Changed, spans, part)
+	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.CR, row.Changed, spans, part)
 }
 
 // renderSplit делит ширину на половины по стыку (split.go). Половина без
@@ -80,7 +80,7 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code,
 		return m.noNewline(width)
 	}
 
-	return m.cell(width, side.Kind, side.Number, side.Text, side.Changed, sideCode[side.Number], part)
+	return m.cell(width, side.Kind, side.Number, side.Text, side.CR, side.Changed, sideCode[side.Number], part)
 }
 
 // cell рисует строку файла шириной ровно width: отступ, номер, знак и текст,
@@ -89,8 +89,8 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code,
 // знак идут её цветом на своём фоне, светлее фона кода: так изменение видно
 // по краю, даже когда код длинный. Продолжение перенесённой строки (part
 // больше нуля) идёт без номера и знака, с тем же фоном. spans это подсветка
-// синтаксиса строки.
-func (m Model) cell(width int, kind diff.LineKind, number int, text string, changed []diff.Span, spans []syntax.Span, part int) string {
+// синтаксиса строки, cr значок ␍ после текста.
+func (m Model) cell(width int, kind diff.LineKind, number int, text string, cr bool, changed []diff.Span, spans []syntax.Span, part int) string {
 	base := lipgloss.NewStyle()
 	gutter := base.Foreground(m.colors.TextMuted)
 	wordBg := m.colors.DiffAddedWordBg
@@ -117,19 +117,29 @@ func (m Model) cell(width int, kind diff.LineKind, number int, text string, chan
 	}
 
 	codeWidth := width - ansi.StringWidth(prefix)
-	return gutter.Render(prefix) + m.textCells(codeWidth, m.skip(part, codeWidth), base, wordBg, text, changed, spans)
+	return gutter.Render(prefix) + m.textCells(codeWidth, m.skip(part, codeWidth), base, wordBg, text, cr, changed, spans)
 }
+
+// crMark это значок «␍» после текста строки, чей перевод CRLF отличает её от
+// пары. Он занимает одну клетку.
+const crMark = "␍"
 
 // textCells рисует текст ровно на width клеток, начиная с колонки skip:
 // сдвинутый вбок или перенесённый код. Изменённые слова идут с фоном слов,
 // категории синтаксиса с цветом текста, остальное с фоном строки. Таб
 // раскрывается до обрезки, поэтому отрезки относятся к исходному тексту, а
-// ширина считается по раскрытому.
-func (m Model) textCells(width, skip int, base lipgloss.Style, wordBg color.Color, text string, changed []diff.Span, code []syntax.Span) string {
+// ширина считается по раскрытому. Значок ␍ идёт приглушённым цветом за
+// текстом и сдвигается и переносится вместе с ним.
+func (m Model) textCells(width, skip int, base lipgloss.Style, wordBg color.Color, text string, cr bool, changed []diff.Span, code []syntax.Span) string {
 	var out strings.Builder
 	left := max(width, 0)
 
-	for _, piece := range pieces(text, changed, code) {
+	parts := pieces(text, changed, code)
+	if cr {
+		parts = append(parts, piece{text: crMark, muted: true})
+	}
+
+	for _, piece := range parts {
 		if left == 0 {
 			break
 		}
@@ -156,6 +166,9 @@ func (m Model) pieceStyle(base lipgloss.Style, piece piece, wordBg color.Color) 
 	style := base
 	if foreground := m.syntaxColor(piece.kind); foreground != nil {
 		style = style.Foreground(foreground)
+	}
+	if piece.muted {
+		style = style.Foreground(m.colors.TextMuted)
 	}
 	if piece.changed {
 		style = style.Background(wordBg)
@@ -192,10 +205,12 @@ func (m Model) syntaxColor(kind syntax.Kind) color.Color {
 }
 
 // piece это кусок строки с признаком изменённого слова и категорией синтаксиса.
+// muted это служебный значок за текстом, он красится приглушённым цветом.
 type piece struct {
 	text    string
 	changed bool
 	kind    syntax.Kind
+	muted   bool
 }
 
 // pieces режет текст по всем границам сразу: отрезков слов и категорий. Внутри
