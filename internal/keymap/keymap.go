@@ -76,6 +76,7 @@ const (
 	SearchUp        Action = "search.up"
 	SearchDown      Action = "search.down"
 	CommitSubmit    Action = "commit.submit"
+	CommitField     Action = "commit.field"
 	CommitClose     Action = "commit.close"
 	// поиск в логе, ветках и worktree: / открывает поле, done оставляет
 	// фильтр, cancel снимает
@@ -158,7 +159,7 @@ func windows() [][]Action {
 		append([]Action{StashDiff, StashApply, StashDrop}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
-		{CommitSubmit, CommitClose},
+		{CommitSubmit, CommitField, CommitClose},
 		{ListSearchDone, ListSearchCancel},
 	}
 }
@@ -172,7 +173,7 @@ func inWindow(action Action) bool {
 // inField: действие поля ввода, где остальные клавиши набирают текст.
 func inField(action Action) bool {
 	switch action {
-	case SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitClose, ListSearchDone, ListSearchCancel:
+	case SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitField, CommitClose, ListSearchDone, ListSearchCancel:
 		return true
 	}
 	return false
@@ -274,6 +275,11 @@ func decode(data []byte) (Keymap, error) {
 	return Keymap{bindings: bindings}, nil
 }
 
+// editorKeys это клавиши правки описания коммита: стрелки, home, end, delete и
+// enter (новая строка). Они зашиты, как backspace, и в описании сильнее
+// переключения поля, поэтому commit.field их не достаются.
+var editorKeys = []string{"left", "right", "up", "down", "home", "end", "delete", "enter"}
+
 // checkBindingKeys ловит при загрузке окно-ловушку и поле, которое теряет
 // буквы. ctrl+c зашит: в окнах выход, а в вопросах «нет», на главном экране
 // выход, поэтому глобальному действию он не достаётся, кроме app.quit.
@@ -300,7 +306,7 @@ func checkBindingKeys(binding Binding) error {
 	for _, key := range binding.Keys {
 		args := i18n.Args{"action": action, "key": key}
 		switch {
-		case key == "ctrl+c", inField(action) && key == "backspace":
+		case key == "ctrl+c", inField(action) && key == "backspace", action == CommitField && slices.Contains(editorKeys, key):
 			return i18n.New("keymap.reserved", args)
 		case inField(action) && printable(key):
 			return i18n.New("keymap.typesText", args)
@@ -522,6 +528,7 @@ func defaults() []Binding {
 		{Action: SearchUp, Keys: []string{"up", "ctrl+p"}},
 		{Action: SearchDown, Keys: []string{"down", "ctrl+n"}},
 		{Action: CommitSubmit, Keys: []string{"enter"}},
+		{Action: CommitField, Keys: []string{"tab"}},
 		{Action: CommitClose, Keys: []string{"esc"}},
 		{Action: ListSearchDone, Keys: []string{"enter"}},
 		{Action: ListSearchCancel, Keys: []string{"esc"}},

@@ -16,7 +16,7 @@ func TestErrorsNameOperationOnce(t *testing.T) {
 		call   func(repo string) error
 	}{
 		{name: "коммит с пустым индексом", prefix: "commit: ", call: func(repo string) error {
-			return git.Commit(repo, "пусто")
+			return git.Commit(repo, "пусто", "")
 		}},
 		{name: "переключение на несуществующую ветку", prefix: "switch: ", call: func(repo string) error {
 			return git.Switch(repo, "ghost")

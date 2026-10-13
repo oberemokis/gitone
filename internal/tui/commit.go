@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -11,29 +12,60 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
+	"gitone/internal/tui/editor"
 	"gitone/internal/tui/theme"
 )
 
-// commitCmd записывает индекс с темой. Команда, а не Update: хук может работать
-// долго, и экран не должен висеть.
-func commitCmd(dir, subject string) tea.Cmd {
+// commitField это поле окна коммита, в которое идёт набранное.
+type commitField int
+
+const (
+	subjectField commitField = iota
+	descriptionField
+)
+
+// commitCmd записывает индекс с темой и описанием. Команда, а не Update: хук
+// может работать долго, и экран не должен висеть.
+func commitCmd(dir, subject, description string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.Commit(dir, subject)}
+		return actionDoneMsg{err: git.Commit(dir, subject, description)}
 	}
 }
 
-// openCommit открывает поле темы. Клавиши уходят в него целиком, как в окно
-// поиска.
+// openCommit открывает окно коммита с пустой темой и описанием, курсор в теме.
+// Клавиши уходят в окно целиком, как в окно поиска.
 func (m Model) openCommit() Model {
 	m.active = commitWindow
-	m.subject = ""
 	m.helpOpen = false
+	return m.clearCommit()
+}
+
+// clearCommit сбрасывает набранное в окне коммита.
+func (m Model) clearCommit() Model {
+	m.subject = ""
+	m.description = editor.Model{}.Resize(commitFieldSize(m.width, m.bodyHeight()))
+	m.commitField = subjectField
 	return m
 }
 
-// typeCommit отдаёт клавиши полю темы: набранное идёт в тему, commit.submit
-// коммитит, commit.close закрывает без коммита. Выйти из приложения можно по
-// зашитому ctrl+c, стереть символ по зашитому backspace.
+// wheelCommit прокручивает поле описания колесом на столько же строк, что и
+// дифф: оно прокручивается, и когда курсор в теме.
+func (m Model) wheelCommit(button tea.MouseButton) Model {
+	switch button {
+	case tea.MouseWheelDown:
+		m.description = m.description.Scroll(wheelStep)
+	case tea.MouseWheelUp:
+		m.description = m.description.Scroll(-wheelStep)
+	}
+
+	return m
+}
+
+// typeCommit отдаёт клавиши окну коммита. commit.close закрывает окно из
+// любого поля, commit.field переключает поле. В описании остальное разбирает
+// редактор: enter там ставит новую строку, а коммитит commit.submit из темы, в
+// теме набранное идёт в тему. Выйти из приложения можно по зашитому ctrl+c,
+// стереть символ по зашитому backspace.
 func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	pressed := key.String()
 	switch {
@@ -41,15 +73,20 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case m.keys.Is(keymap.CommitClose, pressed):
 		m.active = noWindow
-		m.subject = ""
+		m = m.clearCommit()
+	case m.keys.Is(keymap.CommitField, pressed):
+		m.commitField = otherField(m.commitField)
+	case m.commitField == descriptionField:
+		m.description = m.description.HandleKey(key)
 	case m.keys.Is(keymap.CommitSubmit, pressed):
 		subject := strings.TrimSpace(m.subject)
 		if subject == "" {
 			return m, nil
 		}
+		description := m.description.Text()
 		m.active = noWindow
-		m.subject = ""
-		return m, commitCmd(m.dir, subject)
+		m = m.clearCommit()
+		return m, commitCmd(m.dir, subject, description)
 	case pressed == "backspace":
 		_, size := utf8.DecodeLastRuneInString(m.subject)
 		m.subject = m.subject[:len(m.subject)-size]
@@ -60,17 +97,105 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// commitBox рисует поле темы. Ширина ограничена экраном, как у окна справки.
-func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, subject string, screenWidth int) string {
-	width := max(min(60, screenWidth-8), 20)
+func otherField(field commitField) commitField {
+	if field == subjectField {
+		return descriptionField
+	}
+	return subjectField
+}
+
+// commitWidth это ширина окна коммита. Ограничена экраном, как у окна справки.
+func commitWidth(screenWidth int) int {
+	return max(min(60, screenWidth-8), 20)
+}
+
+// Поле описания в шесть строк. В окне кроме них десять строк: отступы сверху и
+// снизу, заголовок, подписи двух полей, тема, подсказка и три пустые.
+const (
+	descriptionRows = 6
+	commitChrome    = 10
+)
+
+// commitFieldSize это ширина и высота поля описания на экране: ширина окна без
+// отступов, а на низком экране поле сжимается, чтобы окно поместилось в тело.
+func commitFieldSize(screenWidth, bodyHeight int) (width, height int) {
+	return commitWidth(screenWidth) - 2*windowPaddingX, max(min(descriptionRows, bodyHeight-commitChrome), 1)
+}
+
+// commitBox рисует окно коммита: тему и описание, у каждого подпись, активное
+// поле с курсором и подписью accent. Подсказка внизу называет поле, куда ведёт
+// commit.field.
+func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, subject string, description editor.Model, field commitField, screenWidth int) string {
+	width := commitWidth(screenWidth)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	content := width - 2*windowPaddingX
 	title := windowTitle(colors, content, text.Text("commit.title", nil), closeHint(colors, keys, text, keymap.CommitClose))
-	input := panel.Render("> " + subject + "_")
-	// подсказка обрезается: длинная переназначенная клавиша перенесла бы строку
-	hintText := windowHint(colors, keys, text, keymap.CommitSubmit)
-	hint := ansi.Truncate(hintText, content, panel.Foreground(colors.TextMuted).Render("…"))
+	label := func(key string, active bool) string {
+		color := colors.TextMuted
+		if active {
+			color = colors.Accent
+		}
+		return panel.Foreground(color).Render(text.Text(key, nil))
+	}
 
-	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join([]string{title, "", input, "", hint}, "\n"))
+	input := "> " + visible(subject)
+	if field == subjectField {
+		input += "_"
+	}
+	// длинная тема не переносится, иначе окно выросло бы выше экрана: виден
+	// конец, где идёт набор
+	if over := ansi.StringWidth(input) - content; over > 0 {
+		input = ansi.TruncateLeft(input, over+1, "…")
+	}
+
+	lines := []string{title, "", label("commit.subject", field == subjectField), panel.Render(input), "", label("commit.description", field == descriptionField)}
+	cursorRow, cursorOffset := description.Cursor()
+	for row, line := range description.Rows() {
+		if field == descriptionField && row == cursorRow {
+			line = withCursor(colors, panel, line, cursorOffset)
+		} else {
+			line = panel.Render(line)
+		}
+		lines = append(lines, line)
+	}
+
+	// подсказка обрезается: длинная переназначенная клавиша перенесла бы строку
+	hint := ansi.Truncate(commitHint(colors, keys, text, field), content, panel.Foreground(colors.TextMuted).Render("…"))
+	lines = append(lines, "", hint)
+
+	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))
+}
+
+// withCursor рисует строку line с курсором перед руной номер offset: клетка
+// цветом primary, а в конце строки пробел.
+func withCursor(colors theme.Theme, panel lipgloss.Style, line string, offset int) string {
+	runes := []rune(line)
+	under, after := " ", ""
+	if offset < len(runes) {
+		under, after = string(runes[offset]), string(runes[offset+1:])
+	}
+
+	cursor := panel.Background(colors.Primary).Foreground(colors.BackgroundPanel)
+	return panel.Render(string(runes[:offset])) + cursor.Render(under) + panel.Render(after)
+}
+
+// commitHint это подсказка окна: enter коммитит только из темы, а tab называет
+// поле, куда ведёт. Отключённое действие в подсказку не идёт.
+func commitHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, field commitField) string {
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+
+	var hints []string
+	if field == subjectField {
+		hints = append(hints, windowHint(colors, keys, text, keymap.CommitSubmit))
+	}
+	if key := firstKey(keys, keymap.CommitField); key != "" {
+		target := "commit.hintDescription"
+		if field == descriptionField {
+			target = "commit.hintSubject"
+		}
+		hints = append(hints, pressable(keymap.CommitField, keyHint(panel, colors, key, text.Text(target, nil))))
+	}
+
+	return strings.Join(slices.DeleteFunc(hints, func(hint string) bool { return hint == "" }), panel.Render("   "))
 }

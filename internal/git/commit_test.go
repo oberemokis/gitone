@@ -36,11 +36,71 @@ func TestCommitRecordsSubject(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Commit(repo, "поправить текст"); err != nil {
+	if err := git.Commit(repo, "поправить текст", ""); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 	if got := lastSubject(t, repo); got != "поправить текст" {
 		t.Fatalf("тема коммита %q", got)
+	}
+}
+
+// lastMessage это полное сообщение последнего коммита без перевода строки в
+// конце.
+func lastMessage(t *testing.T, repo string) string {
+	t.Helper()
+	return strings.TrimSuffix(runGit(t, repo, "log", "-1", "--format=%B"), "\n\n")
+}
+
+// stagedRepo это репозиторий с коммитом и застейдженной правкой a.txt.
+func stagedRepo(t *testing.T) string {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "add", "a.txt")
+
+	return repo
+}
+
+// Описание уходит вторым -m: git ставит между темой и телом пустую строку.
+func TestCommitRecordsDescription(t *testing.T) {
+	repo := stagedRepo(t)
+
+	if err := git.Commit(repo, "fix", "line 1\nline 2"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	if got := lastMessage(t, repo); got != "fix\n\nline 1\nline 2" {
+		t.Fatalf("сообщение коммита %q, ожидались тема, пустая строка и тело", got)
+	}
+}
+
+// Пробелы и пустые строки по краям описания обрезаются, описание из одних
+// пробелов считается пустым и тела не даёт.
+func TestCommitTrimsDescription(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		message     string
+	}{
+		{name: "по краям", description: "\n  line 1\n\nline 3 \n\n", message: "fix\n\nline 1\n\nline 3"},
+		{name: "одни пробелы", description: " \n\t \n", message: "fix"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := stagedRepo(t)
+
+			if err := git.Commit(repo, "fix", tc.description); err != nil {
+				t.Fatalf("Commit: %v", err)
+			}
+
+			if got := lastMessage(t, repo); got != tc.message {
+				t.Fatalf("сообщение коммита %q, ожидалось %q", got, tc.message)
+			}
+		})
 	}
 }
 
@@ -50,7 +110,7 @@ func TestCommitWithNothingStagedFails(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	err := git.Commit(repo, "пусто")
+	err := git.Commit(repo, "пусто", "")
 
 	var refusal *i18n.Error
 	if !errors.As(err, &refusal) || refusal.Key != "git.nothingToCommit" {
@@ -73,7 +133,7 @@ func TestCommitFinishesMergeWithTreeEqualToHead(t *testing.T) {
 	runGit(t, repo, "switch", "-q", "main")
 	runGit(t, repo, "merge", "-q", "--no-commit", "-s", "ours", "other")
 
-	if err := git.Commit(repo, "слияние"); err != nil {
+	if err := git.Commit(repo, "слияние", ""); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 	if got := lastSubject(t, repo); got != "слияние" {
@@ -123,7 +183,7 @@ func TestCommitDuringCherryPickAndRevertLeavesDecisionToGit(t *testing.T) {
 			runGit(t, repo, "checkout", "-q", "--ours", "a.txt")
 			runGit(t, repo, "add", "a.txt")
 
-			err := git.Commit(repo, "после остановки")
+			err := git.Commit(repo, "после остановки", "")
 
 			var refusal *i18n.Error
 			if err == nil || errors.As(err, &refusal) {
@@ -139,7 +199,7 @@ func TestCommitFirstCommit(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Commit(repo, "первый"); err != nil {
+	if err := git.Commit(repo, "первый", ""); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 	if got := lastSubject(t, repo); got != "первый" {
@@ -161,7 +221,7 @@ func TestFailingHookKeepsHead(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Commit(repo, "с хуком"); err == nil {
+	if err := git.Commit(repo, "с хуком", ""); err == nil {
 		t.Fatal("коммит прошёл, хотя хук упал")
 	}
 	if after := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD")); after != before {
