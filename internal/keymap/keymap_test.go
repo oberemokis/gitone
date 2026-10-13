@@ -175,7 +175,7 @@ func TestLoadWindowKeys(t *testing.T) {
 		{name: "закрытие пустым списком", content: `{"keybinds":{"list.close":[]}}`, wantErr: []string{"cannot be disabled", "list.close"}},
 		{name: "закрытие с заглавной в имени", content: `{"keybinds":{"commit.close":"Esc"}}`, wantErr: []string{"unknown key", "commit.close"}},
 		{name: "закрытие заглавной буквой", content: `{"keybinds":{"list.close":"Q"}}`},
-		{name: "ответ да отключён", content: `{"keybinds":{"question.yes":"none"}}`, wantErr: []string{"cannot be disabled", "question.yes"}},
+		{name: "ответ да отключён", content: `{"keybinds":{"question.yes":"none"}}`, wantErr: []string{"cannot be disabled", "question.yes", "cannot be confirmed"}},
 		{name: "ответ да заглавной", content: `{"keybinds":{"question.yes":"Y"}}`},
 		{name: "ctrl+c в окне", content: `{"keybinds":{"list.close":"ctrl+c"}}`, wantErr: []string{"reserved", "list.close"}},
 		{name: "backspace в поле", content: `{"keybinds":{"search.close":"backspace"}}`, wantErr: []string{"reserved", "search.close"}},

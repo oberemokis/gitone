@@ -265,8 +265,15 @@ func checkWindowKeys(binding Binding) error {
 	if !inWindow(action) {
 		return nil
 	}
-	if len(binding.Keys) == 0 && (closes(action) || action == QuestionYes) {
-		return i18n.New("keymap.cannotDisable", i18n.Args{"action": action})
+	if len(binding.Keys) == 0 {
+		args := i18n.Args{"action": action}
+		switch {
+		case closes(action):
+			return i18n.New("keymap.cannotDisable", args)
+		case action == QuestionYes:
+			// выход из вопроса есть, любая другая клавиша значит «нет»
+			return i18n.New("keymap.cannotDisableYes", args)
+		}
 	}
 
 	for _, key := range binding.Keys {
