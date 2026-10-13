@@ -179,6 +179,47 @@ func TestScreensUseDictionary(t *testing.T) {
 	}
 }
 
+// pathOnScreen это путь worktree: его пишем не мы, а временный каталог теста
+// полон слов.
+var pathOnScreen = regexp.MustCompile(`/\S+`)
+
+// Окно worktree, поле поиска в списках и их надписи о пустом поиске берут тексты
+// из словаря. Запрос из тильд не буквы, путь worktree убирается из экрана.
+func TestListWindowsUseDictionary(t *testing.T) {
+	repo := pseudoRepo(t)
+	runGit(t, repo, "worktree", "add", "-q", "-b", "2", filepath.Join(t.TempDir(), "0"))
+
+	for _, tc := range []struct {
+		name  string
+		open  rune
+		typed string
+		// shows это текст словаря, который стоит на экране: без него окно могло
+		// не открыться, а экран под ним целиком из словаря
+		shows string
+	}{
+		{name: "worktree", open: 'W', shows: "⟦Worktrees⟧"},
+		{name: "поле поиска worktree", open: 'W', typed: "/", shows: "⟦done⟧"},
+		{name: "worktree без совпадений", open: 'W', typed: "/~~", shows: "⟦No matches⟧"},
+		{name: "поле поиска лога", open: 'l', typed: "/", shows: "⟦done⟧"},
+		{name: "лог без совпадений", open: 'l', typed: "/~~", shows: "⟦No matching commits⟧"},
+		{name: "поле поиска веток", open: 'B', typed: "/", shows: "⟦done⟧"},
+		{name: "ветки без совпадений", open: 'B', typed: "/~~", shows: "⟦No matches⟧"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := typeText(openAsync(openPseudo(t, repo), key(tc.open)), tc.typed)
+
+			text := pathOnScreen.ReplaceAllString(screenText(model), "")
+
+			if !strings.Contains(text, tc.shows) {
+				t.Errorf("на экране нет %q:\n%s", tc.shows, text)
+			}
+			if found := untranslated(strings.Split(text, "\n")); len(found) > 0 {
+				t.Errorf("текст вне словаря %q:\n%s", found, text)
+			}
+		})
+	}
+}
+
 // Служебные строки диффа: переименование без правок, бинарный файл, смена
 // прав и строка без перевода в конце.
 func TestDiffNoticesUseDictionary(t *testing.T) {

@@ -87,10 +87,17 @@ func TestLogSearchEnterKeepsFilter(t *testing.T) {
 		t.Fatalf("курсор не на втором найденном: %q", row)
 	}
 
+	// Под курсором второй найденный, а без фильтра на этой строке «feat: two».
+	// В диффе «fix: one» стоят «- init» и «+ fix: one», в диффе соседнего
+	// «- fix: one» и «+ feat: two»: подстрока «one» есть в обоих.
 	model, cmd := model.Update(enter)
 	model = settle(model, cmd, 3)
-	if screen := screenText(model); strings.Contains(screen, "Log") || !strings.Contains(screen, "one") {
+	screen := screenText(model)
+	if strings.Contains(screen, "Log") || !strings.Contains(screen, "- init") || !strings.Contains(screen, "+ fix: one") {
 		t.Fatalf("enter не открыл найденный коммит:\n%s", screen)
+	}
+	if strings.Contains(screen, "feat: two") {
+		t.Fatalf("enter открыл соседний коммит вместо найденного:\n%s", screen)
 	}
 }
 
@@ -134,6 +141,29 @@ func TestLogSearchHashByPrefix(t *testing.T) {
 
 			if got := strings.Contains(screen, "2a2812d"); got != tc.found {
 				t.Fatalf("коммит найден = %v, want %v по запросу %q:\n%s", got, tc.found, tc.query, screen)
+			}
+		})
+	}
+}
+
+// Тема и автор ищутся по подстроке без учёта регистра и порознь: запрос не
+// находит стык конца темы с началом имени автора.
+func TestLogSearchByAuthor(t *testing.T) {
+	repo := authoredRepo(t, []string{"alpha", "tail-x", "gamma"}, []string{"Zed Zhang", "Head Y", "Amy Adams"})
+
+	for _, tc := range []struct {
+		name, query, shows, hides string
+	}{
+		{name: "автор", query: "ZHANG", shows: "alpha", hides: "gamma"},
+		{name: "стык темы и автора", query: "xhead", shows: "No matching commits", hides: "alpha"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := openAsync(resize(open(t, options(repo, layout.Focus())), 120, 30), key('l'))
+
+			screen := screenText(typeText(model, "/"+tc.query))
+
+			if !strings.Contains(screen, tc.shows) || strings.Contains(screen, tc.hides) {
+				t.Fatalf("по запросу %q на экране нет %q или есть %q:\n%s", tc.query, tc.shows, tc.hides, screen)
 			}
 		})
 	}

@@ -117,14 +117,19 @@ func TestQuitKeysTypeIntoSubject(t *testing.T) {
 
 	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	model, cmd := model.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
-
-	if cmd != nil {
-		if _, quits := cmd().(tea.QuitMsg); quits {
-			t.Fatal("q выходит из приложения, хотя набирается в тему")
+	for _, char := range "q?" {
+		var cmd tea.Cmd
+		model, cmd = model.Update(key(char))
+		if cmd != nil {
+			if _, quits := cmd().(tea.QuitMsg); quits {
+				t.Fatalf("%c выходит из приложения, хотя набирается в тему", char)
+			}
 		}
 	}
-	if !strings.Contains(strings.Join(screenOf(model), "\n"), "> q") {
-		t.Fatal("q не попал в поле темы")
+
+	// справка открылась бы поверх поля и унесла бы клавиши с собой
+	screen := strings.Join(screenOf(model), "\n")
+	if !strings.Contains(screen, "> q?_") || strings.Contains(screen, "Hotkeys") {
+		t.Fatalf("q и ? не набрались в поле темы:\n%s", screen)
 	}
 }

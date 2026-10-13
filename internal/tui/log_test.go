@@ -78,6 +78,69 @@ func TestLogWindowFillsScreenWithMargins(t *testing.T) {
 	}
 }
 
+// На высоком экране поле окна не больше 5 строк сверху и снизу: на экране 60 на
+// 120 тело 54 строки, восьмая часть 6 уже не работает, а предел да.
+func TestLogWindowMarginIsFiveRowsOnTallScreen(t *testing.T) {
+	_, model := openLog(t, 3, 120, 60)
+	screen := screenOf(model)
+
+	// тело с строки bodyRow, поле 5 строк, отступ окна 1 строка
+	if title, want := rowOf(screen, "Log"), bodyRow+5+1; title != want {
+		t.Errorf("заголовок окна в строке %d, want %d:\n%s", title, want, strings.Join(screen, "\n"))
+	}
+	// подсказка стоит над отступом окна в 1 строку и полем в 5 строк, последняя
+	// строка тела bodyRow+54-1
+	if hint, want := rowOf(screen, "enter commit diff"), bodyRow+54-1-1-5; hint != want {
+		t.Errorf("подсказка окна в строке %d, want %d:\n%s", hint, want, strings.Join(screen, "\n"))
+	}
+}
+
+// Курсор за нижним краем длинного списка тянет окно за собой, на обратном пути
+// вверх первые строки возвращаются: строка под курсором всегда на экране. В
+// окне 40 коммитов не умещаются, видны 19 строк.
+func TestLogListScrollsWithCursor(t *testing.T) {
+	subjects := make([]string, 40)
+	for index := range subjects {
+		subjects[index] = fmt.Sprintf("item-%02d", index+1)
+	}
+	model := resize(open(t, options(commitSubjects(t, subjects...), layout.Focus())), 120, 40)
+	model = openAsync(model, key('l'))
+
+	for range 30 {
+		model, _ = model.Update(key('j'))
+	}
+	// наверху лога последний коммит item-40, в 31-й строке item-10
+	if row := markedRow(model); !strings.Contains(row, "item-10") {
+		t.Fatalf("под курсором %q, want item-10:\n%s", row, screenText(model))
+	}
+	if screen := screenText(model); strings.Contains(screen, "item-40") {
+		t.Fatalf("верх списка остался на экране:\n%s", screen)
+	}
+
+	for range 30 {
+		model, _ = model.Update(key('k'))
+	}
+	if row := markedRow(model); !strings.Contains(row, "item-40") {
+		t.Fatalf("под курсором %q, want item-40:\n%s", row, screenText(model))
+	}
+}
+
+// Корневой коммит дифф не открывает: окно закрывается, а подвал называет
+// причину.
+func TestLogRootCommitSaysItIsHidden(t *testing.T) {
+	model := searchLog(t, "only commit")
+
+	model, cmd := model.Update(enter)
+	model = settle(model, cmd, 3)
+
+	if screen := screenText(model); strings.Contains(screen, "Log") {
+		t.Fatalf("enter на корневом коммите не закрыл окно:\n%s", screen)
+	}
+	if footer := footerOf(model); !strings.Contains(footer, "the first commit is not shown") {
+		t.Fatalf("в подвале %q, ожидалась причина", footer)
+	}
+}
+
 // На узком экране поле не больше восьмой части ширины.
 func TestLogWindowMarginOnNarrowScreen(t *testing.T) {
 	_, model := openLog(t, 3, 80, 40)

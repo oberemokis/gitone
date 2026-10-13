@@ -48,6 +48,41 @@ func TestLateStashDoesNotSurfaceAfterCommit(t *testing.T) {
 	}
 }
 
+// Список, пришедший при открытом поле темы, его не заменяет: экран сразу после
+// ответа остаётся с полем, а набранное идёт в тему, а не в список. После esc
+// из коммита это не видно, поэтому экран смотрится до него.
+func TestLateListKeepsCommitField(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		press rune
+		title string
+	}{
+		{name: "лог", press: 'l', title: "Log"},
+		{name: "ветки", press: 'B', title: "Branches"},
+		{name: "worktree", press: 'W', title: "Worktrees"},
+		{name: "stash", press: 'Z', title: "Stash"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, model := threeFileRepo(t)
+
+			model, listCmd := model.Update(key(tc.press))
+			model, _ = model.Update(key('c'))
+			model, _ = model.Update(listCmd())
+
+			screen := screenText(model)
+			if !strings.Contains(screen, "> _") || strings.Contains(screen, tc.title) {
+				t.Fatalf("после позднего ответа на экране не поле темы:\n%s", screen)
+			}
+
+			// a и d в окне stash применили бы и удалили stash
+			screen = screenText(typeText(model, "ad"))
+			if !strings.Contains(screen, "> ad_") {
+				t.Fatalf("набранное не попало в тему:\n%s", screen)
+			}
+		})
+	}
+}
+
 // Ошибка из ответа со списком уходит в подвал и при открытом окне, а окно
 // коммита с набранной темой остаётся.
 func TestLateLogErrorReachesFooter(t *testing.T) {

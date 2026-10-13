@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -101,6 +102,37 @@ func TestLogGraphCursorSkipsConnectors(t *testing.T) {
 		if row := markedRow(model); !strings.Contains(row, step.subject) {
 			t.Fatalf("после %c курсор на %q, ожидался коммит %q", step.key, row, step.subject)
 		}
+	}
+}
+
+// Граф шире 24 колонок обрезается справа: у слияния 13 веток в одной строке
+// «| » стоит 12 раз и «*» 13-й ветки уходит в 25-ю колонку, за край. Столбец
+// графа остаётся в 24 колонки и отделён от хэша промежутком в две.
+func TestLogGraphIsCutAtMaxColumns(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "base.txt", "base\n")
+	commitAll(t, repo)
+
+	branches := make([]string, 13)
+	for index := range branches {
+		branches[index] = fmt.Sprintf("b%d", index+1)
+		runGit(t, repo, "switch", "-q", "-c", branches[index], "main")
+		write(t, repo, branches[index]+".txt", "x\n")
+		runGit(t, repo, "add", "-A")
+		runGit(t, repo, "commit", "-q", "-m", fmt.Sprintf("branch %d", index+1))
+	}
+	runGit(t, repo, "switch", "-q", "main")
+	runGit(t, repo, append([]string{"merge", "-q", "-m", "octopus"}, branches...)...)
+
+	model := resize(open(t, options(repo, layout.Focus())), 140, 40)
+	screen := screenOf(openAsync(model, key('l')))
+
+	last := rowWith(t, screen, "branch 13")
+	if strings.Contains(last, "*") {
+		t.Errorf("«*» 13-й ветки не обрезан: %q", last)
+	}
+	if gap := column(rowWith(t, screen, "Message"), "Commit") - column(last, "|"); gap != 24+2 {
+		t.Errorf("от начала графа до столбца хэша %d колонок, want 26: %q", gap, last)
 	}
 }
 

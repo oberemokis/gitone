@@ -75,6 +75,38 @@ func TestWorktreeWindowCloses(t *testing.T) {
 	}
 }
 
+// Аргументы запуска относятся к прежнему worktree: после переключения идёт
+// дифф рабочего дерева нового, и b возвращает к нему же, а не к аргументам.
+func TestWorktreeSwitchDropsLaunchArgs(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+	side := filepath.Join(t.TempDir(), "side-tree")
+	runGit(t, repo, "worktree", "add", "-q", "-b", "side", side)
+	write(t, side, "a.txt", "side-edit\n")
+
+	// у запуска дифф последнего коммита: «- one» и «+ two»
+	opts := options(repo, layout.Focus())
+	opts.Args = []string{"HEAD~1", "HEAD"}
+	model := resize(open(t, opts), 100, 20)
+
+	model = openAsync(model, key('W'))
+	model, _ = model.Update(key('j'))
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, cmd, 3)
+	if screen := screenText(model); !strings.Contains(screen, "+ side-edit") {
+		t.Fatalf("после переключения не рабочее дерево side-tree:\n%s", screen)
+	}
+
+	model, cmd = model.Update(key('b'))
+	model = settle(model, cmd, 3)
+	if screen := screenText(model); !strings.Contains(screen, "+ side-edit") {
+		t.Fatalf("b вернул не рабочее дерево side-tree, а аргументы запуска:\n%s", screen)
+	}
+}
+
 // Опрос, ушедший до переключения, не возвращает дифф старого worktree.
 func TestLatePollKeepsSwitchedWorktree(t *testing.T) {
 	_, _, model := twoWorktrees(t)

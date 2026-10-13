@@ -15,6 +15,21 @@ import (
 	"gitone/internal/layout"
 )
 
+// authoredRepo делает репозиторий, где коммиты с темами subjects сделаны
+// авторами authors по порядку.
+func authoredRepo(t *testing.T, subjects, authors []string) string {
+	t.Helper()
+
+	repo := newRepo(t)
+	for index, subject := range subjects {
+		write(t, repo, "a.txt", subject+"\n")
+		runGit(t, repo, "add", "-A")
+		t.Setenv("GIT_AUTHOR_NAME", authors[index])
+		runGit(t, repo, "commit", "-q", "-m", subject)
+	}
+	return repo
+}
+
 // tableLog открывает лог репозитория, где коммиты с темами subjects сделаны
 // авторами authors по порядку (последний коммит наверху лога).
 func tableLog(t *testing.T, subjects, authors []string) []string {
@@ -27,14 +42,7 @@ func tableLog(t *testing.T, subjects, authors []string) []string {
 func tableLogAt(t *testing.T, subjects, authors []string, width int) []string {
 	t.Helper()
 
-	repo := newRepo(t)
-	for index, subject := range subjects {
-		write(t, repo, "a.txt", subject+"\n")
-		runGit(t, repo, "add", "-A")
-		t.Setenv("GIT_AUTHOR_NAME", authors[index])
-		runGit(t, repo, "commit", "-q", "-m", subject)
-	}
-
+	repo := authoredRepo(t, subjects, authors)
 	model := resize(open(t, options(repo, layout.Focus())), width, 40)
 	return screenOf(openAsync(model, key('l')))
 }
