@@ -37,6 +37,12 @@ func TestKinds(t *testing.T) {
 		"    throw new Error(`Failed: ${response.status}`);",
 		"  }",
 	}
+	vueLines := []string{
+		"<template>",
+		`  <div class="card" v-if="ok">Hello</div>`,
+		"  <!-- note -->",
+		"</template>",
+	}
 
 	tests := []struct {
 		name  string
@@ -62,6 +68,13 @@ func TestKinds(t *testing.T) {
 		{name: "ts: шаблонная строка", path: "a.ts", lines: tsLines, line: 2, text: "`Failed", want: syntax.String},
 		// код внутри ${…} красится как код, а не как строка
 		{name: "ts: свойство внутри шаблона", path: "a.ts", lines: tsLines, line: 2, text: "status", want: syntax.Property},
+		// #139: грамматика vue в сборке и свой запрос разметки
+		{name: "vue: тег", path: "App.vue", lines: vueLines, line: 1, text: "div", want: syntax.Tag},
+		{name: "vue: атрибут", path: "App.vue", lines: vueLines, line: 1, text: "class", want: syntax.Property},
+		{name: "vue: значение атрибута", path: "App.vue", lines: vueLines, line: 1, text: "card", want: syntax.String},
+		{name: "vue: директива", path: "App.vue", lines: vueLines, line: 1, text: "v-if", want: syntax.Keyword},
+		{name: "vue: текст шаблона", path: "App.vue", lines: vueLines, line: 1, text: "Hello", want: ""},
+		{name: "vue: комментарий", path: "App.vue", lines: vueLines, line: 2, text: "<!--", want: syntax.Comment},
 	}
 
 	for _, tc := range tests {
@@ -83,6 +96,16 @@ func TestMultilineComment(t *testing.T) {
 	for _, line := range []int{1, 2} {
 		if got := kindOf(lines, spans, line, strings.TrimSpace(lines[line])); got != syntax.Comment {
 			t.Errorf("строка %d %q: вид %q, want comment", line, lines[line], got)
+		}
+	}
+}
+
+// Сборка с явным списком грамматик (#139) держит прежний набор: языки из
+// core100 определяются и разбираются, как раньше.
+func TestGrammarSetKeepsCoreLanguages(t *testing.T) {
+	for _, path := range []string{"a.py", "a.rs", "a.svelte", "a.astro", "a.yaml", "a.css", "Dockerfile", "a.sql"} {
+		if spans := syntax.Detect(path).Lines([]string{"x"}); spans == nil {
+			t.Errorf("%s: язык не определился", path)
 		}
 	}
 }
