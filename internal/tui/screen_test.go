@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/layout"
+	"gitone/internal/tui/theme"
 )
 
 func TestFirstChangedFileOpensWithPathAndCounts(t *testing.T) {
@@ -192,12 +194,6 @@ func TestSpecialFilesShowNotices(t *testing.T) {
 			want:   "No content changes",
 		},
 		{
-			name:   "нет перевода строки в конце",
-			before: map[string]string{"a.txt": "a\nb\n"},
-			change: func(t *testing.T, repo string) { write(t, repo, "a.txt", "a\nB") },
-			want:   "No newline at end of file",
-		},
-		{
 			name:   "нераспознанный вывод git показывается как есть",
 			before: map[string]string{"a.txt": "a\n"},
 			change: func(t *testing.T, repo string) { write(t, repo, "a.txt", "b\n") },
@@ -221,6 +217,61 @@ func TestSpecialFilesShowNotices(t *testing.T) {
 
 			if body := strings.Join(screen, "\n"); !strings.Contains(body, tc.want) {
 				t.Fatalf("на экране нет %q:\n%s", tc.want, body)
+			}
+		})
+	}
+}
+
+// Пометка «No newline» стоит на своей стороне и серая: в unified под строкой, у
+// которой нет перевода, в split в той половине, где его нет, а другая половина
+// пуста. У старой версии пометка идёт после удалённой строки, у новой после
+// добавленной.
+func TestNoNewlineMarkerSitsOnItsSideAndIsMuted(t *testing.T) {
+	const marker = "No newline at end of file"
+	// половина split на экране 100 колонок
+	pair := func(left, right string) string { return fmt.Sprintf("%-50s%s", left, right) }
+
+	tests := []struct {
+		name, mode, old, new string
+		want                 []string
+	}{
+		{
+			name: "unified, перевода нет у старой версии", mode: "unified", old: "a\nb", new: "a\nB\n",
+			want: []string{" 1   a", " 2 - b", "     " + marker, " 2 + B"},
+		},
+		{
+			name: "unified, перевода нет у новой версии", mode: "unified", old: "a\nb\n", new: "a\nB",
+			want: []string{" 1   a", " 2 - b", " 2 + B", "     " + marker},
+		},
+		{
+			name: "split, перевода нет у старой версии", mode: "split", old: "a\nb", new: "a\nB\n",
+			want: []string{pair(" 1   a", " 1   a"), pair(" 2 - b", " 2 + B"), "     " + marker},
+		},
+		{
+			name: "split, перевода нет у новой версии", mode: "split", old: "a\nb\n", new: "a\nB",
+			want: []string{pair(" 1   a", " 1   a"), pair(" 2 - b", " 2 + B"), pair("", "     "+marker)},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", tc.old)
+			commitAll(t, repo)
+			write(t, repo, "a.txt", tc.new)
+
+			custom := theme.Dark()
+			custom.TextMuted = lipgloss.Color("#030303")
+			opts := options(repo, layout.Focus())
+			opts.Theme = custom
+			opts.Config.Diff.Mode = tc.mode
+			model := resize(open(t, opts), 100, 20)
+
+			if got := bodyRows(model, len(tc.want)); !slices.Equal(got, tc.want) {
+				t.Errorf("строки диффа\n%q\nwant\n%q", got, tc.want)
+			}
+			if got := styleBefore(t, model.View().Content, marker, marker); !strings.Contains(got, mutedFg) {
+				t.Errorf("перед пометкой %q, want приглушённый цвет %s", got, mutedFg)
 			}
 		})
 	}
