@@ -271,15 +271,17 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 		}
 	}
 
-	// строка дополнена до края окна: клик по ней попадает в любом месте (#119)
+	// строка дополнена до края окна: клик по ней попадает в любом месте
+	// (#119). Добивка несёт фон окна сама: куски строки кончаются сбросом
+	// стиля, и пробелы после них были бы без фона (#131)
 	for index := start; index < len(l.rows) && index < start+shown; index++ {
 		marker := "  "
 		if index == l.cursor {
 			marker = "› "
 		}
-		row := ansi.Truncate(marker+l.rows[index], content, "…")
-		row += strings.Repeat(" ", max(content-ansi.StringWidth(row), 0))
-		lines = append(lines, zone.Mark(zone.Row(index), panel.Render(row)))
+		row := panel.Render(ansi.Truncate(marker+l.rows[index], content, "…"))
+		row += panel.Render(strings.Repeat(" ", max(content-ansi.StringWidth(row), 0)))
+		lines = append(lines, zone.Mark(zone.Row(index), row))
 	}
 
 	// окно на весь экран держит высоту и с коротким списком

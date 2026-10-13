@@ -3,9 +3,12 @@ package tui_test
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/layout"
@@ -168,5 +171,88 @@ func TestBranchColumnsLineUp(t *testing.T) {
 	}
 	if !strings.Contains(long, "bob with a very lon…") {
 		t.Errorf("длинный автор не обрезан до 20 колонок: %q", long)
+	}
+}
+
+// cellBackgrounds это фон каждой клетки строки как «r;g;b» из SGR 48;2,
+// пустая строка без фона.
+func cellBackgrounds(line string) []string {
+	var cells []string
+	background := ""
+	for line != "" {
+		if found := sgr.FindStringIndex(line); found != nil && found[0] == 0 {
+			params := strings.Split(line[2:found[1]-1], ";")
+			for index := 0; index < len(params); index++ {
+				switch params[index] {
+				case "", "0", "49":
+					background = ""
+				case "48", "38":
+					if index+4 < len(params) && params[index+1] == "2" {
+						if params[index] == "48" {
+							background = strings.Join(params[index+2:index+5], ";")
+						}
+						index += 4
+					}
+				}
+			}
+			line = line[found[1]:]
+			continue
+		}
+
+		_, size := utf8.DecodeRuneInString(line)
+		cells = append(cells, background)
+		line = line[size:]
+	}
+	return cells
+}
+
+// Строка списка от левого до правого края окна идёт с фоном окна: пробелы
+// после короткой строки не чёрные. Так в окнах веток и worktree и в строке
+// соединения графа в логе (#131).
+func TestListRowsKeepWindowBackground(t *testing.T) {
+	branches := func(t *testing.T) tea.Model { _, model := threeFileRepo(t); return openAsync(model, key('B')) }
+	worktrees := func(t *testing.T) tea.Model { _, model := threeFileRepo(t); return openAsync(model, key('W')) }
+
+	for _, tc := range []struct {
+		title, row string
+		open       func(t *testing.T) tea.Model
+	}{
+		{title: "Branches", row: "(current)", open: branches},
+		{title: "Worktrees", row: "(current)", open: worktrees},
+		{title: "Log", row: `|\`, open: mergeLog},
+	} {
+		model := tc.open(t)
+		screen := screenOf(model)
+		title := rowWith(t, screen, "close")
+		start, end := column(title, tc.title), column(title, "close")+len("close")
+
+		// строка ищется без кодов: в графе между символами стоят цвета
+		row := slices.IndexFunc(screen, func(line string) bool { return strings.Contains(line, tc.row) })
+		if row < 0 {
+			t.Fatalf("окно %s: строки с %q нет:\n%s", tc.title, tc.row, strings.Join(screen, "\n"))
+		}
+		line := strings.Split(model.View().Content, "\n")[row]
+		cells := cellBackgrounds(line)
+		for x := start; x < end; x++ {
+			if cells[x] != "20;20;20" {
+				t.Fatalf("окно %s: клетка %d без фона окна (%q):\n%q", tc.title, x, cells[x], ansi.Strip(line))
+			}
+		}
+	}
+}
+
+// В окне веток автор и дата у правого края, как в логе: дата кончается под
+// «close», а отметка текущей стоит сразу за именем (#131).
+func TestBranchDateAtRightEdge(t *testing.T) {
+	_, model := branchesWith(t)
+	screen := screenOf(model)
+
+	end := column(rowWith(t, screen, "close"), "close") + len("close")
+	row := rowWith(t, screen, "(current)")
+	if date := relativeDate.FindString(row); column(row, date)+len(date) != end {
+		t.Errorf("дата кончается в колонке %d, want %d: %q", column(row, date)+len(date), end, row)
+	}
+	if got, want := column(row, "(current)"), column(row, "main")+len("main")+1; got != want {
+		t.Errorf("(current) с колонки %d, want %d сразу за именем: %q", got, want, row)
 	}
 }

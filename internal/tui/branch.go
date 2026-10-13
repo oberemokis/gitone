@@ -2,6 +2,7 @@ package tui
 
 import (
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -67,11 +68,12 @@ func (m Model) branchesShown() []git.Branch {
 	return matching(m.branches, m.query, func(branch git.Branch) string { return branch.Name })
 }
 
-// branchBox рисует ветки таблицей, как лог (#124): имя, отметка текущей,
-// автор и время последнего коммита, над ними заголовки столбцов. Имя цветом
-// accent, как ветка в окне worktree (#117), автор и время приглушённые.
-// Текущая помечена словом, а не цветом: так видно и без цветов. Столбец имени
-// по самому длинному имени, но не шире того, что оставляют остальные.
+// branchBox рисует ветки таблицей, как лог (#124): имя, автор и время
+// последнего коммита, над ними заголовки столбцов. Имя цветом accent, как
+// ветка в окне worktree (#117), автор и время приглушённые. Столбец имени
+// забирает остаток ширины, автор и время стоят у правого края, как в логе
+// (#131). Текущая помечена словом сразу за именем, а не цветом: так видно и
+// без цветов.
 func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, branches []git.Branch, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
 	box := list{
 		title:  text.Text("branches.title", nil),
@@ -85,27 +87,37 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 	muted := panel.Foreground(colors.TextMuted)
 	current := text.Text("branches.current", nil)
 
-	titles := []string{text.Text("branches.column.name", nil), "", text.Text("branches.column.author", nil), text.Text("branches.column.date", nil)}
-	nameWidth, authorWidth, dateWidth := ansi.StringWidth(titles[0]), ansi.StringWidth(titles[2]), ansi.StringWidth(titles[3])
+	titles := []string{text.Text("branches.column.name", nil), text.Text("branches.column.author", nil), text.Text("branches.column.date", nil)}
+	authorWidth, dateWidth := ansi.StringWidth(titles[1]), ansi.StringWidth(titles[2])
 	for _, branch := range branches {
-		nameWidth = max(nameWidth, ansi.StringWidth(branch.Name))
 		authorWidth = max(authorWidth, ansi.StringWidth(branch.Author))
 		dateWidth = max(dateWidth, ansi.StringWidth(branch.When))
 	}
-	widths := []int{0, ansi.StringWidth(current), min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
-	widths[0] = max(min(nameWidth, box.rowWidth(screenWidth)-widths[1]-widths[2]-widths[3]-3*columnGap), 1)
+	widths := []int{0, min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
+	widths[0] = max(box.rowWidth(screenWidth)-widths[1]-widths[2]-2*columnGap, 1)
 
-	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
+	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted}, titles...)
 
-	styles := []lipgloss.Style{panel.Foreground(colors.Accent), panel, muted, muted}
+	name := panel.Foreground(colors.Accent)
+	gap := panel.Render(strings.Repeat(" ", columnGap))
 	box.rows = make([]string, len(branches))
 	for index, branch := range branches {
-		mark := ""
-		if branch.Current {
-			mark = current
-		}
-		box.rows[index] = tableRow(panel, widths, styles, branch.Name, mark, branch.Author, branch.When)
+		box.rows[index] = branchCell(panel, name, widths[0], branch, current) + gap + tableRow(panel, widths[1:], []lipgloss.Style{muted, muted}, branch.Author, branch.When)
 	}
 
 	return box.view(colors, screenWidth, screenHeight)
+}
+
+// branchCell это ячейка имени шириной width: имя цветом name, у текущей за
+// ним через пробел отметка цветом текста. Длинное имя обрезается «…», отметка
+// остаётся видна.
+func branchCell(panel, name lipgloss.Style, width int, branch git.Branch, current string) string {
+	mark := ""
+	if branch.Current {
+		mark = " " + current
+	}
+
+	label := ansi.Truncate(branch.Name, max(width-ansi.StringWidth(mark), 1), "…")
+	used := ansi.StringWidth(label) + ansi.StringWidth(mark)
+	return name.Render(label) + panel.Render(mark+strings.Repeat(" ", max(width-used, 0)))
 }
