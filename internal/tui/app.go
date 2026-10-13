@@ -722,20 +722,22 @@ func (m Model) panes(placed layout.Placed) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 }
 
-// emptyBody рисует тело без изменений: надпись посередине, под ней после
-// пустой строки клавиши окон колонкой по центру (#196). Список режется по
-// высоте тела, а надпись стоит там же, где стояла без него, и видна всегда.
+// emptyBody рисует тело без изменений: надпись посередине, под ней после двух
+// пустых строк один ряд клавиш окон (#196, #208). Ряд режется по высоте тела,
+// а надпись стоит там же, где стояла без него, и видна всегда.
 func (m Model) emptyBody(noChanges string, width, height int) string {
-	content := noChanges
-	if hints := emptyHints(m.colors, m.text, m.keys); len(hints) > 0 {
-		// клавиши в колонку по левому краю, а колонка и надпись по центру
-		content = lipgloss.JoinVertical(lipgloss.Center, noChanges, "", lipgloss.JoinVertical(lipgloss.Left, hints...))
+	lines := append(make([]string, (height-1)/2), noChanges)
+	if row := emptyHints(m.colors, m.text, m.keys, width); row != "" {
+		lines = append(lines, "", "", row)
 	}
-
-	lines := append(make([]string, (height-1)/2), strings.Split(content, "\n")...)
 	lines = lines[:min(len(lines), max(height, 1))]
 
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Top, strings.Join(lines, "\n"))
+	// каждая строка по центру тела сама: ряд шире надписи не сдвигает её
+	for index, line := range lines {
+		lines[index] = lipgloss.PlaceHorizontal(width, lipgloss.Center, line)
+	}
+
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, strings.Join(lines, "\n"))
 }
 
 // labels это подписи файлов для панели: имя и статус, если он не просто

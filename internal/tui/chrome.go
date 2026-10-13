@@ -161,16 +161,18 @@ func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Bindin
 	return strings.Join(hints, "   ")
 }
 
-// emptyActions это действия, о которых говорит экран без изменений: окна,
-// справка и выход.
+// emptyActions это действия, о которых говорит экран без изменений: окна, про
+// которые подвал молчит. Ветки, справку и выход он показывает сам.
 var emptyActions = []keymap.Action{
-	keymap.FilesPick, keymap.AppLog, keymap.AppBranches, keymap.AppWorktrees, keymap.StashList, keymap.AppHelp, keymap.AppQuit,
+	keymap.FilesPick, keymap.AppLog, keymap.AppWorktrees, keymap.StashList,
 }
 
-// emptyHints собирает строки клавиш под «No changes» так же, как подвал:
-// первая клавиша действия, переназначение видно сразу, действие без клавиш
-// в список не идёт. Клик по строке нажимает клавишу (#119).
-func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap) []string {
+// emptyHints собирает под «No changes» ряд клавиш шириной не больше width так
+// же, как подвал: первая клавиша действия, переназначение видно сразу,
+// действие без клавиш в ряд не идёт. Не поместившиеся подсказки уходят с
+// конца, всё то же есть в справке. Если не помещается ни одна, ряд пустой.
+// Клик по подсказке нажимает клавишу (#119).
+func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, width int) string {
 	var hints []string
 	for _, action := range emptyActions {
 		if key := firstKey(keys, action); key != "" {
@@ -178,7 +180,13 @@ func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap) []
 		}
 	}
 
-	return hints
+	for ; len(hints) > 0; hints = hints[:len(hints)-1] {
+		if row := strings.Join(hints, "   "); lipgloss.Width(row) <= width {
+			return row
+		}
+	}
+
+	return ""
 }
 
 // locationLabel это ветка и worktree для левого края, каждое со своей
