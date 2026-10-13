@@ -2,12 +2,7 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"gitone/internal/i18n"
 )
@@ -50,16 +45,12 @@ func (s *Size) UnmarshalJSON(data []byte) error {
 // ReadLayout читает layouts/<name>.json. Файла нет, значит found false без
 // ошибки. Имя не может содержать путь, как и имя темы.
 func ReadLayout(dir, name string) (LayoutFile, bool, error) {
-	if name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
-		return LayoutFile{}, false, i18n.New("layout.badName", i18n.Args{"name": name})
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "layouts", name+".json"))
-	if errors.Is(err, fs.ErrNotExist) {
-		return LayoutFile{}, false, nil
-	}
+	data, found, err := readNamed(dir, "layouts", name)
 	if err != nil {
-		return LayoutFile{}, false, fmt.Errorf("layouts/%s.json: %w", name, err)
+		return LayoutFile{}, false, err
+	}
+	if !found {
+		return LayoutFile{}, false, nil
 	}
 
 	file, err := decodeLayout(data)

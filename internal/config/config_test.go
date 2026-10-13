@@ -95,6 +95,50 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+// Битая ссылка (dotfiles через stow, перенесённый репозиторий) не то же, что
+// отсутствующий файл: настройки пользователя есть, но не читаются, и молча
+// подменять их встроенными нельзя.
+func TestBrokenSymlinkIsError(t *testing.T) {
+	tests := []struct {
+		name string
+		// путь ссылки от каталога настроек, он же префикс ошибки
+		link string
+		read func(dir string) error
+	}{
+		{name: "config.json", link: "config.json", read: func(dir string) error {
+			_, err := config.Load(dir)
+			return err
+		}},
+		{name: "тема", link: "themes/midnight.json", read: func(dir string) error {
+			_, _, err := config.ReadTheme(dir, "midnight")
+			return err
+		}},
+		{name: "раскладка", link: "layouts/compact.json", read: func(dir string) error {
+			_, _, err := config.ReadLayout(dir, "compact")
+			return err
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			link := filepath.Join(dir, tc.link)
+			if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Join(dir, "gone.json"), link); err != nil {
+				t.Fatal(err)
+			}
+
+			err := tc.read(dir)
+
+			if err == nil || !strings.HasPrefix(err.Error(), tc.link) {
+				t.Errorf("чтение %s (ссылка на отсутствующий файл) error = %v, want error starting with %q", tc.link, err, tc.link)
+			}
+		})
+	}
+}
+
 func TestDir(t *testing.T) {
 	tests := []struct {
 		name string

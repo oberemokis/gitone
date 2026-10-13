@@ -2,14 +2,9 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 
 	"gitone/internal/i18n"
 )
@@ -27,19 +22,15 @@ type ThemeFile struct {
 type Color string
 
 // ReadTheme читает themes/<name>.json. Файла нет, значит found false без
-// ошибки. Имя темы из config.json не может выводить за каталог тем, поэтому
-// путь, пустое имя и точка в начале отбрасываются.
+// ошибки. Имя темы из config.json не может выводить за каталог тем, как и имя
+// раскладки.
 func ReadTheme(dir, name string) (ThemeFile, bool, error) {
-	if name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
-		return ThemeFile{}, false, i18n.New("theme.badName", i18n.Args{"name": name})
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "themes", name+".json"))
-	if errors.Is(err, fs.ErrNotExist) {
-		return ThemeFile{}, false, nil
-	}
+	data, found, err := readNamed(dir, "themes", name)
 	if err != nil {
-		return ThemeFile{}, false, fmt.Errorf("themes/%s.json: %w", name, err)
+		return ThemeFile{}, false, err
+	}
+	if !found {
+		return ThemeFile{}, false, nil
 	}
 
 	file, err := decodeTheme(data)
