@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -61,21 +62,29 @@ func TestModeFollowsWidthUntilToggled(t *testing.T) {
 	}
 }
 
+// Без переноса длинная строка режется по краю колонки: в каждой половине split
+// остаётся 55 колонок кода после номера и знака, и экран не шире 120. Таб
+// становится ровно четырьмя пробелами.
 func TestLongLinesAreCutAtColumnEdgeAndTabsBecomeSpaces(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "short\n"+strings.Repeat("x", 300)+"\n\ttabbed\n")
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "SHORT\n"+strings.Repeat("y", 300)+"\n\tTABBED\n")
 
-	screen := render(open(t, options(repo, layout.Focus())), 120, 20)
+	model := openView(t, repo, "split", 120, noWrap)
 
-	for index, line := range screen[2 : len(screen)-1] {
-		if width := ansi.StringWidth(line); width != 120 {
-			t.Fatalf("строка тела %d шириной %d, ожидалось 120: %q", index, width, line)
-		}
+	want := []string{
+		halves(" 1 - short", " 1 + SHORT"),
+		halves(" 2 - "+strings.Repeat("x", 55), " 2 + "+strings.Repeat("y", 55)),
+		halves(" 3 -     tabbed", " 3 +     TABBED"),
 	}
-	if body := strings.Join(screen, "\n"); !strings.Contains(body, "    tabbed") || strings.Contains(body, "\t") {
-		t.Fatalf("таб не заменён четырьмя пробелами:\n%s", body)
+	if got := bodyRows(model, len(want)); !slices.Equal(got, want) {
+		t.Errorf("строки диффа\n%q\nwant\n%q", got, want)
+	}
+	for index, line := range screenOf(model)[2 : bodyRow+len(want)] {
+		if width := ansi.StringWidth(line); width != 120 {
+			t.Errorf("строка экрана %d шириной %d, want 120: %q", index+2, width, line)
+		}
 	}
 }
 
