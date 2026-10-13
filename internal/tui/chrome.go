@@ -62,13 +62,14 @@ func header(width int, files []diff.File, current int, colors theme.Theme, text 
 }
 
 // fileTitle это имя файла для заголовка и списка: у переименования оба пути,
-// у удалённого старый.
+// у удалённого старый. Пути в File сырые, имя из чужого репозитория может
+// нести escape-коды, поэтому на экран оно идёт через diff.Printable.
 func fileTitle(file diff.File, text i18n.Dictionary) string {
 	if file.Status == diff.StatusRenamed || file.Status == diff.StatusCopied {
-		return file.OldPath + " → " + file.NewPath
+		return diff.Printable(file.OldPath + " → " + file.NewPath)
 	}
 
-	return cmp.Or(file.NewPath, file.OldPath, text.Text("screen.gitOutput", nil))
+	return diff.Printable(cmp.Or(file.NewPath, file.OldPath, text.Text("screen.gitOutput", nil)))
 }
 
 // statusLabel пустой у изменённого файла, это обычный случай. У остальных
