@@ -5,9 +5,9 @@
 // уверенности хуже её отсутствия. Пакет не знает о цветах: тему и ширину
 // задаёт tui.
 //
-// Набор грамматик задают теги сборки grammar_set_core и
-// gotreesitter_no_copyleft (Makefile, .goreleaser.yaml): сто распространённых
-// языков без грамматик под копилефтом. Решения в задаче #101.
+// Набор грамматик задают теги сборки из scripts/grammar-tags.sh: сто
+// распространённых языков без грамматик под копилефтом и vue. Решения в
+// задачах #101 и #139.
 package syntax
 
 import (
@@ -43,19 +43,43 @@ type Span struct {
 	Kind  Kind
 }
 
-// Lexer это язык файла. Нулевое значение значит, что язык неизвестен и
-// подсветки нет.
+// Lexer это язык файла и запрос подсветки. Нулевое значение значит, что язык
+// неизвестен и подсветки нет.
 type Lexer struct {
 	entry *grammars.LangEntry
+	query string
+}
+
+// ownQueries заменяют запрос подсветки gotreesitter там, где он не годится:
+// у vue он красит весь текст шаблона как строку и не знает атрибутов и
+// директив (#139). В запросе только типы узлов, которые есть в грамматике:
+// незнакомый тип ломает весь запрос.
+var ownQueries = map[string]string{
+	"vue": `
+(comment) @comment
+(tag_name) @tag
+(attribute_name) @property
+(directive_name) @keyword
+(directive_value) @property
+(quoted_attribute_value) @string
+(attribute_value) @string
+`,
 }
 
 func Detect(path string) Lexer {
 	entry := grammars.DetectLanguage(filepath.Base(path))
-	if entry == nil || entry.HighlightQuery == "" {
+	if entry == nil {
 		return Lexer{}
 	}
 
-	return Lexer{entry: entry}
+	query := entry.HighlightQuery
+	if own, found := ownQueries[entry.Name]; found {
+		query = own
+	}
+	if query == "" {
+		return Lexer{}
+	}
+	return Lexer{entry: entry, query: query}
 }
 
 // Lines размечает подряд идущие строки одной стороны хунка и возвращает
@@ -90,7 +114,7 @@ func (l Lexer) Lines(lines []string) [][]Span {
 // внешний: код внутри ${…} шаблонной строки красится как код.
 func (l Lexer) paint(source []byte) []Kind {
 	language := l.entry.Language()
-	query, err := compiled(l.entry.Name, l.entry.HighlightQuery, language)
+	query, err := compiled(l.entry.Name, l.query, language)
 	if err != nil {
 		return nil
 	}

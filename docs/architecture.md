@@ -7,7 +7,7 @@
 - Go, версия модуля 1.27.
 - Bubble Tea v2 (`charm.land/bubbletea/v2`): архитектура Elm (Model, Init, Update, View), ячеечный рендерер, клавиатура и мышь, понижение цвета под терминал.
 - Lip Gloss v2 (`charm.land/lipgloss/v2`): стили и размещение блоков.
-- gotreesitter (tree-sitter на чистом Go, без cgo): подсветка синтаксиса в `internal/syntax`. Набор грамматик задают теги `grammar_set_core,gotreesitter_no_copyleft` в `GOFLAGS` (`Makefile`) и `flags` (`.goreleaser.yaml`): сто распространённых языков без грамматик под копилефтом. Без тегов `go build` соберёт все двести, с GPL среди них. Решения в задаче #101.
+- gotreesitter (tree-sitter на чистом Go, без cgo): подсветка синтаксиса в `internal/syntax`. Набор грамматик задаёт `scripts/grammar-tags.sh`: теги `grammar_subset` и `grammar_subset_<язык>` для ста распространённых языков набора core100 без грамматик под копилефтом и vue, которого в core100 нет. `Makefile` кладёт их в `GOFLAGS`, рабочие процессы в `GITONE_TAGS` для `.goreleaser.yaml`. Без тегов `go build` соберёт все двести, с GPL среди них. Решения в задачах #101 и #139.
 - Один модуль с пакетами, а не несколько модулей. Отдельные `go.mod` ничего не дали бы: версионировать пакеты независимо никто не собирается.
 - Задачи запускает `make`. Taskfile не взял: `task` не установлен, `make` есть.
 

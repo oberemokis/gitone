@@ -64,6 +64,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # грамматики подсветки, как в Makefile: .goreleaser.yaml берёт их отсюда
+      - run: echo "GITONE_TAGS=$(sh scripts/grammar-tags.sh)" >> "$GITHUB_ENV"
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser

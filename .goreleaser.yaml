@@ -29,9 +29,10 @@ builds:
     goarch:
       - amd64
       - arm64
-    # грамматики подсветки: сто языков без копилефта, как в Makefile (#101)
+    # грамматики подсветки из scripts/grammar-tags.sh: рабочие процессы
+    # кладут вывод скрипта в GITONE_TAGS (#139)
     flags:
-      - -tags=grammar_set_core,gotreesitter_no_copyleft
+      - -tags={{ .Env.GITONE_TAGS }}
     # версия, которую печатает gitone --version
     ldflags:
       - -s -w -X main.version={{.Version}}
