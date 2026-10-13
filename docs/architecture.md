@@ -26,6 +26,7 @@ gitone/
 │   ├── i18n/              словари интерфейса languages/*.json, текст на выбранном языке
 │   └── tui/               корневая модель: заголовок, подвал, клавиши, окна
 │       ├── diffview/      один файл диффа в виде split или unified, прокрутка
+│       ├── editor/        многострочное поле: текст, курсор, перенос и прокрутка, окно рисует корень
 │       ├── picker/        выбор из списка с нечётким поиском, окно рисует корень
 │       ├── theme/         цвета по ролям
 │       ├── zone/          места клика мышью: невидимые метки в рисунке и их поиск
@@ -40,13 +41,13 @@ gitone/
 
 ```
 cmd/gitone             → tui, config, keymap, layout, theme, i18n
-tui                    → diffview, pane/files, picker, theme, zone, git, diff, config, keymap, layout, i18n
+tui                    → diffview, editor, pane/files, picker, theme, zone, git, diff, config, keymap, layout, i18n
 diffview               → diff, theme, syntax, i18n
 pane/files             → theme, zone
 theme, layout          → config, i18n
 config, keymap, git    → i18n
 syntax, diff, i18n     → ничего из проекта
-picker, zone           → ничего из проекта
+editor, picker, zone   → ничего из проекта
 ```
 
 Стрелка разрешает импорт, всё, чего нет на схеме, запрещено. Панели не знают друг друга и не знают корня. Листья `config`, `git` и `diff` не знают ни терминала, ни друг друга.
