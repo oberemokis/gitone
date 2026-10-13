@@ -546,7 +546,7 @@ func TestCommitHintsAreClickable(t *testing.T) {
 	}
 
 	model = clickOn(t, model, "tab subject")
-	model = clickOn(t, model, "enter commit")
+	clickOn(t, model, "enter commit")
 
 	if subject, _ := commitMessage(t, repo); subject != "s" {
 		t.Fatalf("клик по «enter commit» не сделал коммит, тема %q", subject)
