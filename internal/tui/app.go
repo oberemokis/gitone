@@ -34,14 +34,17 @@ type Model struct {
 	dir     string
 	args    []string
 	loading bool
-	// spin кадр спиннера загрузки в подвале
+	// load номер последней начатой загрузки: шаги спиннера других загрузок
+	// отбрасываются; spin кадр спиннера в подвале
+	load int
 	spin int
 	// stale: правка gitone пришла во время загрузки, после неё нужно перечитать ещё раз
 	stale bool
 	// polling: идёт тихий опрос из live.go; ticks таймер опроса, nil без автообновления
 	polling bool
 	ticks   <-chan time.Time
-	// staged: пути с отличием индекса от HEAD, по ним отметка в панели файлов
+	// staged: пути с отличием индекса от HEAD, по ним space решает, ставить
+	// файл в индекс или убирать
 	staged map[string]bool
 	// location ветка и worktree для левого края подвала
 	location git.Location
@@ -204,12 +207,14 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case polledMsg:
 		m = m.polled(msg)
 	case spinMsg:
-		if m.loading {
+		if m.loading && msg.load == m.load {
 			m.spin++
-			return m, spinTick()
+			return m, spinTick(m.load)
 		}
 	case reloadMsg:
 		return m.reloaded(msg)
+	case worktreeCheckedMsg:
+		return m.worktreeChecked(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список
@@ -267,20 +272,24 @@ func (m Model) dropQuestion() Model {
 	return m
 }
 
-// startReload запускает перечитывание, если оно не идёт. Повтор во время загрузки
-// не нужен: загрузка уже читает актуальный дифф. Висящий вопрос discard
-// отменяется по той же причине, что в say: спиннер встаёт на его место в
-// центре подвала.
+// startReload запускает перечитывание, если оно не идёт. Во время загрузки
+// второе чтение рядом не стартует, но запрос не теряется: stale заставит
+// прочитать заново, когда придёт ответ. Так W, лог, stash и b, сменившие
+// каталог или аргументы до вызова, не оставляют на экране старый дифф. Висящий
+// вопрос discard отменяется по той же причине, что в say: спиннер встаёт на его
+// место в центре подвала.
 func (m Model) startReload() (Model, tea.Cmd) {
 	if m.loading {
+		m.stale = true
 		return m, nil
 	}
 
 	m.loading = true
+	m.load++
 	m.stale = false
 	m.spin = 0
 	m = m.dropQuestion()
-	return m, tea.Batch(spinTick(), reload(m.dir, m.args))
+	return m, tea.Batch(spinTick(m.load), reload(m.dir, m.args))
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать
@@ -448,11 +457,18 @@ func (m Model) pickerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// chosenFile ищет выбранную в окне запись в текущем диффе по подписи и статусу.
-// Окно строилось по списку на момент открытия, а дифф мог перечитаться, пока
-// оно открыто: номер записи тогда указал бы на другой файл. Подпись и статус
-// с обеих сторон собраны одним словарём, поэтому сравнение не зависит от
-// языка.
+// sameEntry говорит, что запись диффа это та, что пользователь видел под
+// подписью label и статусом status. Запись находят по подписи и статусу вместе:
+// у файла, ставшего симлинком, две записи с одним путём, удалённая и
+// добавленная. Подпись и статус с обеих сторон собраны одним словарём, поэтому
+// сравнение не зависит от языка.
+func sameEntry(file diff.File, text i18n.Dictionary, label, status string) bool {
+	return fileTitle(file, text) == label && statusLabel(file.Status, text) == status
+}
+
+// chosenFile ищет выбранную в окне запись в текущем диффе (sameEntry). Окно
+// строилось по списку на момент открытия, а дифф мог перечитаться, пока оно
+// открыто: номер записи тогда указал бы на другой файл.
 func (m Model) chosenFile() (int, bool) {
 	item, found := m.picker.SelectedItem()
 	if !found {
@@ -460,19 +476,20 @@ func (m Model) chosenFile() (int, bool) {
 	}
 
 	index := slices.IndexFunc(m.files, func(file diff.File) bool {
-		return fileTitle(file, m.text) == item.Label && statusLabel(file.Status, m.text) == item.Detail
+		return sameEntry(file, m.text, item.Label, item.Detail)
 	})
 	return index, index >= 0
 }
 
-// applyReload ставит новый дифф на место старого. Открытый файл остаётся
-// открытым, если он ещё в диффе, иначе открывается первый.
+// applyReload ставит новый дифф на место старого. Открытая запись остаётся
+// открытой, если она ещё в диффе (sameEntry), иначе открывается первая.
 func (m Model) applyReload(files []diff.File) Model {
 	kept := -1
 	if len(m.files) > 0 {
-		title := fileTitle(m.files[m.current], m.text)
+		open := m.files[m.current]
+		label, status := fileTitle(open, m.text), statusLabel(open.Status, m.text)
 		kept = slices.IndexFunc(files, func(file diff.File) bool {
-			return fileTitle(file, m.text) == title
+			return sameEntry(file, m.text, label, status)
 		})
 	}
 

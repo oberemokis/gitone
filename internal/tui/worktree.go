@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 
@@ -31,11 +32,41 @@ func currentWorktree(worktrees []git.Worktree) int {
 	return max(slices.IndexFunc(worktrees, func(w git.Worktree) bool { return w.Current }), 0)
 }
 
+// worktreeCheckedMsg несёт итог проверки каталога выбранного дерева: ошибку
+// os или nil.
+type worktreeCheckedMsg struct {
+	path string
+	err  error
+}
+
+// checkWorktreeCmd проверяет каталог дерева до переключения. Запертое дерево на
+// отключённом диске git держит в списке без prunable, и выбор такого дерева
+// оставил бы gitone в каталоге, которого нет.
+func checkWorktreeCmd(path string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := os.Stat(path)
+		return worktreeCheckedMsg{path: path, err: err}
+	}
+}
+
+// worktreeChecked переводит gitone на дерево, каталог которого цел. Аргументы
+// запуска относятся к прежнему дереву, поэтому после переключения показывается
+// дифф рабочего дерева, и b возвращает к нему же. Недоступный каталог оставляет
+// прежнее дерево и ставит причину в подвал.
+func (m Model) worktreeChecked(msg worktreeCheckedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		return m.say(m.text.Error(msg.err)), nil
+	}
+
+	m.dir = msg.path
+	m.args, m.baseArgs = nil, nil
+	return m.startReload()
+}
+
 // worktreeKey отдаёт клавиши окну worktree: worktrees.switch переводит gitone
 // на выбранное дерево, list.search открывает поиск, list.close закрывает.
-// Выбор текущего ничего не делает. Аргументы запуска относятся к прежнему
-// дереву, поэтому после переключения показывается дифф рабочего дерева, и b
-// возвращает к нему же.
+// Выбор текущего ничего не делает, а каталог выбранного проверяется до
+// переключения (worktreeChecked).
 func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -55,9 +86,7 @@ func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.dir = worktree.Path
-	m.args, m.baseArgs = nil, nil
-	return m.startReload()
+	return m, checkWorktreeCmd(worktree.Path)
 }
 
 // worktreesShown это деревья под фильтром поиска по ветке и пути, имя

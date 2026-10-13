@@ -3,7 +3,6 @@ package tui
 import (
 	"maps"
 	"reflect"
-	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,11 +15,10 @@ import (
 // tickMsg приходит от таймера опроса.
 type tickMsg struct{}
 
-// polledMsg несёт итог опроса, каталог и аргументы, с которыми он читал дифф.
+// polledMsg несёт итог опроса: тот же ответ, что у перечитывания, но экран его
+// принимает тихо.
 type polledMsg struct {
 	reloadMsg
-	dir  string
-	args []string
 }
 
 // waitTick ждёт один тик. Без таймера ждать нечего, и команды нет. Ожидание
@@ -55,7 +53,7 @@ func (m Model) poll() (Model, tea.Cmd) {
 	m.polling = true
 	dir, args := m.dir, m.args
 	return m, func() tea.Msg {
-		return polledMsg{reloadMsg: readDiff(dir, args), dir: dir, args: args}
+		return polledMsg{readDiff(dir, args)}
 	}
 }
 
@@ -65,7 +63,7 @@ func (m Model) poll() (Model, tea.Cmd) {
 // трогают, подсветка не пересчитывается впустую.
 func (m Model) polled(msg polledMsg) Model {
 	m.polling = false
-	if msg.err != nil || m.loading || msg.dir != m.dir || !slices.Equal(msg.args, m.args) {
+	if msg.err != nil || m.loading || !msg.fits(m) {
 		return m
 	}
 

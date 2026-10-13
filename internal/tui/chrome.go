@@ -131,10 +131,15 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 // spinnerStep это шаг спиннера: глаз ещё видит вращение, а перерисовок мало.
 const spinnerStep = 80 * time.Millisecond
 
-type spinMsg struct{}
+// spinMsg это шаг спиннера загрузки номер load. Цепочка шагов принадлежит своей
+// загрузке: шаг, пришедший после того, как началась следующая, отбрасывается, и
+// две цепочки не крутят спиннер вдвое быстрее.
+type spinMsg struct {
+	load int
+}
 
-func spinTick() tea.Cmd {
-	return tea.Tick(spinnerStep, func(time.Time) tea.Msg { return spinMsg{} })
+func spinTick(load int) tea.Cmd {
+	return tea.Tick(spinnerStep, func(time.Time) tea.Msg { return spinMsg{load: load} })
 }
 
 // spinner это кадр frame и надпись loading цветом добавленных строк темы.
