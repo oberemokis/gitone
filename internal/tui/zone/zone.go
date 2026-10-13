@@ -95,14 +95,24 @@ func Scan(content string) (string, []Zone) {
 }
 
 // At это цель места под точкой x, y или пустая строка. Места проверяются по
-// порядку, первое выигрывает: так окно закрывает собой то, что под ним.
-func At(zones []Zone, x, y int) string {
+// порядку, первое точное попадание выигрывает. Место с целью, для которой
+// roomy true, ловит клик и на клетку вокруг себя (#134), но только если
+// точного попадания нет. Место с пустой целью закрывает собой всё, что идёт
+// в списке после него: так окно не пропускает клик к панели под ним, а его
+// кнопки, стоящие в списке раньше, расширяются и внутри окна.
+func At(zones []Zone, x, y int, roomy func(target string) bool) string {
 	point := image.Pt(x, y)
+	near := ""
 	for _, zone := range zones {
-		if point.In(zone.Area) {
+		switch {
+		case point.In(zone.Area) && zone.Target == "":
+			return near
+		case point.In(zone.Area):
 			return zone.Target
+		case near == "" && roomy != nil && roomy(zone.Target) && point.In(zone.Area.Inset(-1)):
+			near = zone.Target
 		}
 	}
 
-	return ""
+	return near
 }
