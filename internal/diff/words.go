@@ -3,6 +3,8 @@ package diff
 import (
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/rivo/uniseg"
 )
 
 // Span это отрезок строки в байтах: [Start, End).
@@ -26,13 +28,16 @@ type token struct {
 
 // tokens делит строку на слова, пробелы и знаки. Слово это подряд буквы,
 // цифры и подчёркивание, пробелы идут одним куском, любой другой знак
-// отдельным токеном.
+// отдельным токеном. Граница токена всегда на границе графемного кластера:
+// эмодзи из ZWJ-последовательности или буква с комбинирующим знаком не делится,
+// иначе отрезок подсветки резал бы кластер, а ширина кусков при отрисовке не
+// сходилась бы с шириной строки. Класс символа определяет первая руна кластера.
 func tokens(text string) []token {
 	var result []token
 
 	for index := 0; index < len(text); {
-		r, size := utf8.DecodeRuneInString(text[index:])
-		end := index + size
+		r, _ := utf8.DecodeRuneInString(text[index:])
+		end := index + clusterLen(text[index:])
 
 		switch {
 		case isWordRune(r):
@@ -48,17 +53,23 @@ func tokens(text string) []token {
 	return result
 }
 
-// extend сдвигает конец, пока символы подходят под признак.
+// extend сдвигает конец по кластерам, пока их первая руна подходит под признак.
 func extend(text string, end int, belongs func(rune) bool) int {
 	for end < len(text) {
-		r, size := utf8.DecodeRuneInString(text[end:])
+		r, _ := utf8.DecodeRuneInString(text[end:])
 		if !belongs(r) {
 			break
 		}
-		end += size
+		end += clusterLen(text[end:])
 	}
 
 	return end
+}
+
+// clusterLen это длина первого графемного кластера строки в байтах.
+func clusterLen(text string) int {
+	cluster, _, _, _ := uniseg.FirstGraphemeClusterInString(text, -1)
+	return len(cluster)
 }
 
 func isWordRune(r rune) bool {
