@@ -72,6 +72,20 @@ func fileTitle(file diff.File, text i18n.Dictionary) string {
 	return diff.Printable(cmp.Or(file.NewPath, file.OldPath, text.Text("screen.gitOutput", nil)))
 }
 
+// tabSpaces это таб в тексте на экране, как в diffview: Render раскрывает его
+// в четыре пробела, а ansi.StringWidth считает нулевым.
+const tabSpaces = "    "
+
+// visible готовит поле из git к показу: управляющие символы становятся
+// значками (diff.Printable), таб раскрывается до измерения и обрезки (#153).
+// Без этого тема коммита или имя ветки с ESC красили бы экран, а `\r` и `\n`
+// ломали строку (#177). Так проходят все поля из git, когда становятся
+// ячейкой окна или текстом подвала. Значение в git остаётся сырым: имя ветки
+// нужно git как есть.
+func visible(field string) string {
+	return strings.ReplaceAll(diff.Printable(field), "\t", tabSpaces)
+}
+
 // statusLabel пустой у изменённого файла, это обычный случай. У остальных
 // подпись различает записи с одним путём: файл, ставший симлинком, приходит
 // удалённым и добавленным.
@@ -122,7 +136,7 @@ func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap
 		return muted.Render(name)
 	}
 
-	return pair(keymap.AppBranches, location.Branch) + "   " + pair(keymap.AppWorktrees, location.Worktree)
+	return pair(keymap.AppBranches, visible(location.Branch)) + "   " + pair(keymap.AppWorktrees, visible(location.Worktree))
 }
 
 // spinnerFrames это спиннер из точек Брайля, как у opencode и lazygit.

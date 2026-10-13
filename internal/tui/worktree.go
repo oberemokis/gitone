@@ -108,11 +108,11 @@ func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, w
 
 	rows := make([]string, len(worktrees))
 	for index, worktree := range worktrees {
-		rows[index] = panel.Render(filepath.Base(worktree.Path)+"  ") + branch.Render(worktree.Branch)
+		rows[index] = panel.Render(visible(filepath.Base(worktree.Path)+"  ")) + branch.Render(visible(worktree.Branch))
 		if worktree.Current {
 			rows[index] += panel.Render(" " + text.Text("worktrees.current", nil))
 		}
-		rows[index] += muted.Render("  " + worktree.Path)
+		rows[index] += muted.Render(visible("  " + worktree.Path))
 	}
 
 	return list{

@@ -644,7 +644,7 @@ func (m Model) footerLine() string {
 		center = spinner(m.spin, m.colors, m.text)
 	case m.notice != "":
 		first, _, _ := strings.Cut(m.notice, "\n")
-		center = lipgloss.NewStyle().Foreground(m.colors.Error).Render(first)
+		center = lipgloss.NewStyle().Foreground(m.colors.Error).Render(visible(first))
 	}
 
 	hints := ""
