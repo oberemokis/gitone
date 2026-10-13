@@ -16,9 +16,9 @@ build:
 run:
 	go run ./cmd/gitone
 
-# -race нужен коду с горутинами (watch), -shuffle=on ловит зависимость тестов
-# от порядка, сид go test печатает сам. Локально флаги переопределяются:
-# make test TESTFLAGS=.
+# -race нужен коду с горутинами (опрос и таймеры, live.go и main.go),
+# -shuffle=on ловит зависимость тестов от порядка, сид go test печатает сам.
+# Локально флаги переопределяются: make test TESTFLAGS=.
 TESTFLAGS ?= -race -shuffle=on
 
 # Без кеша: architecture_test.go спрашивает граф у go list, и кеш go test не
