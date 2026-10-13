@@ -54,6 +54,9 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if !m.keys.Is(keymap.BranchesSwitch, key.String()) || len(shown) == 0 {
 		return m, nil
 	}
+	if next, refused := m.refuseWhileRemote(); refused {
+		return next, nil
+	}
 
 	branch := shown[m.cursor]
 	m.active = noWindow

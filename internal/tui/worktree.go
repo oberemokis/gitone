@@ -81,6 +81,9 @@ func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if !m.keys.Is(keymap.WorktreesSwitch, key.String()) || len(shown) == 0 {
 		return m, nil
 	}
+	if next, refused := m.refuseWhileRemote(); refused {
+		return next, nil
+	}
 
 	worktree := shown[m.cursor]
 	m.active = noWindow

@@ -69,8 +69,13 @@ func StashApply(dir string, stash Stash) error {
 	return failed("stash apply", headline(stashAt(dir, stash, "apply")))
 }
 
-// headline оставляет в отказе git одну строку: CONFLICT, а без неё первую.
-// Код выхода остаётся в цепочке.
+// headline оставляет в отказе git одну строку: первую с CONFLICT, fatal: или
+// error:, а без неё первую вообще. Причина стоит не в начале: git начинает
+// вывод со строки «Auto-merging» (stash apply), отчёта о fetch «From …»
+// (pull) или «To …» (push), и подсказки hint: идут до итоговой строки. При
+// сбое транспорта итоговая строка ничего не объясняет (unreadable), а причина,
+// например отказ ssh по ключу, стоит строкой выше: берётся она. Код выхода
+// остаётся в цепочке.
 func headline(err error) error {
 	var refusal *gitError
 	if !errors.As(err, &refusal) {
@@ -78,10 +83,19 @@ func headline(err error) error {
 	}
 
 	lines := strings.Split(refusal.message, "\n")
-	conflict := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, "CONFLICT") })
+	reason := slices.IndexFunc(lines, func(line string) bool {
+		return strings.HasPrefix(line, "CONFLICT") || strings.HasPrefix(line, "fatal:") || strings.HasPrefix(line, "error:")
+	})
+	if reason > 0 && lines[reason] == unreadable {
+		reason--
+	}
 
-	return &gitError{message: lines[max(conflict, 0)], exit: refusal.exit}
+	return &gitError{message: lines[max(reason, 0)], exit: refusal.exit}
 }
+
+// unreadable это итоговая строка git, когда транспорт не смог прочитать
+// remote: ssh отказал, нет сети, нет доступа.
+const unreadable = "fatal: Could not read from remote repository."
 
 // StashDrop удаляет stash без применения. Вернуть его можно только через
 // reflog, поэтому удаление спрашивается заранее. Если stash@{N} уже другой

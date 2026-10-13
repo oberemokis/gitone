@@ -42,6 +42,8 @@ const (
 	DiffWorkingTree  Action = "diff.workingTree"
 	AppBranches      Action = "app.branches"
 	AppWorktrees     Action = "app.worktrees"
+	GitPull          Action = "git.pull"
+	GitPush          Action = "git.push"
 	StashPush        Action = "stash.push"
 	StashList        Action = "stash.list"
 	HelpClose        Action = "help.close"
@@ -493,6 +495,8 @@ func defaults() []Binding {
 		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Help: true},
 		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Help: true},
 		{Action: AppWorktrees, Category: CategoryGeneral, Keys: []string{"W"}, Help: true},
+		{Action: GitPull, Category: CategoryGeneral, Keys: []string{"p"}, Help: true},
+		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
 		{Action: StashPush, Category: CategoryFiles, Keys: []string{"z"}, Help: true},
 		{Action: StashList, Category: CategoryFiles, Keys: []string{"Z"}, Help: true},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Help: true},
