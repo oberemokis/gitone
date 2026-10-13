@@ -172,7 +172,12 @@ func TestLoadWindowKeys(t *testing.T) {
 		{name: "заглавная в поле поиска", content: `{"keybinds":{"search.choose":"J"}}`, wantErr: []string{"types text", "search.choose"}},
 		{name: "многорунный символ в поле", content: `{"keybinds":{"search.choose":"👍🏻"}}`, wantErr: []string{"types text", "search.choose"}},
 		{name: "непечатаемая клавиша в поиске", content: `{"keybinds":{"search.down":"ctrl+j"}}`},
+		{name: "функциональная клавиша в поиске", content: `{"keybinds":{"search.down":"f2"}}`},
+		{name: "поиск в списке занял клавишу лога", content: `{"keybinds":{"list.search":"enter","branches.switch":"o","worktrees.switch":"w"}}`, wantErr: []string{"bound to both", "list.search", "log.open"}},
+		{name: "поиск в списке занял клавишу веток", content: `{"keybinds":{"list.search":"enter","log.open":"o","worktrees.switch":"w"}}`, wantErr: []string{"bound to both", "list.search", "branches.switch"}},
+		{name: "поиск в списке занял клавишу worktree", content: `{"keybinds":{"list.search":"enter","log.open":"o","branches.switch":"b"}}`, wantErr: []string{"bound to both", "list.search", "worktrees.switch"}},
 		{name: "закрытие отключено", content: `{"keybinds":{"list.close":"none"}}`, wantErr: []string{"cannot be disabled", "list.close"}},
+		{name: "закрытие поиска отключено", content: `{"keybinds":{"search.close":"none"}}`, wantErr: []string{"cannot be disabled", "search.close"}},
 		{name: "закрытие пустым списком", content: `{"keybinds":{"list.close":[]}}`, wantErr: []string{"cannot be disabled", "list.close"}},
 		{name: "закрытие с заглавной в имени", content: `{"keybinds":{"commit.close":"Esc"}}`, wantErr: []string{"unknown key", "commit.close"}},
 		{name: "закрытие заглавной буквой", content: `{"keybinds":{"list.close":"Q"}}`},
@@ -250,7 +255,7 @@ func TestActionForFollowsOverride(t *testing.T) {
 	}
 
 	if got := km.ActionFor("e"); got != keymap.AppQuit {
-		t.Errorf("x ведёт к %q, ожидался %q", got, keymap.AppQuit)
+		t.Errorf("e ведёт к %q, ожидался %q", got, keymap.AppQuit)
 	}
 	if got := km.ActionFor("q"); got != "" {
 		t.Errorf("q ведёт к %q, ожидалось ничего", got)
