@@ -284,7 +284,11 @@ func (u updater) install(binary []byte, version string) error {
 	dir := filepath.Dir(u.exe)
 	temp, err := os.CreateTemp(dir, ".gitone-update-*")
 	if errors.Is(err, fs.ErrPermission) {
-		return i18n.New("update.noPermission", i18n.Args{"dir": dir, "exe": u.exe})
+		args := i18n.Args{"dir": dir, "exe": u.exe}
+		if u.goos == "windows" {
+			return i18n.New("update.noPermissionWindows", args)
+		}
+		return i18n.New("update.noPermission", args)
 	}
 	if err != nil {
 		return err

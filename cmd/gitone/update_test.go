@@ -197,25 +197,48 @@ func TestUpdateWithoutNetwork(t *testing.T) {
 	}
 }
 
+// Подсказка зависит от системы: на Windows sudo нет, а пути в тексте стоят в
+// кавычках, потому что в них бывают пробелы («C:\Program Files\gitone»).
 func TestUpdateWithoutWritePermission(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root пишет в любой каталог")
 	}
-	base := serve(t, release{tag: "v0.4.0", files: map[string]string{"gitone_linux_amd64": fakeBinary("0.4.0")}})
-	exe := installed(t)
-	dir := filepath.Dir(exe)
-	if err := os.Chmod(dir, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chmod(dir, 0o755) })
 
-	_, err := newUpdater(base, "0.3.0", exe).run(t.Context())
-
-	if err == nil || !strings.Contains(err.Error(), "sudo "+exe+" update") {
-		t.Errorf("run() error = %v, want подсказка sudo с путём %s", err, exe)
+	tests := []struct {
+		name string
+		goos string
+		// want получает каталог и путь к exe
+		want string
+	}{
+		{name: "unix", goos: "linux", want: `cannot write to "%[1]s", run: sudo "%[2]s" update`},
+		{name: "windows", goos: "windows", want: `cannot write to "%[1]s", run gitone update as administrator`},
 	}
-	if got := readFile(t, exe); got != "old" {
-		t.Errorf("бинарник после run() = %q, want нетронутый", got)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			base := serve(t, release{tag: "v0.4.0", files: map[string]string{
+				"gitone_linux_amd64":       fakeBinary("0.4.0"),
+				"gitone_windows_amd64.exe": fakeBinary("0.4.0"),
+			}})
+			exe := installed(t)
+			dir := filepath.Dir(exe)
+			if err := os.Chmod(dir, 0o555); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.Chmod(dir, 0o755) })
+			u := newUpdater(base, "0.3.0", exe)
+			u.goos = tc.goos
+
+			_, err := u.run(t.Context())
+
+			want := fmt.Sprintf(tc.want, dir, exe)
+			if err == nil || err.Error() != want {
+				t.Errorf("run() error = %v, want %q", err, want)
+			}
+			if got := readFile(t, exe); got != "old" {
+				t.Errorf("бинарник после run() = %q, want нетронутый", got)
+			}
+		})
 	}
 }
 
