@@ -25,7 +25,9 @@ func TestIsVersionFlag(t *testing.T) {
 	}
 }
 
-func TestVersionLine(t *testing.T) {
+// Формат «gitone X.Y.Z» это контракт с `update` прошлых версий: тест держит его
+// литералом, а не выводит из кода.
+func TestVersionLineIsContractWithOlderUpdaters(t *testing.T) {
 	if got := versionLine("1.2.3"); got != "gitone 1.2.3" {
 		t.Errorf("versionLine(%q) = %q, want %q", "1.2.3", got, "gitone 1.2.3")
 	}

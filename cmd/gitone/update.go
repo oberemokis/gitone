@@ -41,6 +41,8 @@ type updater struct {
 	exe     string
 	goos    string
 	goarch  string
+	// idle это сколько тело ответа может молчать, ноль значит idleTimeout
+	idle time.Duration
 	// downloading сообщает версию перед загрузкой: иначе медленная сеть
 	// выглядит как зависание
 	downloading func(version string)
@@ -74,9 +76,12 @@ func runUpdate(text i18n.Dictionary) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = headerTimeout
+
 	u := updater{
 		base:    releaseBase,
-		client:  &http.Client{Timeout: updateTimeout},
+		client:  &http.Client{Transport: transport},
 		current: version,
 		exe:     exe,
 		goos:    runtime.GOOS,
@@ -97,9 +102,15 @@ func runUpdate(text i18n.Dictionary) {
 	fmt.Println(text.Text("update.done", i18n.Args{"from": result.from, "to": result.to}))
 }
 
-// updateTimeout ограничивает каждый запрос: оборванное соединение иначе
-// повесило бы update без единого слова.
-const updateTimeout = 2 * time.Minute
+// Оборванное соединение иначе повесило бы update без единого слова, поэтому
+// ждать можно только ограниченное время: ответа сервера не дольше headerTimeout,
+// следующего байта тела не дольше idleTimeout. Общего потолка на загрузку нет:
+// бинарник около 27 МБ, и на медленном канале любой потолок оборвал бы
+// загрузку, которая идёт.
+const (
+	headerTimeout = 30 * time.Second
+	idleTimeout   = 30 * time.Second
+)
 
 // run ставит новую версию, а при любом отказе оставляет бинарник прежним.
 // Сборка из исходников (версия dev) не обновляется: она бывает новее
@@ -180,6 +191,9 @@ func (u updater) download(ctx context.Context, tag string, sums []byte) ([]byte,
 // Ответ не 200 это ошибка: страница 404 иначе ушла бы в бинарник. В тексте
 // ошибки запрошенный адрес, а не подписанный адрес хранилища.
 func (u updater) fetch(ctx context.Context, url string) ([]byte, []*neturl.URL, error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, nil, err
@@ -189,7 +203,7 @@ func (u updater) fetch(ctx context.Context, url string) ([]byte, []*neturl.URL, 
 	client := *u.client
 	client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
 		if len(via) >= maxRedirects {
-			return errors.New("stopped after 10 redirects")
+			return i18n.New("update.tooManyRedirects", i18n.Args{"count": maxRedirects})
 		}
 		chain = append(chain, next.URL)
 		return nil
@@ -197,6 +211,12 @@ func (u updater) fetch(ctx context.Context, url string) ([]byte, []*neturl.URL, 
 
 	response, err := client.Do(request)
 	if err != nil {
+		// Do называет в ошибке последний адрес цепочки, то есть подписанный
+		// адрес хранилища
+		var urlErr *neturl.Error
+		if errors.As(err, &urlErr) {
+			urlErr.URL = url
+		}
 		return nil, nil, err
 	}
 	defer response.Body.Close()
@@ -205,8 +225,33 @@ func (u updater) fetch(ctx context.Context, url string) ([]byte, []*neturl.URL, 
 		return nil, nil, i18n.New("update.badStatus", i18n.Args{"url": url, "status": response.Status})
 	}
 
-	body, err := io.ReadAll(response.Body)
+	// Таймер простоя стартует после заголовков и сдвигается на каждом Read:
+	// тело, которое идёт медленно, но идёт, не прерывается.
+	idle := cmp.Or(u.idle, idleTimeout)
+	timer := time.AfterFunc(idle, func() { cancel(errStalled) })
+	defer timer.Stop()
+
+	body, err := io.ReadAll(&idleReader{reader: response.Body, timer: timer, idle: idle})
+	if err != nil && errors.Is(context.Cause(ctx), errStalled) {
+		return nil, nil, i18n.New("update.stalled", i18n.Args{"url": url, "timeout": idle})
+	}
 	return body, chain, err
+}
+
+// errStalled это причина отмены запроса, когда тело ответа замолчало.
+var errStalled = errors.New("response body stalled")
+
+// idleReader сдвигает таймер простоя после каждого Read.
+type idleReader struct {
+	reader io.Reader
+	timer  *time.Timer
+	idle   time.Duration
+}
+
+func (r *idleReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.timer.Reset(r.idle)
+	return n, err
 }
 
 // maxRedirects как у http.Client по умолчанию.
@@ -245,7 +290,11 @@ func (u updater) install(binary []byte, version string) error {
 	dir := filepath.Dir(u.exe)
 	temp, err := os.CreateTemp(dir, ".gitone-update-*")
 	if errors.Is(err, fs.ErrPermission) {
-		return i18n.New("update.noPermission", i18n.Args{"dir": dir, "exe": u.exe})
+		args := i18n.Args{"dir": dir, "exe": u.exe}
+		if u.goos == "windows" {
+			return i18n.New("update.noPermissionWindows", args)
+		}
+		return i18n.New("update.noPermission", args)
 	}
 	if err != nil {
 		return err
@@ -300,10 +349,18 @@ func verify(path, version string) error {
 // replace ставит новый файл на место старого. Rename поверх файла атомарен,
 // но на Windows работающий exe не перезаписать: он уходит в .old, а при
 // сбое возвращается. .old занят, пока старый gitone работает, поэтому его
-// убирает следующий update.
+// убирает следующий update. Занятый .old заставляет взять имя с pid, а такой
+// файл никто больше не тронет: его тоже убирает следующий update.
 func replace(goos, temp, exe string) error {
 	if goos != "windows" {
 		return os.Rename(temp, exe)
+	}
+
+	// Ошибки не важны: файл, который не удалился, занят и дождётся следующего
+	// раза. Квадратная скобка в пути ломает шаблон, и тогда уборка пропускается.
+	leftovers, _ := filepath.Glob(exe + ".*.old")
+	for _, leftover := range leftovers {
+		os.Remove(leftover)
 	}
 
 	old := exe + ".old"

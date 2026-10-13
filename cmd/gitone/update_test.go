@@ -1,15 +1,23 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
+
+	"gitone/internal/i18n"
 )
 
 // release это релиз на локальном сервере: последняя версия и файлы по
@@ -120,6 +128,70 @@ func TestUpdateWindowsMovesOldAside(t *testing.T) {
 	if got := readFile(t, exe); got != fakeBinary("0.4.0") {
 		t.Errorf("бинарник после run() = %q, want новый", got)
 	}
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe}) {
+		t.Errorf("файлы рядом с exe после run() = %q, want только exe", got)
+	}
+}
+
+// Занятый .old на Windows изображает непустой каталог: удалить его нельзя.
+// Запасной файл тогда получает имя с pid.
+func TestUpdateWindowsOldInUse(t *testing.T) {
+	base := serve(t, release{tag: "v0.4.0", files: map[string]string{"gitone_windows_amd64.exe": fakeBinary("0.4.0")}})
+	exe := installed(t)
+	if err := os.MkdirAll(filepath.Join(exe+".old", "busy"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	u := newUpdater(base, "0.3.0", exe)
+	u.goos = "windows"
+	if _, err := u.run(t.Context()); err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	if got := readFile(t, exe); got != fakeBinary("0.4.0") {
+		t.Errorf("бинарник после run() = %q, want новый", got)
+	}
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe, exe + ".old"}) {
+		t.Errorf("файлы рядом с exe после run() = %q, want exe и занятый .old", got)
+	}
+}
+
+// Сбой второго rename возвращает старый exe на место: без отката update
+// оставил бы пользователя без gitone.
+func TestReplaceWindowsRollsBackOnFailure(t *testing.T) {
+	exe := installed(t)
+
+	err := replace("windows", filepath.Join(t.TempDir(), "missing"), exe)
+
+	if err == nil {
+		t.Error("replace() с отсутствующим новым файлом error = nil, want ошибка")
+	}
+	if got := readFile(t, exe); got != "old" {
+		t.Errorf("exe после неудачного replace() = %q, want прежний", got)
+	}
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe}) {
+		t.Errorf("файлы рядом с exe после неудачного replace() = %q, want только exe", got)
+	}
+}
+
+// Запасной файл с pid на Windows занят, пока старый gitone работает, и убрать
+// его в тот же update нельзя. Следующий update должен найти его и убрать.
+func TestUpdateWindowsRemovesLeftoverOldFiles(t *testing.T) {
+	base := serve(t, release{tag: "v0.4.0", files: map[string]string{"gitone_windows_amd64.exe": fakeBinary("0.4.0")}})
+	exe := installed(t)
+	if err := os.WriteFile(exe+".4242.old", []byte("leftover"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	u := newUpdater(base, "0.3.0", exe)
+	u.goos = "windows"
+	if _, err := u.run(t.Context()); err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe}) {
+		t.Errorf("файлы рядом с exe после run() = %q, want только exe", got)
+	}
 }
 
 func TestUpdateUpToDate(t *testing.T) {
@@ -152,6 +224,8 @@ func TestUpdateKeepsBinaryOnFailure(t *testing.T) {
 		{name: "сумма не сошлась", release: release{tag: "v0.4.0", files: good, sums: strings.Repeat("0", 64) + "  gitone_linux_amd64\n"}, current: "0.3.0", wantErr: "checksum"},
 		{name: "нет строки в checksums.txt", release: release{tag: "v0.4.0", files: good, sums: strings.Repeat("0", 64) + "  other\n"}, current: "0.3.0", wantErr: "gitone_linux_amd64"},
 		{name: "нет сборки под систему", release: release{tag: "v0.4.0", files: map[string]string{"gitone_darwin_arm64": fakeBinary("0.4.0")}}, current: "0.3.0", wantErr: "gitone_linux_amd64"},
+		// файла нет, а строка в checksums.txt есть: до загрузки доходит, и 404 не должен уйти в бинарник
+		{name: "строка в checksums.txt есть, файла нет", release: release{tag: "v0.4.0", sums: strings.Repeat("0", 64) + "  gitone_linux_amd64\n"}, current: "0.3.0", wantErr: "gitone_linux_amd64: 404 Not Found"},
 		{name: "бинарник называет не ту версию", release: release{tag: "v0.4.0", files: map[string]string{"gitone_linux_amd64": fakeBinary("0.3.9")}}, current: "0.3.0", wantErr: "0.3.9"},
 		{name: "бинарник не запускается", release: release{tag: "v0.4.0", files: map[string]string{"gitone_linux_amd64": "not a program"}}, current: "0.3.0", wantErr: "does not run"},
 		{name: "сборка из исходников", release: release{tag: "v0.4.0", files: good}, current: "dev", wantErr: "make build"},
@@ -176,6 +250,25 @@ func TestUpdateKeepsBinaryOnFailure(t *testing.T) {
 	}
 }
 
+// Страница 404 вместо checksums.txt не должна сойти за ответ: ошибка называет
+// запрошенный адрес и статус.
+func TestUpdateChecksumsNotFound(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	base := server.URL + "/releases"
+	exe := installed(t)
+
+	_, err := newUpdater(base, "0.3.0", exe).run(t.Context())
+
+	want := base + "/latest/download/checksums.txt: 404 Not Found"
+	if err == nil || err.Error() != want {
+		t.Errorf("run() error = %v, want %q", err, want)
+	}
+	if got := readFile(t, exe); got != "old" {
+		t.Errorf("бинарник после run() = %q, want нетронутый", got)
+	}
+}
+
 func TestUpdateWithoutNetwork(t *testing.T) {
 	server := httptest.NewServer(http.NotFoundHandler())
 	base := server.URL + "/releases"
@@ -192,26 +285,148 @@ func TestUpdateWithoutNetwork(t *testing.T) {
 	}
 }
 
+// Сбой после переадресации приходит от http.Client с последним адресом цепочки,
+// а это подписанный адрес хранилища: подпись в сообщение попасть не должна.
+func TestUpdateTransportErrorNamesRequestedURL(t *testing.T) {
+	storage := httptest.NewServer(http.NotFoundHandler())
+	signed := storage.URL + "/assets/checksums?sig=secret"
+	storage.Close()
+	server := httptest.NewServer(http.RedirectHandler(signed, http.StatusFound))
+	t.Cleanup(server.Close)
+	base := server.URL + "/releases"
+	exe := installed(t)
+
+	_, err := newUpdater(base, "0.3.0", exe).run(t.Context())
+
+	requested := base + "/latest/download/checksums.txt"
+	if err == nil || !strings.Contains(err.Error(), requested) {
+		t.Errorf("run() error = %v, want с адресом %s", err, requested)
+	}
+	if err != nil && strings.Contains(err.Error(), "sig=secret") {
+		t.Errorf("run() error = %v, want без подписи адреса хранилища", err)
+	}
+}
+
+// Ошибка про переадресации идёт через словарь: на втором языке она переводится.
+func TestUpdateRedirectLoopIsTranslated(t *testing.T) {
+	server := httptest.NewServer(http.RedirectHandler("/loop", http.StatusFound))
+	t.Cleanup(server.Close)
+	base := server.URL + "/releases"
+	text := i18n.Custom("xx", map[string]string{"update.tooManyRedirects": "XX {count}"})
+
+	_, err := newUpdater(base, "0.3.0", installed(t)).run(t.Context())
+
+	want := `Get "` + base + `/latest/download/checksums.txt": XX 10`
+	if err == nil || text.Error(err) != want {
+		t.Errorf("text.Error(%v) = %q, want %q", err, text.Error(err), want)
+	}
+}
+
+// Подсказка зависит от системы: на Windows sudo нет, а пути в тексте стоят в
+// кавычках, потому что в них бывают пробелы («C:\Program Files\gitone»).
 func TestUpdateWithoutWritePermission(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root пишет в любой каталог")
 	}
-	base := serve(t, release{tag: "v0.4.0", files: map[string]string{"gitone_linux_amd64": fakeBinary("0.4.0")}})
-	exe := installed(t)
-	dir := filepath.Dir(exe)
-	if err := os.Chmod(dir, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chmod(dir, 0o755) })
 
-	_, err := newUpdater(base, "0.3.0", exe).run(t.Context())
+	tests := []struct {
+		name string
+		goos string
+		// want получает каталог и путь к exe
+		want string
+	}{
+		{name: "unix", goos: "linux", want: `cannot write to "%[1]s", run: sudo "%[2]s" update`},
+		{name: "windows", goos: "windows", want: `cannot write to "%[1]s", run gitone update as administrator`},
+	}
 
-	if err == nil || !strings.Contains(err.Error(), "sudo "+exe+" update") {
-		t.Errorf("run() error = %v, want подсказка sudo с путём %s", err, exe)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			base := serve(t, release{tag: "v0.4.0", files: map[string]string{
+				"gitone_linux_amd64":       fakeBinary("0.4.0"),
+				"gitone_windows_amd64.exe": fakeBinary("0.4.0"),
+			}})
+			exe := installed(t)
+			dir := filepath.Dir(exe)
+			if err := os.Chmod(dir, 0o555); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.Chmod(dir, 0o755) })
+			u := newUpdater(base, "0.3.0", exe)
+			u.goos = tc.goos
+
+			_, err := u.run(t.Context())
+
+			want := fmt.Sprintf(tc.want, dir, exe)
+			if err == nil || err.Error() != want {
+				t.Errorf("run() error = %v, want %q", err, want)
+			}
+			if got := readFile(t, exe); got != "old" {
+				t.Errorf("бинарник после run() = %q, want нетронутый", got)
+			}
+		})
 	}
-	if got := readFile(t, exe); got != "old" {
-		t.Errorf("бинарник после run() = %q, want нетронутый", got)
-	}
+}
+
+// roundTripFunc это транспорт из функции: тест отдаёт ответ сам, без сети.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+// drip отдаёт тело кусками по килобайту с паузой между ними. С hang после
+// последнего куска тело молчит и не заканчивается, как повисшее соединение.
+// Отмена запроса обрывает тело, как у настоящего транспорта. Паузы идут по
+// часам пузыря synctest, настоящего ожидания нет.
+func drip(chunks int, gap time.Duration, hang bool) http.RoundTripper {
+	return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, writer := io.Pipe()
+		go func() {
+			<-req.Context().Done()
+			writer.CloseWithError(context.Cause(req.Context()))
+		}()
+		go func() {
+			for range chunks {
+				time.Sleep(gap)
+				writer.Write(bytes.Repeat([]byte("x"), 1024))
+			}
+			if !hang {
+				writer.Close()
+			}
+		}()
+
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: body}, nil
+	})
+}
+
+// Загрузка дольше таймаута простоя проходит, пока байты идут: общего потолка
+// на неё нет. Бинарник около 27 МБ на медленном канале иначе не скачать.
+func TestFetchSlowBodyWithinIdleTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		u := updater{client: &http.Client{Transport: drip(6, 100*time.Millisecond, false)}, idle: 300 * time.Millisecond}
+
+		body, _, err := u.fetch(t.Context(), "https://example.test/gitone")
+
+		if err != nil {
+			t.Fatalf("fetch() error = %v", err)
+		}
+		if len(body) != 6*1024 {
+			t.Errorf("fetch() отдал %d байт, want %d", len(body), 6*1024)
+		}
+	})
+}
+
+func TestFetchStalledBody(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		u := updater{client: &http.Client{Transport: drip(2, 100*time.Millisecond, true)}, idle: 300 * time.Millisecond}
+
+		_, _, err := u.fetch(t.Context(), "https://example.test/gitone")
+
+		want := "https://example.test/gitone: no data for 300ms, nothing was installed"
+		if err == nil || err.Error() != want {
+			t.Errorf("fetch() error = %v, want %q", err, want)
+		}
+	})
 }
 
 func TestNewer(t *testing.T) {
@@ -253,6 +468,17 @@ func TestIsUpdateCommand(t *testing.T) {
 			t.Errorf("isUpdateCommand(%q) = %v, want %v", tc.args, got, tc.want)
 		}
 	}
+}
+
+// siblings перечисляет всё, что лежит в одном каталоге с exe, включая его самого.
+func siblings(t *testing.T, exe string) []string {
+	t.Helper()
+
+	paths, err := filepath.Glob(filepath.Join(filepath.Dir(exe), "*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return paths
 }
 
 func readFile(t *testing.T, path string) string {
