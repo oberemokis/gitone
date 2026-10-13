@@ -165,10 +165,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resize()
 	case tea.KeyPressMsg:
 		return m.keyPress(msg)
+	// окно лежит поверх диффа: крутить то, что закрыто, нечем и незачем (#150).
+	// Вопрос discard окна не рисует, под ним дифф виден и крутится.
 	case tea.MouseWheelMsg:
 		if m.helpOverflow() > 0 {
 			m = m.wheelHelp(msg.Button)
-		} else {
+		} else if m.active == noWindow || m.active == discardWindow {
 			m.view = m.wheel(msg)
 		}
 	case tea.MouseClickMsg:

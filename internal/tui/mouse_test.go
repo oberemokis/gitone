@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/layout"
 )
 
 // Мышь делает то, что видно под курсором (#150): вопрос discard не кликается,
@@ -100,6 +102,34 @@ func TestClickCloseWhileSearchingClosesLog(t *testing.T) {
 
 	if screen := screenText(model); strings.Contains(screen, "Log") || strings.Contains(screen, "subjq") {
 		t.Fatalf("клик по q close не закрыл лог:\n%s", screen)
+	}
+}
+
+// Колесо при открытом окне не крутит дифф под ним.
+func TestWheelUnderWindowDoesNotScrollDiff(t *testing.T) {
+	repo := commitSubjects(t, "base")
+	write(t, repo, "long.txt", numberedLines(60))
+	model := openAsync(resize(open(t, options(repo, layout.Focus())), 120, 30), key('l'))
+
+	for range 3 {
+		model, _ = model.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	}
+
+	if top := topNumber(t, screenOf(model)); top != 1 {
+		t.Fatalf("верхняя строка диффа %d, want 1", top)
+	}
+}
+
+// Вопрос discard окна не рисует: дифф под ним виден и крутится колесом.
+func TestWheelUnderDiscardQuestionScrollsDiff(t *testing.T) {
+	repo := commitSubjects(t, "base")
+	write(t, repo, "long.txt", numberedLines(60))
+	model, _ := resize(open(t, options(repo, layout.Focus())), 120, 30).Update(key('x'))
+
+	model, _ = model.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+
+	if top := topNumber(t, screenOf(model)); top != 4 {
+		t.Fatalf("верхняя строка диффа %d, want 4", top)
 	}
 }
 
