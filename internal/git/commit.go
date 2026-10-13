@@ -1,17 +1,23 @@
 package git
 
-import "gitone/internal/i18n"
+import (
+	"strings"
 
-// Commit записывает индекс с темой subject. Идёт обычным git commit: хуки
+	"gitone/internal/i18n"
+)
+
+// Commit записывает индекс с темой subject и описанием description. Описание
+// идёт вторым -m, git ставит между ним и темой пустую строку; пробелы по краям
+// обрезаются, а пустое описание тела не даёт. Идёт обычным git commit: хуки
 // выполняются, автор берётся из git config, редактор не открывается. Отказ хука
 // приходит ошибкой git. Пустой индекс проверяется заранее: на пустом git commit
 // пишет отчёт `git status`, и причина стоит в нём не первой строкой. Пока идёт
 // слияние, cherry-pick или revert, проверки нет.
-func Commit(dir string, subject string) error {
-	return failed("commit", commit(dir, subject))
+func Commit(dir string, subject string, description string) error {
+	return failed("commit", commit(dir, subject, description))
 }
 
-func commit(dir string, subject string) error {
+func commit(dir string, subject string, description string) error {
 	root, err := topLevel(dir)
 	if err != nil {
 		return err
@@ -27,7 +33,12 @@ func commit(dir string, subject string) error {
 		}
 	}
 
-	_, err = run(call{dir: root}, "commit", "-m", subject)
+	args := []string{"commit", "-m", subject}
+	if body := strings.TrimSpace(description); body != "" {
+		args = append(args, "-m", body)
+	}
+
+	_, err = run(call{dir: root}, args...)
 	return err
 }
 

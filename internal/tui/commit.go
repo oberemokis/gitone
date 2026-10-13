@@ -18,7 +18,7 @@ import (
 // долго, и экран не должен висеть.
 func commitCmd(dir, subject string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.Commit(dir, subject)}
+		return actionDoneMsg{err: git.Commit(dir, subject, "")}
 	}
 }
 
