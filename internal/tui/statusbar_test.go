@@ -128,15 +128,20 @@ func openThemed(t *testing.T) (string, tea.Model) {
 	return repo, resize(open(t, opts), 100, 20)
 }
 
-// Спиннер загрузки идёт цветом добавленных строк, а не приглушённым цветом
-// подсказок вокруг.
-func TestSpinnerUsesAddedColor(t *testing.T) {
-	_, model := openThemed(t)
+// Спиннер и слово loading серые (textMuted), зелёного цвета добавленных строк
+// в подвале нет.
+func TestSpinnerIsMuted(t *testing.T) {
+	model, _ := mutedTheme(t).Update(key('r'))
+	raw := model.View().Content
 
-	model, _ = model.Update(key('r'))
-
-	if got := styleBefore(t, model.View().Content, "loading", "⠋"); !strings.Contains(got, "38;2;5;5;5") {
-		t.Errorf("перед спиннером %q, want цвет добавления 38;2;5;5;5", got)
+	for _, text := range []string{"⠋", "loading"} {
+		if got := styleBefore(t, raw, "loading", text); !strings.Contains(got, mutedFg) {
+			t.Errorf("перед %q стиль %q, want приглушённый цвет %s", text, got, mutedFg)
+		}
+	}
+	// 38;2;63;185;80 это diffAdded встроенной темы
+	if line := rawLine(t, raw, "loading"); strings.Contains(line, "38;2;63;185;80") {
+		t.Errorf("в подвале при загрузке есть зелёный цвет: %q", line)
 	}
 }
 

@@ -218,10 +218,11 @@ func spinTick(load int) tea.Cmd {
 	return tea.Tick(spinnerStep, func(time.Time) tea.Msg { return spinMsg{load: load} })
 }
 
-// spinner это кадр frame и надпись loading цветом добавленных строк темы.
+// spinner это кадр frame и надпись loading приглушённым цветом: загрузка идёт
+// фоном и не должна спорить с веткой и подсказками.
 func spinner(frame int, colors theme.Theme, text i18n.Dictionary) string {
 	symbol := spinnerFrames[frame%len(spinnerFrames)]
-	return lipgloss.NewStyle().Foreground(colors.DiffAdded).Render(symbol + " " + text.Text("screen.loading", nil))
+	return lipgloss.NewStyle().Foreground(colors.TextMuted).Render(symbol + " " + text.Text("screen.loading", nil))
 }
 
 // footerPadding это поле подвала у краёв экрана.
