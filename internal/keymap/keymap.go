@@ -246,7 +246,7 @@ func decode(data []byte) (Keymap, error) {
 	}
 
 	for _, binding := range bindings {
-		if err := checkWindowKeys(binding); err != nil {
+		if err := checkBindingKeys(binding); err != nil {
 			return Keymap{}, err
 		}
 	}
@@ -257,12 +257,16 @@ func decode(data []byte) (Keymap, error) {
 	return Keymap{bindings: bindings}, nil
 }
 
-// checkWindowKeys ловит при загрузке окно-ловушку и поле, которое теряет
-// буквы. ctrl+c в окнах зашит: выход, а в вопросах «нет». backspace в полях
-// стирает символ.
-func checkWindowKeys(binding Binding) error {
+// checkBindingKeys ловит при загрузке окно-ловушку и поле, которое теряет
+// буквы. ctrl+c зашит: в окнах выход, а в вопросах «нет», на главном экране
+// выход, поэтому глобальному действию он не достаётся, кроме app.quit.
+// backspace в полях стирает символ.
+func checkBindingKeys(binding Binding) error {
 	action := binding.Action
 	if !inWindow(action) {
+		if action != AppQuit && slices.Contains(binding.Keys, "ctrl+c") {
+			return i18n.New("keymap.reservedQuit", i18n.Args{"action": action, "key": "ctrl+c"})
+		}
 		return nil
 	}
 	if len(binding.Keys) == 0 {

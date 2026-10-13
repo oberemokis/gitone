@@ -71,6 +71,7 @@
   "keymap.lowercase": "\"{key}\" is never sent: with a modifier the letter is lowercase",
   "keymap.noneInList": "\"none\" in a list is not a key, write \"none\" alone or an empty list []",
   "keymap.reserved": "{action}: \"{key}\" is reserved in windows",
+  "keymap.reservedQuit": "{action}: \"{key}\" always quits and belongs to app.quit",
   "keymap.shiftLetter": "\"{key}\" is never sent: Bubble Tea sends a capital letter, write \"{capital}\"",
   "keymap.typesText": "{action}: \"{key}\" types text in the field, use a key with ctrl or alt",
   "keymap.unknownAction": "unknown action \"{action}\"",
