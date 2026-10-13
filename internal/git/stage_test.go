@@ -1,12 +1,14 @@
 package git_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 )
 
 // Файл в индексе попадает в StagedPaths, а Unstage убирает его оттуда.
@@ -83,6 +85,22 @@ func TestDiscardDropsStagedNewFile(t *testing.T) {
 	}
 }
 
+// Ведущее двоеточие ls-tree отверг бы как магию pathspec и этим отправил бы
+// файл из HEAD в ветку «нового»: правка пропала бы вместе с файлом.
+func TestDiscardRestoresTrackedFileWithLeadingColon(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, ":note.md", "one\n")
+	commitAll(t, repo)
+	write(t, repo, ":note.md", "two\n")
+
+	if err := git.Discard(repo, []string{":note.md"}); err != nil {
+		t.Fatalf("Discard: %v", err)
+	}
+	if got := readFile(t, filepath.Join(repo, ":note.md")); got != "one\n" {
+		t.Fatalf(":note.md = %q, ожидался возврат к HEAD", got)
+	}
+}
+
 // Правка в индексе уходит и из индекса, и с диска: тест не должен смотреть
 // только на диск, иначе restore без --staged остался бы незамеченным.
 func TestDiscardRestoresStagedChange(t *testing.T) {
@@ -115,6 +133,35 @@ func TestDiscardRemovesUntrackedFileFromSubdirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repo, "sub", "new.txt")); !os.IsNotExist(err) {
 		t.Fatalf("неотслеженный файл остался: %v", err)
+	}
+}
+
+// У gitlink подмодуля в HEAD нет объекта для cat-file, поэтому файл «нового»
+// вида вёл Discard в удаление подмодуля. Теперь отказ идёт до любой правки:
+// индекс и диск остаются как были.
+func TestDiscardRefusesSubmodule(t *testing.T) {
+	upstream := newRepo(t)
+	write(t, upstream, "lib.txt", "one\n")
+	commitAll(t, upstream)
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", upstream, "sub")
+	runGit(t, repo, "commit", "-q", "-m", "add submodule")
+	sub := filepath.Join(repo, "sub")
+	write(t, sub, "lib.txt", "two\n")
+	runGit(t, sub, "commit", "-q", "-a", "-m", "next")
+	write(t, repo, "a.txt", "two\n")
+	before := runGit(t, repo, "status", "--porcelain=v2")
+
+	err := git.Discard(repo, []string{"a.txt", "sub"})
+
+	var refusal *i18n.Error
+	if !errors.As(err, &refusal) || refusal.Key != "git.submoduleDiscard" {
+		t.Fatalf("Discard error = %v, ожидался отказ git.submoduleDiscard", err)
+	}
+	if after := runGit(t, repo, "status", "--porcelain=v2"); after != before {
+		t.Fatalf("git status изменился:\nдо:\n%s\nпосле:\n%s", before, after)
 	}
 }
 

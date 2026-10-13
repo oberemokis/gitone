@@ -57,6 +57,7 @@
   "files.none": "No files",
   "files.title": "Files",
   "git.nothingToStash": "no changes to save in stash",
+  "git.submoduleDiscard": "submodule \"{path}\" cannot be discarded",
   "help.title": "Hotkeys",
   "json.extraText": "extra text after JSON",
   "keymap.badKeys": "expected a key, an array of keys, \"none\" or false",

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gitone/internal/i18n"
 )
 
 // Stage добавляет пути в индекс. Удалённый файл тоже: add -A берёт и удаление.
@@ -38,9 +40,13 @@ func unstage(dir string, paths []string) error {
 	return err
 }
 
+// submoduleMode это режим записи подмодуля (gitlink) в дереве.
+const submoduleMode = "160000"
+
 // Discard отменяет правки путей. Файл, который есть в HEAD, возвращается к нему
 // вместе с индексом. Файл, которого в HEAD нет, убирается из индекса и с диска.
-// Ошибка git на файле из HEAD не трогает диск: решается по cat-file, а не по
+// Подмодуль не отменяется: restore сдвинул бы его checkout и потерял коммиты.
+// Ошибка git на файле из HEAD не трогает диск: решается по ls-tree, а не по
 // сбою restore, чтобы сбой не стёр правку.
 func Discard(dir string, paths []string) error {
 	return failed("restore", discard(dir, paths))
@@ -52,8 +58,27 @@ func discard(dir string, paths []string) error {
 		return err
 	}
 
-	for _, path := range paths {
-		if _, err := run(literal(root), "cat-file", "-e", "HEAD:"+path); err == nil {
+	base, err := baseRevision(root)
+	if err != nil {
+		return err
+	}
+
+	// Отказ на подмодуле идёт до первой правки: иначе часть путей была бы уже
+	// отменена.
+	tracked := make([]bool, len(paths))
+	for i, path := range paths {
+		mode, err := treeMode(root, base, path)
+		if err != nil {
+			return err
+		}
+		if mode == submoduleMode {
+			return i18n.New("git.submoduleDiscard", i18n.Args{"path": path})
+		}
+		tracked[i] = mode != ""
+	}
+
+	for i, path := range paths {
+		if tracked[i] {
 			if _, err := run(literal(root), "restore", "--source=HEAD", "--staged", "--worktree", "--", path); err != nil {
 				return err
 			}
@@ -69,6 +94,15 @@ func discard(dir string, paths []string) error {
 	}
 
 	return nil
+}
+
+// treeMode возвращает режим записи пути в дереве base, пустую строку, если пути
+// там нет. cat-file для этого не годится: у gitlink подмодуля в этом
+// репозитории нет объекта.
+func treeMode(root, base, path string) (string, error) {
+	out, err := run(literal(root), "ls-tree", base, "--", path)
+	mode, _, _ := strings.Cut(out, " ")
+	return mode, err
 }
 
 // StagedPaths возвращает пути, у которых индекс отличается от HEAD.
