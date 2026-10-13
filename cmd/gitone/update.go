@@ -349,10 +349,18 @@ func verify(path, version string) error {
 // replace ставит новый файл на место старого. Rename поверх файла атомарен,
 // но на Windows работающий exe не перезаписать: он уходит в .old, а при
 // сбое возвращается. .old занят, пока старый gitone работает, поэтому его
-// убирает следующий update.
+// убирает следующий update. Занятый .old заставляет взять имя с pid, а такой
+// файл никто больше не тронет: его тоже убирает следующий update.
 func replace(goos, temp, exe string) error {
 	if goos != "windows" {
 		return os.Rename(temp, exe)
+	}
+
+	// Ошибки не важны: файл, который не удалился, занят и дождётся следующего
+	// раза. Квадратная скобка в пути ломает шаблон, и тогда уборка пропускается.
+	leftovers, _ := filepath.Glob(exe + ".*.old")
+	for _, leftover := range leftovers {
+		os.Remove(leftover)
 	}
 
 	old := exe + ".old"

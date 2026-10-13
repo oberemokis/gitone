@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -126,6 +127,29 @@ func TestUpdateWindowsMovesOldAside(t *testing.T) {
 
 	if got := readFile(t, exe); got != fakeBinary("0.4.0") {
 		t.Errorf("бинарник после run() = %q, want новый", got)
+	}
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe}) {
+		t.Errorf("файлы рядом с exe после run() = %q, want только exe", got)
+	}
+}
+
+// Запасной файл с pid на Windows занят, пока старый gitone работает, и убрать
+// его в тот же update нельзя. Следующий update должен найти его и убрать.
+func TestUpdateWindowsRemovesLeftoverOldFiles(t *testing.T) {
+	base := serve(t, release{tag: "v0.4.0", files: map[string]string{"gitone_windows_amd64.exe": fakeBinary("0.4.0")}})
+	exe := installed(t)
+	if err := os.WriteFile(exe+".4242.old", []byte("leftover"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	u := newUpdater(base, "0.3.0", exe)
+	u.goos = "windows"
+	if _, err := u.run(t.Context()); err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe}) {
+		t.Errorf("файлы рядом с exe после run() = %q, want только exe", got)
 	}
 }
 
@@ -382,6 +406,17 @@ func TestIsUpdateCommand(t *testing.T) {
 			t.Errorf("isUpdateCommand(%q) = %v, want %v", tc.args, got, tc.want)
 		}
 	}
+}
+
+// siblings перечисляет всё, что лежит в одном каталоге с exe, включая его самого.
+func siblings(t *testing.T, exe string) []string {
+	t.Helper()
+
+	paths, err := filepath.Glob(filepath.Join(filepath.Dir(exe), "*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return paths
 }
 
 func readFile(t *testing.T, path string) string {
