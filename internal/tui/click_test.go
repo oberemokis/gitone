@@ -56,6 +56,33 @@ func TestClickBranchSwitches(t *testing.T) {
 	}
 }
 
+// Клик по строке соседнего worktree переводит gitone на него, как enter: дифф
+// его рабочего дерева, в подвале его имя.
+func TestClickWorktreeSwitches(t *testing.T) {
+	_, _, model := twoWorktrees(t)
+
+	model = clickOn(t, openAsync(model, key('W')), "side-tree")
+
+	if screen := screenText(model); strings.Contains(screen, "Worktrees") || !strings.Contains(screen, "side-edit") || strings.Contains(screen, "main-edit") {
+		t.Fatalf("клик не перевёл на дифф side-tree:\n%s", screen)
+	}
+	if footer := footerOf(model); !strings.HasPrefix(footer, " B side   W side-tree") {
+		t.Fatalf("подвал %q, want side-tree слева", footer)
+	}
+}
+
+// Клик по второму stash открывает дифф именно его, а не того, где стоял курсор:
+// у stash@{1} правка «two», у верхнего «three».
+func TestClickStashOpensItsDiff(t *testing.T) {
+	_, model := openTwoStashes(t)
+
+	model = clickOn(t, model, "stash@{1}")
+
+	if screen := screenText(model); strings.Contains(screen, "Stash") || !strings.Contains(screen, "two") || strings.Contains(screen, "three") {
+		t.Fatalf("клик не открыл дифф stash@{1}:\n%s", screen)
+	}
+}
+
 // Клик по файлу в панели открывает его.
 func TestClickFileInPanelOpensIt(t *testing.T) {
 	_, model := threeFileRepo(t)
