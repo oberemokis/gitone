@@ -78,6 +78,39 @@ func TestLogWindowFillsScreenWithMargins(t *testing.T) {
 	}
 }
 
+// На высоком экране поле окна не больше 5 строк сверху и снизу: на экране 60 на
+// 120 тело 54 строки, восьмая часть 6 уже не работает, а предел да.
+func TestLogWindowMarginIsFiveRowsOnTallScreen(t *testing.T) {
+	_, model := openLog(t, 3, 120, 60)
+	screen := screenOf(model)
+
+	// тело с строки bodyRow, поле 5 строк, отступ окна 1 строка
+	if title, want := rowOf(screen, "Log"), bodyRow+5+1; title != want {
+		t.Errorf("заголовок окна в строке %d, want %d:\n%s", title, want, strings.Join(screen, "\n"))
+	}
+	// подсказка стоит над отступом окна в 1 строку и полем в 5 строк, последняя
+	// строка тела bodyRow+54-1
+	if hint, want := rowOf(screen, "enter commit diff"), bodyRow+54-1-1-5; hint != want {
+		t.Errorf("подсказка окна в строке %d, want %d:\n%s", hint, want, strings.Join(screen, "\n"))
+	}
+}
+
+// Корневой коммит дифф не открывает: окно закрывается, а подвал называет
+// причину.
+func TestLogRootCommitSaysItIsHidden(t *testing.T) {
+	model := searchLog(t, "only commit")
+
+	model, cmd := model.Update(enter)
+	model = settle(model, cmd, 3)
+
+	if screen := screenText(model); strings.Contains(screen, "Log") {
+		t.Fatalf("enter на корневом коммите не закрыл окно:\n%s", screen)
+	}
+	if footer := footerOf(model); !strings.Contains(footer, "the first commit is not shown") {
+		t.Fatalf("в подвале %q, ожидалась причина", footer)
+	}
+}
+
 // На узком экране поле не больше восьмой части ширины.
 func TestLogWindowMarginOnNarrowScreen(t *testing.T) {
 	_, model := openLog(t, 3, 80, 40)

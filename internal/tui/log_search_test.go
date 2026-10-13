@@ -146,6 +146,29 @@ func TestLogSearchHashByPrefix(t *testing.T) {
 	}
 }
 
+// Тема и автор ищутся по подстроке без учёта регистра и порознь: запрос не
+// находит стык конца темы с началом имени автора.
+func TestLogSearchByAuthor(t *testing.T) {
+	repo := authoredRepo(t, []string{"alpha", "tail-x", "gamma"}, []string{"Zed Zhang", "Head Y", "Amy Adams"})
+
+	for _, tc := range []struct {
+		name, query, shows, hides string
+	}{
+		{name: "автор", query: "ZHANG", shows: "alpha", hides: "gamma"},
+		{name: "стык темы и автора", query: "xhead", shows: "No matching commits", hides: "alpha"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := openAsync(resize(open(t, options(repo, layout.Focus())), 120, 30), key('l'))
+
+			screen := screenText(typeText(model, "/"+tc.query))
+
+			if !strings.Contains(screen, tc.shows) || strings.Contains(screen, tc.hides) {
+				t.Fatalf("по запросу %q на экране нет %q или есть %q:\n%s", tc.query, tc.shows, tc.hides, screen)
+			}
+		})
+	}
+}
+
 // Ничего не нашлось: надпись вместо таблицы.
 func TestLogSearchNoMatches(t *testing.T) {
 	model := searchLog(t, "init", "fix: one")
