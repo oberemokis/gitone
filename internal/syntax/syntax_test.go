@@ -114,6 +114,81 @@ func TestGrammarSetKeepsCoreLanguages(t *testing.T) {
 	}
 }
 
+// Код однофайловых компонентов разбирает своя грамматика: скрипт по атрибуту
+// lang, стиль как CSS или SCSS, выражения шаблона как TypeScript (#140).
+// Разметка вокруг остаётся разметкой.
+func TestEmbeddedCode(t *testing.T) {
+	vue := []string{
+		"<template>",
+		`  <p :title="label(item)">{{ format(title) }}</p>`,
+		"</template>",
+		`<script setup lang="ts">`,
+		"const count: number = ref(0)",
+		"</script>",
+		`<style scoped lang="scss">`,
+		"$gap: 4px;",
+		".card { color: red; }",
+		"</style>",
+	}
+	svelte := []string{
+		`<script lang="ts">`,
+		"  let count: number = 0",
+		"</script>",
+		"<button on:click={increment}>{format(count)}</button>",
+		"<style>",
+		".card { color: red; }",
+		"</style>",
+	}
+	astro := []string{
+		"---",
+		"const title: string = await load()",
+		"---",
+		"<h1 class={pick(title)}>{title}</h1>",
+	}
+
+	tests := []struct {
+		name  string
+		path  string
+		lines []string
+		line  int
+		text  string
+		want  syntax.Kind
+	}{
+		{name: "vue: тег вокруг кода", path: "App.vue", lines: vue, line: 3, text: "script", want: syntax.Tag},
+		{name: "vue: const в script", path: "App.vue", lines: vue, line: 4, text: "const", want: syntax.Keyword},
+		{name: "vue: тип в script lang=ts", path: "App.vue", lines: vue, line: 4, text: "number", want: syntax.Type},
+		{name: "vue: вызов в script", path: "App.vue", lines: vue, line: 4, text: "ref", want: syntax.Function},
+		{name: "vue: вызов в {{ }}", path: "App.vue", lines: vue, line: 1, text: "format", want: syntax.Function},
+		{name: "vue: вызов в директиве", path: "App.vue", lines: vue, line: 1, text: "label", want: syntax.Function},
+		// у scss цвета есть у значений, у переменных и имён свойств нет
+		{name: "vue: значение в style lang=scss", path: "App.vue", lines: vue, line: 8, text: "red", want: syntax.String},
+		{name: "svelte: let в script", path: "App.svelte", lines: svelte, line: 1, text: "let", want: syntax.Keyword},
+		{name: "svelte: вызов в {…}", path: "App.svelte", lines: svelte, line: 3, text: "format", want: syntax.Function},
+		{name: "svelte: свойство в style", path: "App.svelte", lines: svelte, line: 5, text: "color", want: syntax.Property},
+		{name: "astro: const во frontmatter", path: "Page.astro", lines: astro, line: 1, text: "const", want: syntax.Keyword},
+		{name: "astro: вызов в атрибуте", path: "Page.astro", lines: astro, line: 3, text: "pick", want: syntax.Function},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			spans := syntax.Detect(tc.path).Lines(tc.lines)
+			if got := kindOf(tc.lines, spans, tc.line, tc.text); got != tc.want {
+				t.Errorf("%q в строке %d: вид %q, want %q (%+v)", tc.text, tc.line, got, tc.want, spans[tc.line])
+			}
+		})
+	}
+}
+
+// Однофайловым компонентам нужен файл целиком: по хунку не понять, из какого
+// он блока. Остальным языкам хватает хунка.
+func TestEmbedsNeedWholeFile(t *testing.T) {
+	for path, want := range map[string]bool{"App.vue": true, "App.svelte": true, "Page.astro": true, "a.ts": false, "a.go": false, "a.unknownext": false} {
+		if got := syntax.Detect(path).Embeds(); got != want {
+			t.Errorf("%s: Embeds %v, want %v", path, got, want)
+		}
+	}
+}
+
 // Файл без грамматики: подсветки нет, ошибки нет.
 func TestUnknownLanguage(t *testing.T) {
 	if spans := syntax.Detect("notes.unknownext").Lines([]string{"func x"}); spans != nil {

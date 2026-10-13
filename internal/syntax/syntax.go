@@ -158,6 +158,10 @@ func (l Lexer) paint(source []byte) []Kind {
 			kinds[at] = found.kind
 		}
 	}
+
+	if l.Embeds() {
+		l.inject(tree.RootNode(), language, source, kinds)
+	}
 	return kinds
 }
 
