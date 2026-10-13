@@ -353,9 +353,10 @@ func TestLongHintStaysOnNarrowScreen(t *testing.T) {
 	}
 
 	// перенос подсказки или строки списка выдаёт себя продолжением на
-	// следующей строке окна: экран при этом не растёт, лишнее срезает наложение
+	// следующей строке окна: экран при этом не растёт, лишнее срезает наложение.
+	// Смотрится только внутри окна: по краям виден ряд клавиш пустого экрана
 	for index, line := range screen[:len(screen)-1] {
-		wrapped := strings.TrimSpace(screen[index+1]) != ""
+		wrapped := windowText(screen, index+1, "St…") != ""
 		if (strings.Contains(line, "enter diff") || strings.Contains(line, "stash@{0}")) && wrapped {
 			t.Fatalf("строка окна перенеслась:\n%s", strings.Join(screen, "\n"))
 		}
