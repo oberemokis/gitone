@@ -121,17 +121,26 @@ type position struct {
 	old    bool
 }
 
+// topPosition берёт первую строку с номером, начиная с верхней: у разрыва между
+// хунками и пометки «No newline» номеров нет, и верх по такой строке в другом
+// виде указал бы на другое место. Служебная строка (надпись над файлом) верх не
+// определяет, он остаётся по индексу.
 func (m Model) topPosition() position {
-	if m.scroll >= len(m.lines) {
+	if m.scroll >= len(m.lines) || m.lines[m.scroll].notice != nil {
 		return position{}
 	}
 
-	oldNumber, newNumber := m.lines[m.scroll].numbers()
-	if newNumber > 0 {
-		return position{number: newNumber}
+	for _, line := range m.lines[m.scroll:] {
+		oldNumber, newNumber := line.numbers()
+		switch {
+		case newNumber > 0:
+			return position{number: newNumber}
+		case oldNumber > 0:
+			return position{number: oldNumber, old: true}
+		}
 	}
 
-	return position{number: oldNumber, old: true}
+	return position{}
 }
 
 // seek ставит наверх первую строку с номером не меньше искомого: номера на
