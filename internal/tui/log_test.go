@@ -95,6 +95,36 @@ func TestLogWindowMarginIsFiveRowsOnTallScreen(t *testing.T) {
 	}
 }
 
+// Курсор за нижним краем длинного списка тянет окно за собой, на обратном пути
+// вверх первые строки возвращаются: строка под курсором всегда на экране. В
+// окне 40 коммитов не умещаются, видны 19 строк.
+func TestLogListScrollsWithCursor(t *testing.T) {
+	subjects := make([]string, 40)
+	for index := range subjects {
+		subjects[index] = fmt.Sprintf("item-%02d", index+1)
+	}
+	model := resize(open(t, options(commitSubjects(t, subjects...), layout.Focus())), 120, 40)
+	model = openAsync(model, key('l'))
+
+	for range 30 {
+		model, _ = model.Update(key('j'))
+	}
+	// наверху лога последний коммит item-40, в 31-й строке item-10
+	if row := markedRow(model); !strings.Contains(row, "item-10") {
+		t.Fatalf("под курсором %q, want item-10:\n%s", row, screenText(model))
+	}
+	if screen := screenText(model); strings.Contains(screen, "item-40") {
+		t.Fatalf("верх списка остался на экране:\n%s", screen)
+	}
+
+	for range 30 {
+		model, _ = model.Update(key('k'))
+	}
+	if row := markedRow(model); !strings.Contains(row, "item-40") {
+		t.Fatalf("под курсором %q, want item-40:\n%s", row, screenText(model))
+	}
+}
+
 // Корневой коммит дифф не открывает: окно закрывается, а подвал называет
 // причину.
 func TestLogRootCommitSaysItIsHidden(t *testing.T) {
