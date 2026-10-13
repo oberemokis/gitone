@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -31,9 +32,13 @@ const (
 // critique: «examples.ts +6 -1», и номер файла в диффе «(2/5)»: другого места,
 // где видно число файлов, на экране нет. У краёв стрелки к соседним файлам
 // (#120), клик по ним открывает файл, как [ и ]. У края списка стрелка
-// приглушена. Длинное имя обрезается «…» и стрелок не задевает, счётчики
-// остаются видны.
-func header(width int, files []diff.File, current int, colors theme.Theme, text i18n.Dictionary) string {
+// приглушена. Рядом со стрелками первые клавиши действий (#195): слева от ‹
+// «предыдущий файл», справа от › «следующий», приглушённые, как подпись
+// подсказки в подвале. Клавиша и стрелка одно место клика. Действие без
+// клавиш оставляет стрелку без подписи. Место отдаётся имени: клавиши
+// пропадают первыми, когда имя со счётчиками перестаёт помещаться. Потом
+// имя обрезается «…», стрелки и счётчики остаются видны.
+func header(width int, files []diff.File, current int, colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary) string {
 	file := files[current]
 	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
 
@@ -47,18 +52,52 @@ func header(width int, files []diff.File, current int, colors theme.Theme, text 
 
 	// между стрелками: поля подвала и по пробелу у каждой стрелки
 	inner := max(width-2*footerPadding-4, 0)
-	name := ansi.Truncate(fileTitle(file, text), max(inner-ansi.StringWidth(tail), 1), "…")
+	previous, next := firstKey(keys, keymap.FilesPrevious), firstKey(keys, keymap.FilesNext)
+
+	// клавиши остаются, пока имя целиком помещается и с ними
+	name := fileTitle(file, text)
+	if room := inner - keyRoom(previous) - keyRoom(next); ansi.StringWidth(name+tail) <= room {
+		inner = room
+	} else {
+		previous, next = "", ""
+	}
+	name = ansi.Truncate(name, max(inner-ansi.StringWidth(tail), 1), "…")
 	title := ansi.Truncate(name+tail, inner, "…")
 
-	arrow := func(symbol string, index int) string {
-		if index < 0 || index >= len(files) {
-			return muted.Render(symbol)
+	// клавиша стоит снаружи стрелки: «[ ‹» слева и «› ]» справа
+	arrow := func(symbol, key string, index int, keyFirst bool) string {
+		edge := index < 0 || index >= len(files)
+		if edge {
+			symbol = muted.Render(symbol)
 		}
-		return zone.Mark(fileTarget+strconv.Itoa(index), symbol)
+
+		parts := []string{symbol}
+		if key != "" {
+			parts = append(parts, muted.Render(key))
+		}
+		if keyFirst {
+			slices.Reverse(parts)
+		}
+
+		button := strings.Join(parts, " ")
+		if edge {
+			return button
+		}
+		return zone.Mark(fileTarget+strconv.Itoa(index), button)
 	}
 
 	padding := strings.Repeat(" ", footerPadding)
-	return padding + arrow("‹", current-1) + " " + lipgloss.PlaceHorizontal(inner, lipgloss.Center, title) + " " + arrow("›", current+1) + padding
+	return padding + arrow("‹", previous, current-1, true) + " " + lipgloss.PlaceHorizontal(inner, lipgloss.Center, title) + " " + arrow("›", next, current+1, false) + padding
+}
+
+// keyRoom это место клавиши рядом со стрелкой вместе с пробелом между ними,
+// у действия без клавиш ноль.
+func keyRoom(key string) int {
+	if key == "" {
+		return 0
+	}
+
+	return ansi.StringWidth(key) + 1
 }
 
 // fileTitle это имя файла для заголовка и списка: у переименования оба пути,
