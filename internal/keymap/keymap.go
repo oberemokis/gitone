@@ -14,8 +14,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/i18n"
 )
@@ -80,9 +84,9 @@ const (
 	ListSearchCancel Action = "listSearch.cancel"
 )
 
-// Группа в справке. Порядок групп задаёт первое появление категории в
-// списке, подряд клавиши одной категории стоять не обязаны. Заголовок группы
-// берётся из словаря по ключу category.<категория>.
+// Category это группа в справке. Порядок групп задаёт первое появление
+// категории в списке, подряд клавиши одной категории стоять не обязаны.
+// Заголовок группы берётся из словаря по ключу category.<категория>.
 type Category string
 
 const (
@@ -212,6 +216,9 @@ type file struct {
 	Keybinds map[string]json.RawMessage `json:"keybinds"`
 }
 
+// decode читает keybinds.json. Строгий разбор JSON (неизвестное поле и текст
+// после объекта) скопирован из config.decodeStrict: по графу пакетов keymap
+// не может импортировать config, ради восьми строк стрелку не заводим.
 func decode(data []byte) (Keymap, error) {
 	var f file
 
@@ -242,7 +249,7 @@ func decode(data []byte) (Keymap, error) {
 	}
 
 	for _, binding := range bindings {
-		if err := checkWindowKeys(binding); err != nil {
+		if err := checkBindingKeys(binding); err != nil {
 			return Keymap{}, err
 		}
 	}
@@ -253,16 +260,27 @@ func decode(data []byte) (Keymap, error) {
 	return Keymap{bindings: bindings}, nil
 }
 
-// checkWindowKeys ловит при загрузке окно-ловушку и поле, которое теряет
-// буквы. ctrl+c в окнах зашит: выход, а в вопросах «нет». backspace в полях
-// стирает символ.
-func checkWindowKeys(binding Binding) error {
+// checkBindingKeys ловит при загрузке окно-ловушку и поле, которое теряет
+// буквы. ctrl+c зашит: в окнах выход, а в вопросах «нет», на главном экране
+// выход, поэтому глобальному действию он не достаётся, кроме app.quit.
+// backspace в полях стирает символ.
+func checkBindingKeys(binding Binding) error {
 	action := binding.Action
 	if !inWindow(action) {
+		if action != AppQuit && slices.Contains(binding.Keys, "ctrl+c") {
+			return i18n.New("keymap.reservedQuit", i18n.Args{"action": action, "key": "ctrl+c"})
+		}
 		return nil
 	}
-	if len(binding.Keys) == 0 && (closes(action) || action == QuestionYes) {
-		return i18n.New("keymap.cannotDisable", i18n.Args{"action": action})
+	if len(binding.Keys) == 0 {
+		args := i18n.Args{"action": action}
+		switch {
+		case closes(action):
+			return i18n.New("keymap.cannotDisable", args)
+		case action == QuestionYes:
+			// выход из вопроса есть, любая другая клавиша значит «нет»
+			return i18n.New("keymap.cannotDisableYes", args)
+		}
 	}
 
 	for _, key := range binding.Keys {
@@ -270,8 +288,6 @@ func checkWindowKeys(binding Binding) error {
 		switch {
 		case key == "ctrl+c", inField(action) && key == "backspace":
 			return i18n.New("keymap.reserved", args)
-		case closes(action) && utf8.RuneCountInString(key) > 1 && strings.ToLower(key) != key:
-			return i18n.New("keymap.lowercase", args)
 		case inField(action) && printable(key):
 			return i18n.New("keymap.typesText", args)
 		}
@@ -318,17 +334,100 @@ func parseKeys(raw json.RawMessage) ([]string, error) {
 	return nil, i18n.New("keymap.badKeys", nil)
 }
 
+// checkKeys проверяет каждую клавишу и убирает повторы: одна клавиша дважды в
+// одном действии не конфликт. Имя действия к ошибке добавляет вызывающий.
 func checkKeys(keys []string) ([]string, error) {
 	for _, key := range keys {
-		if key == "" {
-			return nil, i18n.New("keymap.emptyKey", nil)
+		var err error
+		switch {
+		case key == "":
+			err = i18n.New("keymap.emptyKey", nil)
+		case key == "none":
+			err = i18n.New("keymap.noneInList", nil)
+		case strings.HasPrefix(key, "<leader>"):
+			err = i18n.New("keymap.leader", nil)
+		default:
+			err = checkKey(key)
 		}
-		if strings.HasPrefix(key, "<leader>") {
-			return nil, i18n.New("keymap.leader", nil)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return keys, nil
+	seen := make(map[string]bool)
+	return slices.DeleteFunc(keys, func(key string) bool {
+		repeat := seen[key]
+		seen[key] = true
+		return repeat
+	}), nil
+}
+
+// modifiers идут в том порядке, в каком их пишет Keystroke.
+var modifiers = []string{"ctrl", "alt", "shift", "meta", "hyper", "super"}
+
+// keyNames это клавиши, которые Keystroke пишет словом: значения keyTypeString
+// из github.com/charmbracelet/ultraviolet (версия в go.mod) без одиночных
+// символов и функциональных клавиш f1…f63. Остальное Bubble Tea присылает
+// самим символом.
+const keyNames = `enter tab backspace esc space up down left right begin find insert delete select
+pgup pgdown home end equal mul plus comma minus period div sep
+capslock scrolllock numlock printscreen pause menu
+mediaplay mediapause mediaplaypause mediareverse mediastop mediafastforward mediarewind
+medianext mediaprev mediarecord lowervol raisevol mute
+leftshift leftalt leftctrl leftsuper lefthyper leftmeta
+rightshift rightalt rightctrl rightsuper righthyper rightmeta isolevel3shift isolevel5shift`
+
+// checkKey ловит клавишу, которой Bubble Tea не пришлёт: такая привязка молча
+// мертва. Клавиша это модификаторы в порядке Keystroke и основа, один
+// графемный символ или имя из keyNames. Заглавная буква сама по себе
+// приходит заглавной («B»), а с модификатором код строчный.
+func checkKey(key string) error {
+	base := key
+	var mods []string
+	for _, mod := range modifiers {
+		if rest, found := strings.CutPrefix(base, mod+"+"); found && rest != "" {
+			base = rest
+			mods = append(mods, mod)
+		}
+	}
+
+	if !keyName(base) && !symbol(base) {
+		return i18n.New("keymap.unknownKey", i18n.Args{"key": key})
+	}
+
+	letter, size := utf8.DecodeRuneInString(base)
+	if len(mods) == 0 || size != len(base) || !unicode.IsLetter(letter) {
+		return nil
+	}
+
+	args := i18n.Args{"key": key, "capital": strings.ToUpper(base)}
+	switch {
+	case slices.Equal(mods, []string{"shift"}):
+		return i18n.New("keymap.shiftLetter", args)
+	case base != strings.ToLower(base):
+		return i18n.New("keymap.lowercase", args)
+	}
+
+	return nil
+}
+
+func keyName(base string) bool {
+	if slices.Contains(strings.Fields(keyNames), base) {
+		return true
+	}
+
+	digits := strings.TrimPrefix(base, "f")
+	number, err := strconv.Atoi(digits)
+	return digits != base && err == nil && strconv.Itoa(number) == digits && number >= 1 && number <= 63
+}
+
+// symbol: основа это один видимый графемный символ. Пробел сюда не входит,
+// Bubble Tea называет его space.
+func symbol(base string) bool {
+	cluster, _ := ansi.FirstGraphemeCluster(base, ansi.GraphemeWidth)
+	first, _ := utf8.DecodeRuneInString(base)
+
+	return cluster == base && unicode.IsGraphic(first) && !unicode.IsSpace(first)
 }
 
 // checkConflicts ищет клавишу, назначенную двум действиям, которые действуют
@@ -390,7 +489,9 @@ func defaults() []Binding {
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{Action: HelpClose, Keys: []string{"esc"}},
 
-		// окна: в подвал и справку не идут, клавиши видны в подсказке окна
+		// окна: в подвал и справку не идут, их клавиши перечислены в
+		// docs/config.md. Подсказка окна показывает не все: навигации
+		// (list.up, list.down, search.up, search.down) в ней нет
 		{Action: ListUp, Keys: []string{"k", "up"}},
 		{Action: ListDown, Keys: []string{"j", "down"}},
 		{Action: ListClose, Keys: []string{"esc"}},

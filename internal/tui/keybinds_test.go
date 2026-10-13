@@ -100,6 +100,21 @@ func TestQuestionShowsPlusKey(t *testing.T) {
 	}
 }
 
+// ctrl+c зашит и на главном экране: пользователь вправе убрать q, но выход из
+// приложения не должен теряться из-за конфига.
+func TestCtrlCQuitsWhenAppQuitDisabled(t *testing.T) {
+	model := openWithKeys(loadKeys(t, `{"keybinds":{"app.quit":"none"}}`))
+
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+
+	if cmd == nil {
+		t.Fatal("ctrl+c ничего не делает на главном экране при app.quit: none")
+	}
+	if _, isQuit := cmd().(tea.QuitMsg); !isQuit {
+		t.Fatal("команда по ctrl+c не выходит из приложения при app.quit: none")
+	}
+}
+
 // Отключённая справка не открывается, а отключённые клавиши закрытия не
 // роняют отрисовку: справка без клавиши закрытия остаётся работоспособной.
 func TestDisabledActionsDoNotBreakScreen(t *testing.T) {

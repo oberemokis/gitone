@@ -24,6 +24,8 @@ func TestLoad(t *testing.T) {
 		{name: "нет файла", missing: true, want: defaultQuit},
 		{name: "переназначение", content: `{"keybinds":{"app.quit":"e"}}`, want: []string{"e"}},
 		{name: "массив", content: `{"keybinds":{"app.quit":["e","y"]}}`, want: []string{"e", "y"}},
+		{name: "повтор клавиши в действии", content: `{"keybinds":{"app.quit":["q","ctrl+c","q"]}}`, want: []string{"q", "ctrl+c"}},
+		{name: "ctrl+c другому глобальному действию", content: `{"keybinds":{"app.quit":"e","files.pick":"ctrl+c"}}`, want: defaultQuit, wantErr: "files.pick"},
 		{name: "none отключает", content: `{"keybinds":{"app.quit":"none"}}`, want: nil},
 		{name: "false отключает", content: `{"keybinds":{"app.quit":false}}`, want: nil},
 		{name: "неизвестное действие", content: `{"keybinds":{"app.quitt":"w"}}`, want: defaultQuit, wantErr: "app.quitt"},
@@ -66,6 +68,90 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+// Имена клавиш сверяются с тем, что отдаёт KeyPressMsg.String(): клавиша,
+// которой Bubble Tea не пришлёт, молча мертва, поэтому это ошибка загрузки.
+// Ошибка называет действие и клавишу.
+func TestLoadRejectsUnsendableKeys(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr []string
+	}{
+		{name: "escape вместо esc", content: `{"keybinds":{"commit.close":"escape"}}`, wantErr: []string{"commit.close", `"escape"`}},
+		{name: "имя с заглавной", content: `{"keybinds":{"question.yes":"Enter"}}`, wantErr: []string{"question.yes", `"Enter"`}},
+		{name: "none внутри массива", content: `{"keybinds":{"app.quit":["none"]}}`, wantErr: []string{"app.quit", `"none"`}},
+		{name: "shift и буква", content: `{"keybinds":{"diff.toggleWrap":"shift+b"}}`, wantErr: []string{"diff.toggleWrap", `"shift+b"`, `write "B"`}},
+		{name: "pagedown вместо pgdown", content: `{"keybinds":{"diff.scrollDown":"pagedown"}}`, wantErr: []string{"diff.scrollDown", `"pagedown"`}},
+		{name: "пробел вместо space", content: `{"keybinds":{"files.stage":" "}}`, wantErr: []string{"files.stage", `" "`}},
+		{name: "порядок модификаторов", content: `{"keybinds":{"files.pick":"alt+ctrl+k"}}`, wantErr: []string{"files.pick", `"alt+ctrl+k"`}},
+		{name: "модификатор без клавиши", content: `{"keybinds":{"files.pick":"ctrl+"}}`, wantErr: []string{"files.pick", `"ctrl+"`}},
+		{name: "заглавная с модификатором", content: `{"keybinds":{"files.pick":"ctrl+P"}}`, wantErr: []string{"files.pick", `"ctrl+P"`, "lowercase"}},
+		{name: "два символа", content: `{"keybinds":{"files.pick":"ab"}}`, wantErr: []string{"files.pick", `"ab"`}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := keymap.Load(writeKeybinds(t, tc.content))
+
+			if err == nil {
+				t.Fatalf("Load(keybinds.json %q) error = nil, want error with %q", tc.content, tc.wantErr)
+			}
+			for _, part := range tc.wantErr {
+				if !strings.Contains(err.Error(), part) {
+					t.Errorf("Load(keybinds.json %q) error = %q, want error with %q", tc.content, err, part)
+				}
+			}
+		})
+	}
+}
+
+// Имена, которые Bubble Tea присылает, загружаются как есть.
+func TestLoadAcceptsSendableKeys(t *testing.T) {
+	tests := []struct {
+		name   string
+		action keymap.Action
+		key    string
+	}{
+		{name: "заглавная буква", action: keymap.DiffToggleWrap, key: "E"},
+		{name: "ctrl и shift с буквой", action: keymap.FilesPick, key: "ctrl+shift+p"},
+		{name: "pgdown", action: keymap.DiffScrollDown, key: "pgdown"},
+		{name: "space", action: keymap.FilesStage, key: "space"},
+		{name: "функциональная клавиша", action: keymap.DiffReload, key: "f5"},
+		{name: "alt и имя", action: keymap.FilesCommit, key: "alt+enter"},
+		{name: "shift и имя", action: keymap.FilesToggle, key: "shift+tab"},
+		{name: "плюс", action: keymap.FilesNext, key: "+"},
+		{name: "ctrl и плюс", action: keymap.FilesPrevious, key: "ctrl++"},
+		{name: "составной символ", action: keymap.DiffTop, key: "👍🏻"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			content := `{"keybinds":{"` + string(tc.action) + `":"` + tc.key + `"}}`
+
+			km, err := keymap.Load(writeKeybinds(t, content))
+
+			if err != nil {
+				t.Fatalf("Load(keybinds.json %q) error = %v, want nil", content, err)
+			}
+			if got := km.KeysFor(tc.action); !slices.Equal(got, []string{tc.key}) {
+				t.Errorf("Load(keybinds.json %q).KeysFor(%s) = %q, want %q", content, tc.action, got, []string{tc.key})
+			}
+		})
+	}
+}
+
+// writeKeybinds кладёт keybinds.json с заданным содержимым в новый каталог.
+func writeKeybinds(t *testing.T, content string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "keybinds.json"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	return dir
+}
+
 // Клавиши окон проверяются при загрузке: окно не должно стать ловушкой, а поле
 // ввода не должно терять буквы. Ошибка называет действия, чтобы было видно,
 // что править.
@@ -86,10 +172,16 @@ func TestLoadWindowKeys(t *testing.T) {
 		{name: "заглавная в поле поиска", content: `{"keybinds":{"search.choose":"J"}}`, wantErr: []string{"types text", "search.choose"}},
 		{name: "многорунный символ в поле", content: `{"keybinds":{"search.choose":"👍🏻"}}`, wantErr: []string{"types text", "search.choose"}},
 		{name: "непечатаемая клавиша в поиске", content: `{"keybinds":{"search.down":"ctrl+j"}}`},
+		{name: "функциональная клавиша в поиске", content: `{"keybinds":{"search.down":"f2"}}`},
+		{name: "поиск в списке занял клавишу лога", content: `{"keybinds":{"list.search":"enter","branches.switch":"o","worktrees.switch":"w"}}`, wantErr: []string{"bound to both", "list.search", "log.open"}},
+		{name: "поиск в списке занял клавишу веток", content: `{"keybinds":{"list.search":"enter","log.open":"o","worktrees.switch":"w"}}`, wantErr: []string{"bound to both", "list.search", "branches.switch"}},
+		{name: "поиск в списке занял клавишу worktree", content: `{"keybinds":{"list.search":"enter","log.open":"o","branches.switch":"b"}}`, wantErr: []string{"bound to both", "list.search", "worktrees.switch"}},
 		{name: "закрытие отключено", content: `{"keybinds":{"list.close":"none"}}`, wantErr: []string{"cannot be disabled", "list.close"}},
+		{name: "закрытие поиска отключено", content: `{"keybinds":{"search.close":"none"}}`, wantErr: []string{"cannot be disabled", "search.close"}},
 		{name: "закрытие пустым списком", content: `{"keybinds":{"list.close":[]}}`, wantErr: []string{"cannot be disabled", "list.close"}},
-		{name: "закрытие с заглавной", content: `{"keybinds":{"commit.close":"Esc"}}`, wantErr: []string{"lowercase", "commit.close"}},
-		{name: "ответ да отключён", content: `{"keybinds":{"question.yes":"none"}}`, wantErr: []string{"cannot be disabled", "question.yes"}},
+		{name: "закрытие с заглавной в имени", content: `{"keybinds":{"commit.close":"Esc"}}`, wantErr: []string{"unknown key", "commit.close"}},
+		{name: "закрытие заглавной буквой", content: `{"keybinds":{"list.close":"Q"}}`},
+		{name: "ответ да отключён", content: `{"keybinds":{"question.yes":"none"}}`, wantErr: []string{"cannot be disabled", "question.yes", "cannot be confirmed"}},
 		{name: "ответ да заглавной", content: `{"keybinds":{"question.yes":"Y"}}`},
 		{name: "ctrl+c в окне", content: `{"keybinds":{"list.close":"ctrl+c"}}`, wantErr: []string{"reserved", "list.close"}},
 		{name: "backspace в поле", content: `{"keybinds":{"search.close":"backspace"}}`, wantErr: []string{"reserved", "search.close"}},
@@ -163,7 +255,7 @@ func TestActionForFollowsOverride(t *testing.T) {
 	}
 
 	if got := km.ActionFor("e"); got != keymap.AppQuit {
-		t.Errorf("x ведёт к %q, ожидался %q", got, keymap.AppQuit)
+		t.Errorf("e ведёт к %q, ожидался %q", got, keymap.AppQuit)
 	}
 	if got := km.ActionFor("q"); got != "" {
 		t.Errorf("q ведёт к %q, ожидалось ничего", got)
