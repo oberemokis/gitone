@@ -277,6 +277,60 @@ func TestLoadWindowKeys(t *testing.T) {
 	}
 }
 
+// Pull и push стоят на p и P, как в lazygit, и ведут себя как остальные
+// глобальные действия: переназначаются, отключаются, конфликтуют по клавише.
+func TestPullAndPushKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		wantPull []string
+		wantPush []string
+		// клавиша и действие, к которому она ведёт, пусто значит никакое
+		key        string
+		wantAction keymap.Action
+		wantErr    []string
+	}{
+		{name: "по умолчанию", content: `{}`, wantPull: []string{"p"}, wantPush: []string{"P"}, key: "p", wantAction: keymap.GitPull},
+		{name: "push на заглавной", content: `{}`, wantPull: []string{"p"}, wantPush: []string{"P"}, key: "P", wantAction: keymap.GitPush},
+		{name: "переназначение", content: `{"keybinds":{"git.pull":"ctrl+l"}}`, wantPull: []string{"ctrl+l"}, wantPush: []string{"P"}, key: "ctrl+l", wantAction: keymap.GitPull},
+		{name: "старая клавиша свободна", content: `{"keybinds":{"git.pull":"ctrl+l"}}`, wantPull: []string{"ctrl+l"}, wantPush: []string{"P"}, key: "p"},
+		{name: "отключение pull", content: `{"keybinds":{"git.pull":"none"}}`, wantPush: []string{"P"}, key: "p"},
+		{name: "отключение push", content: `{"keybinds":{"git.push":false}}`, wantPull: []string{"p"}, key: "P"},
+		{name: "конфликт pull и push", content: `{"keybinds":{"git.pull":"P"}}`, wantErr: []string{"bound to both", "git.pull", "git.push"}},
+		{name: "конфликт с другим действием", content: `{"keybinds":{"git.push":"z"}}`, wantErr: []string{"bound to both", "git.push", "stash.push"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			km, err := keymap.Load(writeKeybinds(t, tc.content))
+
+			if len(tc.wantErr) > 0 {
+				if err == nil {
+					t.Fatalf("Load(keybinds.json %q) error = nil, want error with %q", tc.content, tc.wantErr)
+				}
+				for _, part := range tc.wantErr {
+					if !strings.Contains(err.Error(), part) {
+						t.Errorf("Load(keybinds.json %q) error = %q, want error with %q", tc.content, err, part)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load(keybinds.json %q) error = %v, want nil", tc.content, err)
+			}
+			if got := km.KeysFor(keymap.GitPull); !slices.Equal(got, tc.wantPull) {
+				t.Errorf("KeysFor(git.pull) = %q, want %q", got, tc.wantPull)
+			}
+			if got := km.KeysFor(keymap.GitPush); !slices.Equal(got, tc.wantPush) {
+				t.Errorf("KeysFor(git.push) = %q, want %q", got, tc.wantPush)
+			}
+			if got := km.ActionFor(tc.key); got != tc.wantAction {
+				t.Errorf("ActionFor(%q) = %q, want %q", tc.key, got, tc.wantAction)
+			}
+		})
+	}
+}
+
 // Вне окон клавиша ищется только среди глобальных действий: отключённая
 // прокрутка не превращает j в навигацию списка.
 func TestActionForIgnoresWindowActions(t *testing.T) {

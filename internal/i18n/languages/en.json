@@ -40,6 +40,8 @@
   "action.files.previous.help": "Previous file",
   "action.files.stage.help": "Stage or unstage file",
   "action.files.toggle.help": "Show or hide file panel",
+  "action.git.pull.help": "Pull, fast-forward only",
+  "action.git.push.help": "Push the branch",
   "action.stash.list.footer": "stash",
   "action.stash.list.help": "Stash list",
   "action.stash.push.help": "Save changes to stash",

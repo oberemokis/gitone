@@ -87,6 +87,8 @@ git получает тот же язык через переменную `LANGU
 | `help.close` | `esc` | закрыть справку |
 | `app.branches` | `B` | окно локальных веток |
 | `app.worktrees` | `W` | окно worktree |
+| `git.pull` | `p` | подтянуть ветку из upstream, только перемоткой |
+| `git.push` | `P` | отправить ветку на upstream, а без него на origin |
 | `app.log` | `l` | окно лога коммитов |
 | `stash.push` | `z` | сохранить отслеженные правки в stash |
 | `stash.list` | `Z` | окно stash |
