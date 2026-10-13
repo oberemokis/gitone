@@ -377,22 +377,19 @@ func TestParse(t *testing.T) {
 			}},
 		},
 		{
-			name: "строка длиннее 1024 символов обрезается при разборе",
-			input: lines(
-				"diff --git a/min.js b/min.js",
-				"index 1111111..2222222 100644",
-				"--- a/min.js",
-				"+++ b/min.js",
-				"@@ -0,0 +1 @@",
-				"+"+strings.Repeat("я", 1500),
-			),
-			want: []diff.File{{
-				OldPath: "min.js",
-				NewPath: "min.js",
-				Status:  diff.StatusModified,
-				Added:   1,
-				Hunks:   []diff.Hunk{{OldStart: 0, NewStart: 1, Lines: []diff.Line{added(strings.Repeat("я", 1024))}}},
-			}},
+			name:  "строка в 3000 символов остаётся целиком",
+			input: minifiedInput(strings.Repeat("я", 3000)),
+			want:  []diff.File{minifiedFile(strings.Repeat("я", 3000))},
+		},
+		{
+			name:  "строка ровно в 4096 символов остаётся целиком",
+			input: minifiedInput(strings.Repeat("я", 4096)),
+			want:  []diff.File{minifiedFile(strings.Repeat("я", 4096))},
+		},
+		{
+			name:  "строка длиннее 4096 символов обрезается, последний символ заменён на «…»",
+			input: minifiedInput(strings.Repeat("я", 5000)),
+			want:  []diff.File{minifiedFile(strings.Repeat("я", 4095) + "…")},
 		},
 		{
 			name: "управляющие символы в сырой записи тоже становятся значками",
@@ -535,6 +532,28 @@ func TestParseBlobs(t *testing.T) {
 				t.Fatalf("хэши %q и %q, want %q и %q", files[0].OldBlob, files[0].NewBlob, tc.old, tc.new)
 			}
 		})
+	}
+}
+
+// minifiedInput это дифф нового файла из одной строки text.
+func minifiedInput(text string) string {
+	return lines(
+		"diff --git a/min.js b/min.js",
+		"index 1111111..2222222 100644",
+		"--- a/min.js",
+		"+++ b/min.js",
+		"@@ -0,0 +1 @@",
+		"+"+text,
+	)
+}
+
+func minifiedFile(text string) diff.File {
+	return diff.File{
+		OldPath: "min.js",
+		NewPath: "min.js",
+		Status:  diff.StatusModified,
+		Added:   1,
+		Hunks:   []diff.Hunk{{OldStart: 0, NewStart: 1, Lines: []diff.Line{added(text)}}},
 	}
 }
 
