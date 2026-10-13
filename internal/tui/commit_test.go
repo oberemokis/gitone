@@ -47,7 +47,8 @@ func TestEscCancelsCommit(t *testing.T) {
 	model := resize(open(t, options(repo, layout.Default())), 100, 20)
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
 	model = typeText(model, "черновик")
-	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	model = settle(model, cmd, 4)
 
 	if strings.Contains(strings.Join(screenOf(model), "\n"), "> черновик") {
 		t.Fatal("поле не закрылось по esc")

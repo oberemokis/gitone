@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -142,11 +143,18 @@ func TestCtrlCAnswersQuestions(t *testing.T) {
 	ctrlC := tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 
 	t.Run("discard", func(t *testing.T) {
-		_, model := threeFileRepo(t)
+		repo, model := threeFileRepo(t)
 		model, _ = model.Update(key('x'))
 
-		if _, cmd := model.Update(ctrlC); cmd != nil {
+		model, cmd := model.Update(ctrlC)
+		if cmd != nil {
 			t.Fatal("ctrl c в вопросе discard дал команду, want ответ нет")
+		}
+
+		// вопрос закрыт: y после него не отменяет правку
+		answerYes(model)
+		if got := readText(t, filepath.Join(repo, "a.txt")); got != "new a.txt\n" {
+			t.Fatalf("a.txt = %q, want правка осталась после ctrl c и y", got)
 		}
 	})
 

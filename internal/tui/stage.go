@@ -8,6 +8,7 @@ import (
 
 	"gitone/internal/diff"
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 )
 
@@ -33,10 +34,16 @@ func discardCmd(dir string, paths []string) tea.Cmd {
 	}
 }
 
-// pathsOf возвращает пути файла: у переименования оба, у удалённого старый.
+// pathsOf возвращает пути файла: у переименования оба, у удалённого старый, у
+// копии только новый: у источника копии своя правка, и отмена копии её стёрла бы.
 func pathsOf(file diff.File) []string {
+	candidates := []string{file.OldPath, file.NewPath}
+	if file.Status == diff.StatusCopied {
+		candidates = candidates[1:]
+	}
+
 	var paths []string
-	for _, path := range []string{file.OldPath, file.NewPath} {
+	for _, path := range candidates {
 		if path != "" && !slices.Contains(paths, path) {
 			paths = append(paths, path)
 		}
@@ -51,25 +58,49 @@ func stagedKey(file diff.File) string {
 	return cmp.Or(file.NewPath, file.OldPath)
 }
 
+// target возвращает пути текущего файла для пробела и x. Пустой список значит,
+// что действия нет: тогда note объясняет почему, а без файлов он пуст. Записи
+// без пути («git output») нечего ставить, а индекс и дерево меняет только дифф
+// рабочего дерева: путь из чужого диффа указал бы на правку, которой на экране
+// нет.
+func (m Model) target() (paths []string, note string) {
+	if len(m.files) == 0 {
+		return nil, ""
+	}
+
+	paths = pathsOf(m.files[m.current])
+	switch {
+	case len(paths) == 0:
+		return nil, m.text.Text("stage.noFile", nil)
+	case len(m.args) > 0:
+		return nil, m.text.Text("stage.viewOnly", i18n.Args{"key": firstKey(m.keys, keymap.DiffWorkingTree)})
+	}
+
+	return paths, ""
+}
+
 // toggleStage ставит текущий файл в индекс, а если он там уже есть, убирает.
 func (m Model) toggleStage() (tea.Model, tea.Cmd) {
-	if len(m.files) == 0 {
+	paths, note := m.target()
+	if len(paths) == 0 {
+		m.notice = note
 		return m, nil
 	}
 
-	file := m.files[m.current]
-	return m, stageCmd(m.dir, pathsOf(file), m.staged[stagedKey(file)])
+	return m, stageCmd(m.dir, paths, m.staged[stagedKey(m.files[m.current])])
 }
 
 // askDiscard спрашивает в подвале, прежде чем отменять правки файла.
 func (m Model) askDiscard() Model {
-	if len(m.files) == 0 {
+	paths, note := m.target()
+	if len(paths) == 0 {
+		m.notice = note
 		return m
 	}
 
 	file := m.files[m.current]
 	m.active = discardWindow
-	m.confirm = pathsOf(file)
+	m.confirm = paths
 	args := questionArgs(m.keys)
 	args["file"] = fileTitle(file, m.text)
 	m.notice = m.text.Text("discard.question", args)

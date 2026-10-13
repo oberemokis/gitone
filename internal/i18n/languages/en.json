@@ -93,6 +93,8 @@
   "screen.gitOutput": "git output",
   "screen.loading": "loading",
   "screen.noChanges": "No changes",
+  "stage.noFile": "this entry has no file",
+  "stage.viewOnly": "this view is read-only, press {key} to return to the working tree",
   "start.loadingDiff": "Loading diff…",
   "stash.dropQuestion": "Drop {ref}? {yes} yes, any other key no",
   "stash.empty": "No stash",
