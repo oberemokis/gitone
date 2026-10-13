@@ -55,6 +55,28 @@ func TestReloadKeepsOpenFileAndScroll(t *testing.T) {
 	}
 }
 
+// Файл стал короче, пока был прокручен вниз: прокрутка обрезается по новой
+// длине, и экран не уходит за конец файла (docs/diff.md, перечитывание).
+func TestReloadClampsScrollToShorterFile(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "seed.txt", "seed\n")
+	commitAll(t, repo)
+	write(t, repo, "long.txt", numberedLines(60))
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, _ = model.Update(key('G'))
+	if got := topNumber(t, screenOf(model)); got != 47 {
+		t.Fatalf("до перечитывания наверху строка %d, want 47", got)
+	}
+
+	write(t, repo, "long.txt", numberedLines(30))
+	screen := screenOf(pressReload(t, model))
+
+	// тело в 14 строк: от последней строки 30 это строки 17-30
+	if got := topNumber(t, screen); got != 17 {
+		t.Errorf("после перечитывания наверху строка %d, want 17", got)
+	}
+}
+
 func TestReloadOpensFirstFileWhenOpenOneIsGone(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "seed\n")
