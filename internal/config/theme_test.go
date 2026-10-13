@@ -48,10 +48,22 @@ func TestReadTheme(t *testing.T) {
 			},
 		},
 		{
+			name:    "$schema допустим",
+			file:    "midnight",
+			content: `{"$schema":"./schemas/theme.schema.json","colors":{"accent":"#9d7cd8"}}`,
+			wantOK:  true,
+		},
+		{
 			name:    "логическое значение вместо цвета",
 			file:    "midnight",
 			content: `{"colors":{"accent":true}}`,
-			wantErr: "accent",
+			wantErr: "colors.accent: a color must be a string or a number",
+		},
+		{
+			name:    "логическое значение вместо цвета в defs",
+			file:    "midnight",
+			content: `{"defs":{"x":true}}`,
+			wantErr: "defs.x: a color must be a string or a number",
 		},
 		{
 			name:    "неизвестное поле верхнего уровня",

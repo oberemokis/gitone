@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gitone/internal/i18n"
 )
@@ -62,12 +63,12 @@ func Default() Config {
 // чем половина пользовательских. Неизвестное поле тоже ошибка: опечатка в
 // ключе иначе молча ничего не делает.
 func Load(dir string) (Config, error) {
-	data, err := os.ReadFile(filepath.Join(dir, fileName))
-	if errors.Is(err, fs.ErrNotExist) {
-		return Default(), nil
-	}
+	data, found, err := readFile(filepath.Join(dir, fileName))
 	if err != nil {
 		return Default(), fmt.Errorf("%s: %w", fileName, err)
+	}
+	if !found {
+		return Default(), nil
 	}
 
 	cfg, err := decode(data)
@@ -93,6 +94,41 @@ func decode(data []byte) (Config, error) {
 	return cfg, nil
 }
 
+// readFile читает файл настроек. found false без ошибки значит, что файла нет.
+// ErrNotExist приходит и от битой символической ссылки (dotfiles через stow,
+// перенесённый репозиторий), но тогда настройки есть и не читаются: молча
+// подменять их встроенными нельзя. Lstat смотрит на саму ссылку.
+func readFile(path string) (data []byte, found bool, err error) {
+	data, err = os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		if _, statErr := os.Lstat(path); errors.Is(statErr, fs.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	return data, true, nil
+}
+
+// readNamed читает <sub>/<name>.json из каталога настроек, например тему или
+// раскладку. Имя приходит из config.json и не должно выводить за каталог sub,
+// поэтому пустое имя, разделители пути и точка в начале отбрасываются.
+func readNamed(dir, sub, name string) (data []byte, found bool, err error) {
+	if name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
+		return nil, false, i18n.New("config.badName", i18n.Args{"sub": sub, "name": name})
+	}
+
+	data, found, err = readFile(filepath.Join(dir, sub, name+".json"))
+	if err != nil {
+		return nil, false, fmt.Errorf("%s/%s.json: %w", sub, name, err)
+	}
+
+	return data, found, nil
+}
+
 // decodeStrict читает ровно один объект JSON. Неизвестное поле и текст после
 // объекта это ошибка: опечатка в ключе иначе молча ничего не делает. Какой
 // файл, говорит префикс ошибки у вызывающего.
@@ -109,11 +145,31 @@ func decodeStrict(data []byte, target any) error {
 	return nil
 }
 
+// StringOrNumber читает значение, которое в файле пишут строкой или числом:
+// число 8 и строка «8» дают одно значение. ok false значит другой тип JSON
+// или пустое значение. Ошибку по ней строит вызывающий, ему известен путь
+// узла, а json.Unmarshaler его не знает.
+func StringOrNumber(raw json.RawMessage) (text string, ok bool) {
+	if json.Unmarshal(raw, &text) == nil {
+		return text, true
+	}
+
+	var number json.Number
+	if json.Unmarshal(raw, &number) == nil {
+		return number.String(), true
+	}
+
+	return "", false
+}
+
 // Dir возвращает каталог настроек: $XDG_CONFIG_HOME/gitone, а без переменной
-// ~/.config/gitone. Переменные передаются снаружи, чтобы функция не читала
+// ~/.config/gitone. Относительный $XDG_CONFIG_HOME (чаще нераскрытая тильда из
+// launchctl или environment.d) игнорируется, как велит спецификация XDG: его
+// путь считался бы от просматриваемого репозитория, и репозиторий подставлял
+// бы свои настройки. Переменные передаются снаружи, чтобы функция не читала
 // окружение и проверялась таблицей.
 func Dir(xdgConfigHome, home string) string {
-	if xdgConfigHome != "" {
+	if filepath.IsAbs(xdgConfigHome) {
 		return filepath.Join(xdgConfigHome, "gitone")
 	}
 

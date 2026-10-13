@@ -41,16 +41,11 @@ func TestReadLayout(t *testing.T) {
 				if file.Root.Direction != "row" || len(file.Root.Children) != 2 {
 					t.Fatalf("ReadLayout(compact).Root = %+v, want row with 2 children", file.Root)
 				}
-				if file.Root.Children[0].Size != "30%" || file.Root.Children[1].Size != "6" {
-					t.Errorf("ReadLayout(compact) sizes = %q, %q, want %q, %q", file.Root.Children[0].Size, file.Root.Children[1].Size, "30%", "6")
+				// тип размера проверяет layout, config отдаёт его как записан
+				if string(file.Root.Children[0].Size) != `"30%"` || string(file.Root.Children[1].Size) != "6" {
+					t.Errorf("ReadLayout(compact) sizes = %s, %s, want %s, %s", file.Root.Children[0].Size, file.Root.Children[1].Size, `"30%"`, "6")
 				}
 			},
-		},
-		{
-			name:    "размер не строка и не число",
-			file:    "compact",
-			content: `{"root":{"pane":"diff","size":true}}`,
-			wantErr: "size",
 		},
 		{
 			name:    "неизвестное поле узла",
