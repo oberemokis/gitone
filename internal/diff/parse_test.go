@@ -221,6 +221,21 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			name: "бинарный файл и смена прав с пробелом в пути берут путь из заголовка, поделив его пополам",
+			input: lines(
+				"diff --git a/Screen Shot.png b/Screen Shot.png",
+				"index f584f4041fdb85307f985f76fce8c128a0d12921..23753768bb600005216588c5e1daa8c86bd1143a 100644",
+				"Binary files a/Screen Shot.png and b/Screen Shot.png differ",
+				"diff --git a/run me.sh b/run me.sh",
+				"old mode 100644",
+				"new mode 100755",
+			),
+			want: []diff.File{
+				{OldPath: "Screen Shot.png", NewPath: "Screen Shot.png", Status: diff.StatusModified, Binary: true},
+				{OldPath: "run me.sh", NewPath: "run me.sh", Status: diff.StatusModified, OldMode: "100644", NewMode: "100755"},
+			},
+		},
+		{
 			name: "путь с кавычкой, с пробелом и не ASCII приходит без кавычек и концевого таба",
 			input: lines(
 				`diff --git "a/quo\"te.txt" "b/quo\"te.txt"`,
@@ -287,6 +302,24 @@ func TestParse(t *testing.T) {
 				Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
 					context("line one"), removed("line two"), added("line 2"), added("␛[31mred␛[0m\tend␡"),
 				}}},
+			}},
+		},
+		{
+			name: "символ C1 и битый байт в строке становятся U+FFFD",
+			input: lines(
+				"diff --git a/c1.txt b/c1.txt",
+				"index 3367afd..3e75765 100644",
+				"--- a/c1.txt",
+				"+++ b/c1.txt",
+				"@@ -0,0 +1 @@",
+				"+a\u009bb\xffc",
+			),
+			want: []diff.File{{
+				OldPath: "c1.txt",
+				NewPath: "c1.txt",
+				Status:  diff.StatusModified,
+				Added:   1,
+				Hunks:   []diff.Hunk{{OldStart: 0, NewStart: 1, Lines: []diff.Line{added("a�b�c")}}},
 			}},
 		},
 		{
