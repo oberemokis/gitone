@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -179,6 +180,54 @@ func TestSplitShiftsBothSides(t *testing.T) {
 	model, _ = model.Update(right)
 	if row := screenOf(model)[bodyRow]; !strings.Contains(row, "- 7890123") || !strings.Contains(row, "+ 7890123") {
 		t.Fatalf("после → колонки сдвинулись не вместе: %q", row)
+	}
+}
+
+// Предельный сдвиг считается по более узкой половине split (docs/diff.md): на
+// ширине 121 половины 60 и 61 колонка, на код остаётся 55 и 56. Левая видит
+// конец самой длинной строки, 55 последних цифр, а правая после них добивается
+// пробелом.
+func TestShiftLimitFollowsNarrowerHalf(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "a"+digits+"\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "b"+digits+"\n")
+
+	model := openView(t, repo, "split", 121, noWrap)
+	for range 30 {
+		model, _ = model.Update(right)
+	}
+
+	want := fmt.Sprintf("%-60s%s", " 1 - "+digits[145:], " 1 + "+digits[145:])
+	if got := bodyRows(model, 1)[0]; got != want {
+		t.Errorf("в конце сдвига строка\n%q\nwant\n%q", got, want)
+	}
+}
+
+// Колесо вбок и колесо с shift сдвигают код на те же 8 колонок, что стрелки:
+// колесо вправо или shift с колесом вниз сдвигает вправо, влево или shift с
+// колесом вверх возвращает.
+func TestHorizontalWheelShiftsCode(t *testing.T) {
+	model := longLine(t, noWrap)
+
+	steps := []struct {
+		name string
+		msg  tea.MouseWheelMsg
+		want string
+	}{
+		{name: "колесо вправо", msg: tea.MouseWheelMsg{Button: tea.MouseWheelRight}, want: " 1 + 8901234567"},
+		{name: "колесо вправо ещё раз", msg: tea.MouseWheelMsg{Button: tea.MouseWheelRight}, want: " 1 + 6789012345"},
+		{name: "колесо влево", msg: tea.MouseWheelMsg{Button: tea.MouseWheelLeft}, want: " 1 + 8901234567"},
+		{name: "shift и колесо вверх", msg: tea.MouseWheelMsg{Button: tea.MouseWheelUp, Mod: tea.ModShift}, want: " 1 + 0123456789"},
+		{name: "shift и колесо вниз", msg: tea.MouseWheelMsg{Button: tea.MouseWheelDown, Mod: tea.ModShift}, want: " 1 + 8901234567"},
+	}
+
+	for _, step := range steps {
+		model, _ = model.Update(step.msg)
+
+		if row := addedRow(model); !strings.HasPrefix(row, step.want) {
+			t.Fatalf("%s: строка %q, want начало %q", step.name, row, step.want)
+		}
 	}
 }
 
