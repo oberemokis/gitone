@@ -173,6 +173,19 @@ func TestPatternPriority(t *testing.T) {
 	})
 }
 
+// Нынешнее имя поля в nvim-treesitter это variable.member, прежнее field.
+// Обе записи дают свойство: hcl, zig, julia, haskell и ещё несколько языков
+// пишут запросы с новым именем (#160).
+func TestVariableMemberIsProperty(t *testing.T) {
+	hcl := []string{`name = var.region`}
+	zig := []string{"const Counter = struct { count: u32 };"}
+
+	checkKinds(t, []kindCase{
+		{name: "hcl: поле объекта", path: "main.tf", lines: hcl, line: 0, text: "region", want: syntax.Property},
+		{name: "zig: поле структуры", path: "a.zig", lines: zig, line: 0, text: "count", want: syntax.Property},
+	})
+}
+
 // Код внутри строки отмечен в запросах захватом @embedded: диапазон
 // подстановки занимает пустой вид, и строковый цвет внешней строки не лежит
 // под именами, у которых нет своего шаблона (#160). Свои цвета у вложенного

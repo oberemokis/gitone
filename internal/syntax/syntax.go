@@ -288,8 +288,11 @@ func runs(kinds []Kind) []Span {
 // string.special) в вид. Захваты без вида, как variable и punctuation,
 // остаются цветом текста.
 func kindOf(capture string) Kind {
-	if capture == "variable.builtin" {
+	switch capture {
+	case "variable.builtin":
 		return Constant
+	case "variable.member": // нынешнее имя field
+		return Property
 	}
 
 	group, _, _ := strings.Cut(capture, ".")
