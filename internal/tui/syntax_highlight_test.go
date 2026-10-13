@@ -25,14 +25,18 @@ func rawWith(t *testing.T, name, old, new string, palette theme.Theme) string {
 	return resize(open(t, opts), 100, 20).View().Content
 }
 
-// Ключевое слово в Go красится цветом syntaxKeyword. #0a0b0c в ANSI это
-// 38;2;10;11;12. Для файла без языка такого цвета в выводе быть не должно.
+// Ключевое слово в Go красится цветом syntaxKeyword прямо перед словом в строке
+// диффа. #0a0b0c в ANSI это 38;2;10;11;12. Для файла без языка такого цвета в
+// выводе быть не должно.
 func TestKeywordUsesSyntaxColor(t *testing.T) {
 	palette := theme.Dark()
 	palette.SyntaxKeyword = lipgloss.Color("#0a0b0c")
 
-	if raw := rawWith(t, "main.go", "package main\n", "package other\n", palette); !strings.Contains(raw, "38;2;10;11;12") {
-		t.Fatalf("цвет ключевого слова не попал в вывод:\n%q", raw)
+	raw := rawWith(t, "main.go", "package old\n", "package fresh\n", palette)
+	for _, marker := range []string{"old", "fresh"} {
+		if got := styleBefore(t, raw, marker, "package"); !strings.Contains(got, "38;2;10;11;12") {
+			t.Errorf("перед package в строке с %s стоит %q, want цвет ключевого слова", marker, got)
+		}
 	}
 	if raw := rawWith(t, "notes.txt", "one\n", "two\n", palette); strings.Contains(raw, "38;2;10;11;12") {
 		t.Fatalf("у файла без языка есть цвет синтаксиса")
