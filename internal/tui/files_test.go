@@ -128,6 +128,32 @@ func TestSamePathTwiceIsDistinguishableInPicker(t *testing.T) {
 	}
 }
 
+// Переименование в рабочем дереве видно как «old → new» в заголовке, в панели
+// файлов и в окне поиска, а не одним из двух путей.
+func TestRenameShowsBothPaths(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "l1\nl2\nl3\nl4\n")
+	commitAll(t, repo)
+	runGit(t, repo, "mv", "a.txt", "b.txt")
+	write(t, repo, "b.txt", "l1\nl2\nl3\nL4\n")
+
+	// панель 20% из 200 колонок это 40: «a.txt → b.txt renamed» помещается
+	model := toggleFiles(resize(open(t, options(repo, layout.Default())), 200, 20))
+	screen := screenOf(model)
+
+	if got := headerText(screen); got != "a.txt → b.txt +1 -1 (1/1)" {
+		t.Errorf("заголовок %q, want «a.txt → b.txt +1 -1 (1/1)»", got)
+	}
+	if row := screen[bodyRow+1]; !strings.HasPrefix(row, "  › a.txt → b.txt renamed") {
+		t.Errorf("строка панели файлов %q, want «a.txt → b.txt renamed»", row)
+	}
+
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	if row := rowOf(screenOf(model), "a.txt → b.txt renamed"); row < 0 {
+		t.Errorf("в окне поиска нет «a.txt → b.txt renamed»:\n%s", screenText(model))
+	}
+}
+
 func TestWindowsLieOverDiffWithEdgesVisible(t *testing.T) {
 	_, model := threeFileRepo(t)
 

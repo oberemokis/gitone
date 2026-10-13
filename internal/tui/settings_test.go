@@ -30,7 +30,9 @@ func TestSettingsReachTheDiffScreen(t *testing.T) {
 		{name: "split из настроек на узком экране", settings: withDiff("split", 120), width: 80, wantSplit: true},
 		{name: "unified из настроек на широком экране", settings: withDiff("unified", 120), width: 150, wantSplit: false},
 		{name: "порог из настроек", settings: withDiff("auto", 80), width: 100, wantSplit: true},
-		{name: "порог по умолчанию", settings: withDiff("auto", 120), width: 100, wantSplit: false},
+		// встроенный порог из docs/diff.md: split с 120 колонок, настройки не тронуты
+		{name: "встроенный порог, 119 колонок", settings: config.Default(), width: 119, wantSplit: false},
+		{name: "встроенный порог, 120 колонок", settings: config.Default(), width: 120, wantSplit: true},
 	}
 
 	for _, tc := range tests {

@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -59,16 +60,27 @@ func TestFKeyTogglesFilesPanel(t *testing.T) {
 	}
 }
 
-// У открытой панели нет рамки, а фон как у окон поверх диффа.
+// У открытой панели нет рамки, а фон как у окон поверх диффа: он стоит в каждой
+// клетке панели, в строках файлов, в отступе сверху и в заполнении под
+// списком, и не заходит в колонку диффа.
 func TestFilesPanelHasPanelBackgroundWithoutBorder(t *testing.T) {
 	model := toggleFiles(openLayout(t, layout.Default(), 100))
 
 	if body := screenText(model); strings.Contains(body, "│") {
 		t.Fatalf("у панели осталась рамка:\n%s", body)
 	}
-	// фон backgroundPanel тёмной темы #141414
-	if raw := model.View().Content; !strings.Contains(raw, "48;2;20;20;20") {
-		t.Fatal("у панели нет фона backgroundPanel")
+
+	// фон backgroundPanel тёмной темы #141414, панель 20 колонок из 100, тело
+	// экрана 14 строк
+	rows := strings.Split(model.View().Content, "\n")
+	for row := bodyRow; row < bodyRow+14; row++ {
+		cells := cellBackgrounds(rows[row])
+		if got := slices.Compact(slices.Clone(cells[:20])); !slices.Equal(got, []string{"20;20;20"}) {
+			t.Errorf("строка тела %d: фон панели %q, want 20;20;20 во всех клетках", row-bodyRow, got)
+		}
+		if slices.Contains(cells[20:], "20;20;20") {
+			t.Errorf("строка тела %d: фон панели зашёл в колонку диффа", row-bodyRow)
+		}
 	}
 }
 
@@ -85,6 +97,24 @@ func TestFilesPanelPadding(t *testing.T) {
 	}
 	if second := screen[bodyRow+2]; !strings.HasPrefix(second, "    b.txt") {
 		t.Errorf("вторая строка списка %q, want «    b.txt»", second)
+	}
+}
+
+// Справа у списка те же две колонки отступа, что слева: длинное имя обрезается
+// «…» за две колонки до края панели, а не вплотную к диффу.
+func TestFilesPanelKeepsRightPadding(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "very-long-directory-name.txt", "old\n")
+	commitAll(t, repo)
+	write(t, repo, "very-long-directory-name.txt", "new\n")
+
+	model := toggleFiles(resize(open(t, options(repo, layout.Default())), 100, 20))
+
+	// панель 20 колонок: две колонки отступа, «› », 13 символов имени и «…»
+	// дают 18, ещё две колонки справа пустые
+	row := []rune(screenOf(model)[bodyRow+1])
+	if got, want := string(row[:20]), "  › very-long-dir…  "; got != want {
+		t.Errorf("строка панели %q, want %q", got, want)
 	}
 }
 

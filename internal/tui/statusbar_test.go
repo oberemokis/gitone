@@ -1,14 +1,17 @@
 package tui_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/layout"
+	"gitone/internal/tui/theme"
 )
 
 // Подсказки прижаты к правому краю, ctrl p в подвале нет: окно поиска
@@ -72,8 +75,55 @@ func TestReloadSpinnerKeepsEdges(t *testing.T) {
 			t.Errorf("подвал при загрузке %q, want %q", footer, want)
 		}
 	}
-	if start, width := strings.Index(footer, "⠋"), ansi.StringWidth(footer); ansi.StringWidth(footer[:start]) > width/2 {
-		t.Errorf("спиннер не по центру: %q", footer)
+	// на экране 100 колонок без полей остаётся 98, надпись шириной 9 встаёт в
+	// колонку (98-9)/2 = 44 и ещё на колонку правее из-за левого поля
+	if got := ansi.StringWidth(footer[:strings.Index(footer, "⠋")]); got != 45 {
+		t.Errorf("спиннер с колонки %d, want 45, по центру: %q", got, footer)
+	}
+}
+
+// openThemed открывает правку a.txt с темой, где цвет добавления #050505
+// (38;2;5;5;5), а цвет ошибки #070707 (38;2;7;7;7).
+func openThemed(t *testing.T) (string, tea.Model) {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+
+	custom := theme.Dark()
+	custom.DiffAdded = lipgloss.Color("#050505")
+	custom.Error = lipgloss.Color("#070707")
+	opts := options(repo, layout.Focus())
+	opts.Theme = custom
+	return repo, resize(open(t, opts), 100, 20)
+}
+
+// Спиннер загрузки идёт цветом добавленных строк, а не приглушённым цветом
+// подсказок вокруг.
+func TestSpinnerUsesAddedColor(t *testing.T) {
+	_, model := openThemed(t)
+
+	model, _ = model.Update(key('r'))
+
+	if got := styleBefore(t, model.View().Content, "loading", "⠋"); !strings.Contains(got, "38;2;5;5;5") {
+		t.Errorf("перед спиннером %q, want цвет добавления 38;2;5;5;5", got)
+	}
+}
+
+// Ошибка git по центру подвала красная.
+func TestGitErrorUsesErrorColor(t *testing.T) {
+	repo, model := openThemed(t)
+	// без .git git не узнаёт репозиторий, и перечитывание падает
+	if err := os.RemoveAll(filepath.Join(repo, ".git")); err != nil {
+		t.Fatal(err)
+	}
+
+	model = pressReload(t, model)
+
+	if got := styleBefore(t, model.View().Content, "not a git repository", "not a git"); !strings.Contains(got, "38;2;7;7;7") {
+		t.Errorf("перед текстом ошибки %q, want цвет ошибки 38;2;7;7;7", got)
 	}
 }
 

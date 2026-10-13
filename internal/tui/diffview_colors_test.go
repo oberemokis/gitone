@@ -100,6 +100,23 @@ func TestUnifiedColorsEachLineByItsOwnSide(t *testing.T) {
 	}
 }
 
+// Сторона хунка разбирается целиком, поэтому многострочный комментарий красится
+// цветом комментария во всех трёх строках, а не только в первой: по строке
+// «second» и «third */» tree-sitter комментария не увидел бы.
+func TestMultilineCommentIsColoredOnEveryLine(t *testing.T) {
+	source := func(name string) string {
+		return "package main\n\n/* first\n   second\n   third */\nfunc " + name + "() {}\n"
+	}
+
+	raw := rawWith(t, "main.go", source("old"), source("fresh"), kindTheme())
+
+	for _, token := range []string{"first", "second", "third"} {
+		if got := styleBefore(t, raw, token, token); !strings.Contains(got, commentFg) {
+			t.Errorf("перед %q стоит %q, want цвет комментария %s", token, got, commentFg)
+		}
+	}
+}
+
 // В split левая половина красится подсветкой старой стороны, правая новой:
 // слева ключевое слово, справа комментарий.
 func TestSplitColorsHalvesBySide(t *testing.T) {

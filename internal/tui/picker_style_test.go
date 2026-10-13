@@ -34,6 +34,35 @@ func TestPickerMarksSelectedRow(t *testing.T) {
 	}
 }
 
+// Встроенные клавиши окна поиска двигают выделение: вниз стрелка и ctrl n,
+// вверх стрелка и ctrl p. На краях списка выделение стоит на месте.
+func TestPickerSelectionMovesWithDefaultKeys(t *testing.T) {
+	model := openedPicker(t)
+
+	steps := []struct {
+		name  string
+		press tea.KeyPressMsg
+		want  string
+	}{
+		{name: "стрелка вниз", press: tea.KeyPressMsg{Code: tea.KeyDown}, want: "› b.txt"},
+		{name: "ctrl n", press: ctrl('n'), want: "› c.txt"},
+		{name: "стрелка вниз до конца", press: tea.KeyPressMsg{Code: tea.KeyDown}, want: "› d.txt"},
+		{name: "вниз на последнем", press: tea.KeyPressMsg{Code: tea.KeyDown}, want: "› d.txt"},
+		{name: "стрелка вверх", press: tea.KeyPressMsg{Code: tea.KeyUp}, want: "› c.txt"},
+		{name: "ctrl p", press: ctrl('p'), want: "› b.txt"},
+		{name: "стрелка вверх до начала", press: tea.KeyPressMsg{Code: tea.KeyUp}, want: "› a.txt"},
+		{name: "вверх на первом", press: tea.KeyPressMsg{Code: tea.KeyUp}, want: "› a.txt"},
+	}
+
+	for _, step := range steps {
+		model, _ = model.Update(step.press)
+
+		if row := markedRow(model); !strings.Contains(row, step.want) {
+			t.Fatalf("%s: выделена строка %q, want %q", step.name, row, step.want)
+		}
+	}
+}
+
 // Строка поиска «/ » с курсором и пустой строкой под ней, внизу подсказка
 // enter open.
 func TestPickerSearchLineAndHint(t *testing.T) {
