@@ -1,6 +1,10 @@
 package syntax
 
-import ts "github.com/odvcencio/gotreesitter"
+import (
+	"bytes"
+
+	ts "github.com/odvcencio/gotreesitter"
+)
 
 // Код однофайловых компонентов (#140). Грамматика разметки видит в <script>,
 // <style> и выражениях шаблона только текст. Такой узел разбирает своя
@@ -18,11 +22,12 @@ func (l Lexer) Embeds() bool {
 }
 
 // place это где в дереве разметки стоит узел: тип родителя, внутри ли он
-// директивы vue, и элемент script или style с его атрибутом lang.
+// директивы vue, после ли as в {#each} Svelte и атрибут lang у script или
+// style, внутри которого стоит узел.
 type place struct {
 	parent    string
 	directive bool
-	element   string
+	binding   bool
 	lang      string
 }
 
@@ -65,30 +70,65 @@ func (l Lexer) inject(root *ts.Node, language *ts.Language, source []byte, kinds
 	walk = func(node *ts.Node, at place) {
 		kind := node.Type(language)
 		if file := embeddedFile(l.entry.Name, kind, at); file != "" {
-			start, end := node.StartByte(), node.EndByte()
-			inner := Detect(file).paint(source[start:end])
-			if inner != nil {
-				copy(kinds[start:end], inner)
+			start, end := int(node.StartByte()), int(node.EndByte())
+			if at.binding {
+				from, to := eachKey(source[start:end])
+				start, end = start+from, start+to
+			}
+			if start < end {
+				if inner := Detect(file).paint(source[start:end]); inner != nil {
+					copy(kinds[start:end], inner)
+				}
 			}
 			return
 		}
 
 		switch kind {
 		case "script_element", "style_element":
-			at.element, at.lang = kind, langAttribute(node, language, source)
+			at.lang = langAttribute(node, language, source)
 		case "directive_attribute":
 			at.directive = true
 		}
 		at.parent = kind
 		for index := range node.ChildCount() {
-			walk(node.Child(index), at)
+			child := node.Child(index)
+			walk(child, at)
+			if kind == "each_start" && child.Type(language) == "as" {
+				at.binding = true
+			}
 		}
 	}
 	walk(root, place{})
 }
 
+// eachKey это границы ключа в тексте после as в {#each}: из «item, i
+// (item.id)» получается «item.id». Привязка и индекс до скобок кодом не
+// разбираются: «item (item.id)» как TypeScript это вызов функции item. Без
+// ключа границы пустые. Скобки внутри строк не учитываются: строка в привязке
+// бывает только значением по умолчанию в деструктуризации.
+func eachKey(text []byte) (from, to int) {
+	text = bytes.TrimRight(text, " \t\r\n")
+	depth, open := 0, 0
+	for at, char := range text {
+		switch char {
+		case '(', '[', '{':
+			if depth == 0 && char == '(' {
+				open = at + 1
+			}
+			depth++
+		case ')', ']', '}':
+			depth--
+			if depth == 0 && char == ')' && at == len(text)-1 {
+				return open, at
+			}
+		}
+	}
+	return 0, 0
+}
+
 // langAttribute это значение атрибута lang в открывающем теге элемента:
-// <script lang="ts"> даёт «ts». Без атрибута пустая строка.
+// <script lang="ts"> и <script lang=ts> дают «ts». Без атрибута или без
+// значения пустая строка.
 func langAttribute(element *ts.Node, language *ts.Language, source []byte) string {
 	text := func(node *ts.Node) string { return string(source[node.StartByte():node.EndByte()]) }
 	child := func(node *ts.Node, kind string) *ts.Node {
@@ -112,10 +152,12 @@ func langAttribute(element *ts.Node, language *ts.Language, source []byte) strin
 		if name := child(attribute, "attribute_name"); name == nil || text(name) != "lang" {
 			continue
 		}
+		value := child(attribute, "attribute_value")
 		if quoted := child(attribute, "quoted_attribute_value"); quoted != nil {
-			if value := child(quoted, "attribute_value"); value != nil {
-				return text(value)
-			}
+			value = child(quoted, "attribute_value")
+		}
+		if value != nil {
+			return text(value)
 		}
 	}
 	return ""

@@ -1,6 +1,8 @@
 package syntax_test
 
 import (
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -331,6 +333,77 @@ func TestEmbeddedCode(t *testing.T) {
 				t.Errorf("%q в строке %d: вид %q, want %q (%+v)", tc.text, tc.line, got, tc.want, spans[tc.line])
 			}
 		})
+	}
+}
+
+// lang без кавычек это допустимый HTML: значение лежит в attribute прямым
+// ребёнком, без quoted_attribute_value (#161).
+func TestEmbeddedUnquotedLang(t *testing.T) {
+	vue := []string{
+		"<script setup lang=ts>",
+		"const count: number = ref(0)",
+		"</script>",
+		"<style lang=scss>",
+		"$gap: 4px;",
+		".card { color: red; }",
+		"</style>",
+	}
+
+	checkKinds(t, []kindCase{
+		{name: "vue: тип в script lang=ts", path: "App.vue", lines: vue, line: 1, text: "number", want: syntax.Type},
+		// в CSS красится имя свойства, в SCSS значение
+		{name: "vue: значение в style lang=scss", path: "App.vue", lines: vue, line: 5, text: "red", want: syntax.String},
+		{name: "vue: свойство в style lang=scss", path: "App.vue", lines: vue, line: 5, text: "color", want: ""},
+	})
+}
+
+// В {#each items as item (item.id)} после as стоит привязка и ключ, а не
+// выражение: как вызов функции item красить нельзя. Выражение слева от as и
+// ключ в скобках остаются кодом (#161).
+func TestSvelteEachBinding(t *testing.T) {
+	svelte := []string{
+		"{#each load(items) as item (item.id)}",
+		"{#each items as item, i (item.id)}",
+		"{#each items as { id, name }}",
+		"{#each items as item (key(item))}",
+	}
+
+	checkKinds(t, []kindCase{
+		{name: "svelte: выражение слева от as", path: "App.svelte", lines: svelte, line: 0, text: "load", want: syntax.Function},
+		{name: "svelte: привязка", path: "App.svelte", lines: svelte, line: 0, text: "item (", want: ""},
+		{name: "svelte: свойство в ключе", path: "App.svelte", lines: svelte, line: 0, text: "id)", want: syntax.Property},
+		{name: "svelte: привязка с индексом", path: "App.svelte", lines: svelte, line: 1, text: "item,", want: ""},
+		{name: "svelte: индекс", path: "App.svelte", lines: svelte, line: 1, text: "i (", want: ""},
+		{name: "svelte: свойство в ключе с индексом", path: "App.svelte", lines: svelte, line: 1, text: "id)", want: syntax.Property},
+		{name: "svelte: деструктуризация без ключа", path: "App.svelte", lines: svelte, line: 2, text: "id,", want: ""},
+		{name: "svelte: вызов в ключе", path: "App.svelte", lines: svelte, line: 3, text: "key", want: syntax.Function},
+	})
+}
+
+// Каждый узел кода внутри разметки разбирается заново, поэтому разбор файла
+// не должен стоить парсера и арены на узел (#161). Меряются выделенные байты,
+// а не время: тест не плавает. Без пула и Release файл в 300 строк и 600
+// привязок берёт 2,2 ГБ, с ними 11 МБ. В сборке с -race sync.Pool выбрасывает
+// каждый четвёртый парсер, там остаются около 700 МБ против 2,7 ГБ без пула,
+// и порог стоит между ними.
+func TestEmbeddedParseCost(t *testing.T) {
+	row := `  <p :title="label(item)">{{ format(title) }}</p>`
+	lines := slices.Concat(
+		[]string{"<template>"},
+		slices.Repeat([]string{row}, 300),
+		[]string{"</template>"},
+	)
+	lexer := syntax.Detect("App.vue")
+	lexer.Lines(lines) // первый разбор заводит парсеры и таблицы, их цена не повторяется
+
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	lexer.Lines(lines)
+	runtime.ReadMemStats(&after)
+
+	got := (after.TotalAlloc - before.TotalAlloc) >> 20
+	if got > 1500 {
+		t.Errorf("разбор файла аллоцировал %d МБ, want не больше 1500", got)
 	}
 }
 
