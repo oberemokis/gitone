@@ -27,8 +27,13 @@ jobs:
       - run: make lint
       - run: make test
 
-      # грамматики подсветки, как в Makefile: .goreleaser.yaml берёт их отсюда
-      - run: echo "GITONE_TAGS=$(sh scripts/grammar-tags.sh)" >> "$GITHUB_ENV"
+      # грамматики подсветки, как в Makefile: .goreleaser.yaml берёт их отсюда.
+      # Присваивание отдельной командой: в echo "$(…)" код выхода скрипта
+      # терялся, и пустой список проходил зелёным.
+      - run: |
+          tags="$(sh scripts/grammar-tags.sh)"
+          test -n "$tags"
+          echo "GITONE_TAGS=$tags" >> "$GITHUB_ENV"
 
       - uses: goreleaser/goreleaser-action@v6
         with:

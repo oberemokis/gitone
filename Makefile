@@ -1,8 +1,14 @@
 .PHONY: build run test lint fmt
 
 # Грамматики tree-sitter для подсветки задаёт scripts/grammar-tags.sh, тот же
-# список берут CI и релиз (#139).
-export GOFLAGS := -tags=$(shell sh scripts/grammar-tags.sh)
+# список берут CI и релиз (#139). $(shell) теряет код выхода скрипта, поэтому
+# сбой виден только по пустому списку: без тегов сборка берёт все двести
+# грамматик, копилефтные тоже, и всё остаётся зелёным.
+TAGS := $(shell sh scripts/grammar-tags.sh)
+ifeq ($(TAGS),)
+$(error scripts/grammar-tags.sh не напечатал теги грамматик)
+endif
+export GOFLAGS := -tags=$(TAGS)
 
 build:
 	go build -o bin/gitone ./cmd/gitone
