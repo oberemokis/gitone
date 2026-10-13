@@ -88,13 +88,23 @@ func TestVueScriptHunkHighlightedFromFile(t *testing.T) {
 	}
 }
 
-// Новую версию не прочитать: дифф показан с подсветкой по хункам, а чтение не
-// повторяется на каждое сообщение.
+// scriptComponent это компонент, где хунк целиком с тегом <script lang="ts">:
+// и без версий файла видно, что код в нём TypeScript.
+func scriptComponent(answer string) string {
+	return strings.Join([]string{
+		`<script setup lang="ts">`,
+		"const answer = " + answer,
+		"</script>",
+	}, "\n") + "\n"
+}
+
+// Новую версию не прочитать: дифф показан с подсветкой по хункам, на обеих
+// сторонах, а чтение не повторяется на каждое сообщение.
 func TestUnreadableVersionKeepsHunkHighlight(t *testing.T) {
 	repo := newRepo(t)
-	write(t, repo, "App.vue", vueComponent("41"))
+	write(t, repo, "App.vue", scriptComponent("41"))
 	commitAll(t, repo)
-	write(t, repo, "App.vue", vueComponent("42"))
+	write(t, repo, "App.vue", scriptComponent("42"))
 
 	model := open(t, options(repo, layout.Focus()))
 	if err := os.Chmod(filepath.Join(repo, "App.vue"), 0); err != nil {
@@ -110,9 +120,90 @@ func TestUnreadableVersionKeepsHunkHighlight(t *testing.T) {
 			t.Fatal("после неудачного чтения версий корень снова просит их прочитать")
 		}
 	}
-	if !strings.Contains(screenText(model), "answer = 42") {
-		t.Fatalf("дифф не показан:\n%s", screenText(model))
+	requireKeywordConsts(t, model, "answer = 41")
+}
+
+// reopenedVueRepo это репозиторий, где правка в середине компонента (тега
+// <script> в хунке нет) и ещё текстовый файл: Vue идёт первым, потому что
+// сортировка по пути ставит «A» перед «b».
+func reopenedVueRepo(t *testing.T) string {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "App.vue", vueComponent("41"))
+	write(t, repo, "b.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "App.vue", vueComponent("42"))
+	write(t, repo, "b.txt", "two\n")
+	return repo
+}
+
+// requireKeywordConsts проверяет, что на обеих сторонах строки с text const
+// идёт цветом ключевого слова.
+func requireKeywordConsts(t *testing.T, model tea.Model, text string) {
+	t.Helper()
+
+	colors := constColors(t, model, text)
+	if len(colors) != 2 {
+		t.Fatalf("в строке правки %d «const», ожидалось 2 (split)", len(colors))
 	}
+	for side, code := range colors {
+		if !strings.Contains(code, keywordColor) {
+			t.Errorf("const в версии %d не цветом ключевого слова: %q", side, code)
+		}
+	}
+}
+
+// По r файл читается заново и красится по версиям снова: подсветка по хункам,
+// которой дифф заменил её, не остаётся навсегда.
+func TestReloadKeepsVersionHighlight(t *testing.T) {
+	model := pressReload(t, openSized(t, reopenedVueRepo(t), 140, 30))
+
+	requireKeywordConsts(t, model, "answer = 41")
+}
+
+// Другой файл и обратно: файл раскрашен по версиям, а не остался с подсветкой
+// по хункам из-за ключа версий, который помнился с прошлого раза.
+func TestSwitchingFilesKeepsVersionHighlight(t *testing.T) {
+	model := openSized(t, reopenedVueRepo(t), 140, 30)
+
+	model, _ = model.Update(key(']'))
+	model, _ = model.Update(key('['))
+
+	requireKeywordConsts(t, model, "answer = 41")
+}
+
+// Версия файла нумеруется с единицы, как хунки: комментарии над правкой и под
+// ней не должны красить её строку, если подсветка сдвинута на строку.
+func TestVersionHighlightNumbersLinesFromOne(t *testing.T) {
+	commented := func(answer string) string {
+		line := "const answer = " + answer + "\n"
+		return strings.Replace(vueComponent(answer), line, "// before\n"+line+"// after\n", 1)
+	}
+	repo := newRepo(t)
+	write(t, repo, "App.vue", commented("41"))
+	commitAll(t, repo)
+	write(t, repo, "App.vue", commented("42"))
+
+	requireKeywordConsts(t, openSized(t, repo, 140, 30), "answer = 41")
+}
+
+// Подсветка по версиям знает строку целиком, а дифф режет строку длиннее 4095
+// рун. Комментарий на 5000 букв кончается за обрезанным текстом, а слово let
+// после него начинается там: отрезки обрезают по длине строки диффа, иначе экран
+// падает на `slice bounds out of range`. Цвета на месте.
+func TestVersionHighlightOfLineCutByDiff(t *testing.T) {
+	long := func(answer string) string {
+		line := "const answer = " + answer + "\n"
+		wide := "const answer = " + answer + "; /* " + strings.Repeat("x", 5000) + " */ let beyond = 1\n"
+		return strings.Replace(vueComponent(answer), line, wide, 1)
+	}
+	repo := newRepo(t)
+	write(t, repo, "App.vue", long("41"))
+	commitAll(t, repo)
+	write(t, repo, "App.vue", long("42"))
+
+	requireKeywordConsts(t, openSized(t, repo, 140, 30), "answer = 41")
 }
 
 // colorBefore это последний SGR перед первым text в строке экрана с кодами.
