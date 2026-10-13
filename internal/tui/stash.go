@@ -62,9 +62,15 @@ func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.args = []string{stash.Hash + "^1", stash.Hash}
 		return m.startReload()
 	case m.keys.Is(keymap.StashApply, pressed):
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
 		m.active = noWindow
 		return m, stashApplyCmd(m.dir, stash)
 	case m.keys.Is(keymap.StashDrop, pressed):
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
 		m.active = stashDropWindow
 	}
 

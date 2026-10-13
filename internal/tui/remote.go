@@ -1,0 +1,173 @@
+package tui
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"gitone/internal/git"
+	"gitone/internal/i18n"
+	"gitone/internal/keymap"
+)
+
+// remoteKind это то, что делает идущая сетевая операция.
+type remoteKind int
+
+const (
+	noRemote remoteKind = iota
+	pulling
+	pushing
+)
+
+// remote это идущий pull или push. Он идёт командой в фоне, интерфейс при этом
+// отзывчив. id растёт с каждой операцией: шаг спиннера и ответ чужой операции
+// отбрасываются. cancel отменяет контекст команды, и git убивается (esc).
+type remote struct {
+	kind   remoteKind
+	id     int
+	spin   int
+	cancel context.CancelFunc
+}
+
+func (r remote) running() bool {
+	return r.kind != noRemote
+}
+
+// labelKey это надпись индикатора в подвале, busyKey заметка об отказе.
+func (r remote) labelKey() string {
+	if r.kind == pushing {
+		return "screen.pushing"
+	}
+	return "screen.pulling"
+}
+
+func (r remote) busyKey() string {
+	if r.kind == pushing {
+		return "remote.pushRunning"
+	}
+	return "remote.pullRunning"
+}
+
+// remoteDoneMsg несёт итог pull или push: сдвинулся ли HEAD, куда ушла ветка
+// или ошибку git. Отмена приходит как context.Canceled.
+type remoteDoneMsg struct {
+	id      int
+	kind    remoteKind
+	updated bool
+	target  string
+	err     error
+}
+
+// remoteSpinMsg это шаг спиннера операции id. У pull и push своя цепочка шагов:
+// перечитывание диффа во время операции крутит свой спиннер, и её цепочка не
+// должна на нём оборваться.
+type remoteSpinMsg struct {
+	id int
+}
+
+func remoteSpinTick(id int) tea.Cmd {
+	return tea.Tick(spinnerStep, func(time.Time) tea.Msg { return remoteSpinMsg{id: id} })
+}
+
+// pullCmd и pushCmd запускают git в команде, а не в Update: сеть бывает
+// медленной, и экран не должен висеть.
+func pullCmd(ctx context.Context, dir string, id int) tea.Cmd {
+	return func() tea.Msg {
+		updated, err := git.Pull(ctx, dir)
+		return remoteDoneMsg{id: id, kind: pulling, updated: updated, err: err}
+	}
+}
+
+func pushCmd(ctx context.Context, dir string, id int) tea.Cmd {
+	return func() tea.Msg {
+		target, err := git.Push(ctx, dir)
+		return remoteDoneMsg{id: id, kind: pushing, target: target, err: err}
+	}
+}
+
+// startRemote запускает pull или push. Второй не стартует, пока идёт первый:
+// это отказ из changesRepo, он решён выше по вызову.
+func (m Model) startRemote(kind remoteKind) (tea.Model, tea.Cmd) {
+	ctx, cancel := context.WithCancel(context.Background())
+	m.remote = remote{kind: kind, id: m.remote.id + 1, cancel: cancel}
+
+	run := pullCmd(ctx, m.dir, m.remote.id)
+	if kind == pushing {
+		run = pushCmd(ctx, m.dir, m.remote.id)
+	}
+
+	return m, tea.Batch(remoteSpinTick(m.remote.id), run)
+}
+
+// stopRemote отменяет идущую операцию: git убит, ответ придёт сообщением с
+// context.Canceled. Без операции ничего не делает.
+func (m Model) stopRemote() Model {
+	if m.remote.running() {
+		m.remote.cancel()
+	}
+	return m
+}
+
+// remoteDone ставит итог в подвал и перечитывает дифф, ветку и списки: pull
+// меняет дерево, а при ошибке видно, что на самом деле осталось, как у
+// actionDone. Итог и отмена идут не цветом ошибки (sayCalm).
+func (m Model) remoteDone(msg remoteDoneMsg) (tea.Model, tea.Cmd) {
+	if !m.remote.running() || msg.id != m.remote.id {
+		return m, nil
+	}
+
+	m.remote.cancel()
+	m.remote = remote{id: m.remote.id}
+
+	switch {
+	case errors.Is(msg.err, context.Canceled):
+		m = m.sayCalm(m.text.Text("remote.cancelled", nil))
+	case msg.err != nil:
+		m = m.say(m.text.Error(msg.err))
+	default:
+		m = m.sayCalm(m.remoteResult(msg))
+	}
+
+	m.stale = true
+	return m.startReload()
+}
+
+// remoteResult это итог успешной операции на языке словаря, а не сырой вывод
+// git.
+func (m Model) remoteResult(msg remoteDoneMsg) string {
+	switch {
+	case msg.kind == pushing:
+		return m.text.Text("remote.pushed", i18n.Args{"target": msg.target})
+	case msg.updated:
+		return m.text.Text("remote.fastForwarded", nil)
+	}
+
+	return m.text.Text("remote.upToDate", nil)
+}
+
+// changesRepo говорит, что глобальное действие меняет репозиторий или само
+// запускает pull или push. Пока идёт pull или push, такое действие отказывает:
+// git pull меняет дерево, и x посреди него стёр бы не те правки. Действия
+// окон (переключение ветки и worktree, apply и drop у stash) проверяют то же
+// сами. Просмотр, окна и перечитывание диффа работают.
+func changesRepo(action keymap.Action) bool {
+	switch action {
+	case keymap.FilesStage, keymap.FilesDiscard, keymap.FilesCommit, keymap.StashPush, keymap.GitPull, keymap.GitPush:
+		return true
+	}
+
+	return false
+}
+
+// refuseWhileRemote ставит в подвал отказ («pull is running»), пока идёт pull
+// или push. refused true значит, что действие делать нельзя.
+func (m Model) refuseWhileRemote() (next Model, refused bool) {
+	if !m.remote.running() {
+		return m, false
+	}
+
+	m.notice = m.text.Text(m.remote.busyKey(), nil)
+	return m, true
+}

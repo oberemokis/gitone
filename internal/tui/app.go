@@ -69,8 +69,13 @@ type Model struct {
 	worktrees []git.Worktree
 	stashes   []git.Stash
 	picker    picker.Model
-	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия
+	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия;
+	// calm это текст итога pull или push: заметка с таким текстом идёт не цветом
+	// ошибки (sayCalm)
 	notice string
+	calm   string
+	// идущий pull или push (remote.go)
+	remote remote
 	keys   keymap.Keymap
 	ui     config.UI
 	layout layout.Node
@@ -221,6 +226,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spin++
 			return m, spinTick(m.load)
 		}
+	case remoteSpinMsg:
+		if m.remote.running() && msg.id == m.remote.id {
+			m.remote.spin++
+			return m, remoteSpinTick(msg.id)
+		}
+	case remoteDoneMsg:
+		return m.remoteDone(msg)
 	case reloadMsg:
 		return m.reloaded(msg)
 	case worktreeCheckedMsg:
@@ -272,6 +284,16 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) say(text string) Model {
 	m.notice = text
 	return m.dropQuestion()
+}
+
+// sayCalm ставит в подвал итог, а не ошибку: он идёт цветом текста. Заметка
+// считается итогом, пока её текст равен m.calm: любая следующая заметка с
+// другим текстом снова красная, и сбрасывать флаг в каждом месте, где заметка
+// пишется или стирается, не нужно.
+func (m Model) sayCalm(text string) Model {
+	m = m.say(text)
+	m.calm = text
+	return m
 }
 
 func (m Model) dropQuestion() Model {
@@ -368,14 +390,28 @@ func (m Model) wheel(msg tea.MouseWheelMsg) diffview.Model {
 }
 
 func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
+	if changesRepo(action) {
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
+	}
+
 	switch action {
 	case keymap.AppQuit:
 		return m, tea.Quit
 	case keymap.AppHelp:
 		m.helpOpen = !m.helpOpen
 		m.helpTop = 0
+	// esc закрывает справку, а без неё отменяет идущий pull или push
 	case keymap.HelpClose:
+		if !m.helpOpen {
+			m = m.stopRemote()
+		}
 		m.helpOpen = false
+	case keymap.GitPull:
+		return m.startRemote(pulling)
+	case keymap.GitPush:
+		return m.startRemote(pushing)
 	case keymap.FilesPick:
 		m = m.openPicker()
 	case keymap.FilesToggle:
@@ -633,15 +669,23 @@ func (m Model) screen() (string, []zone.Zone) {
 
 // footerLine собирает подвал: ветку слева, статус по центру, подсказки справа.
 // Пока идёт перечитывание, в центре спиннер, а висящая ошибка git ждёт
-// следующего нажатия.
+// следующего нажатия. Пока идёт pull или push, спиннер с его надписью занимает
+// то же место и важнее загрузки, а заметка (отказ «pull is running») важнее
+// спиннера: иначе её не увидеть.
 func (m Model) footerLine() string {
 	center := ""
 	switch {
-	case m.loading:
-		center = spinner(m.spin, m.colors, m.text)
+	case m.remote.running() && m.notice == "":
+		center = spinner(m.remote.spin, m.colors, m.text.Text(m.remote.labelKey(), nil))
+	case m.loading && !m.remote.running():
+		center = spinner(m.spin, m.colors, m.text.Text("screen.loading", nil))
 	case m.notice != "":
 		first, _, _ := strings.Cut(m.notice, "\n")
-		center = lipgloss.NewStyle().Foreground(m.colors.Error).Render(visible(first))
+		note := lipgloss.NewStyle().Foreground(m.colors.Error)
+		if m.notice == m.calm {
+			note = lipgloss.NewStyle()
+		}
+		center = note.Render(visible(first))
 	}
 
 	hints := ""
