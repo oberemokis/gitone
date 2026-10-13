@@ -102,6 +102,24 @@ func TestDiscardRestoresTrackedFileWithLeadingColon(t *testing.T) {
 	}
 }
 
+// До первого коммита restore --staged падает: восстанавливать не из чего. Файл
+// всё равно должен уходить из индекса, а правка на диске оставаться.
+func TestUnstageBeforeFirstCommit(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "a.txt")
+
+	if err := git.Unstage(repo, []string{"a.txt"}); err != nil {
+		t.Fatalf("Unstage: %v", err)
+	}
+	if staged := mustStaged(t, repo); len(staged) != 0 {
+		t.Fatalf("в индексе %q, ожидалось пусто", staged)
+	}
+	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\n" {
+		t.Fatalf("файл на диске = %q, ожидалось нетронутое содержимое", got)
+	}
+}
+
 // Правка в индексе уходит и из индекса, и с диска: тест не должен смотреть
 // только на диск, иначе restore без --staged остался бы незамеченным.
 func TestDiscardRestoresStagedChange(t *testing.T) {

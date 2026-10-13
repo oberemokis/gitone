@@ -36,7 +36,13 @@ func unstage(dir string, paths []string) error {
 		return err
 	}
 
-	_, err = run(literal(root), append([]string{"restore", "--staged", "--"}, paths...)...)
+	command := []string{"restore", "--staged", "--"}
+	if !hasCommits(root) {
+		// Без HEAD восстанавливать не из чего: запись просто выходит из индекса.
+		command = []string{"rm", "--cached", "--quiet", "--"}
+	}
+
+	_, err = run(literal(root), append(command, paths...)...)
 	return err
 }
 

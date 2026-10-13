@@ -64,12 +64,18 @@ func diffText(dir string, args []string) (string, error) {
 // всё индексированное и неотслеженное показывается добавленным. Хеш пустого
 // дерева спрашивается у git, он разный у репозиториев на SHA-1 и SHA-256.
 func baseRevision(dir string) (string, error) {
-	if _, err := run(call{dir: dir}, "rev-parse", "--verify", "--quiet", "HEAD"); err == nil {
+	if hasCommits(dir) {
 		return "HEAD", nil
 	}
 
 	emptyTree, err := run(call{dir: dir}, "hash-object", "-t", "tree", "--stdin")
 	return strings.TrimSuffix(emptyTree, "\n"), err
+}
+
+// hasCommits говорит, есть ли у репозитория HEAD: до первого коммита его нет.
+func hasCommits(dir string) bool {
+	_, err := run(call{dir: dir}, "rev-parse", "--verify", "--quiet", "HEAD")
+	return err == nil
 }
 
 func diffCommand(args ...string) []string {
