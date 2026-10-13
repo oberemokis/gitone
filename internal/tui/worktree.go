@@ -4,9 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
@@ -97,30 +99,51 @@ func (m Model) worktreesShown() []git.Worktree {
 	})
 }
 
-// worktreeBox рисует список деревьев: имя каталога, ветка цветом accent и
-// приглушённый путь (#109). Текущее помечено словом, как ветка в окне веток.
-// Отметка стоит до пути: длинный путь обрезается по краю окна и унёс бы её с
-// собой. Каждый кусок несёт фон окна сам.
+// maxNameColumn это предел столбцов имени каталога и ветки в окне worktree:
+// путь забирает остаток ширины и не сжимается до нуля из-за длинных имён.
+const maxNameColumn = 24
+
+// worktreeBox рисует деревья таблицей, как ветки и лог (#194): имя каталога
+// цветом worktree, ветка цветом accent, приглушённый путь, над ними заголовки
+// столбцов. Текущее помечено словом сразу за именем каталога, как текущая
+// ветка в окне веток. Ширина имени и ветки по самому длинному значению, но не
+// больше maxNameColumn, путь занимает остаток и обрезается «…». Каждый кусок
+// несёт фон окна сам.
 func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, worktrees []git.Worktree, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	branch := panel.Foreground(colors.Accent)
-	muted := panel.Foreground(colors.TextMuted)
-
-	rows := make([]string, len(worktrees))
-	for index, worktree := range worktrees {
-		rows[index] = panel.Render(visible(filepath.Base(worktree.Path)+"  ")) + branch.Render(visible(worktree.Branch))
-		if worktree.Current {
-			rows[index] += panel.Render(" " + text.Text("worktrees.current", nil))
-		}
-		rows[index] += muted.Render(visible("  " + worktree.Path))
-	}
-
-	return list{
+	box := list{
 		title:  text.Text("worktrees.title", nil),
 		close:  closeHint(colors, keys, text, keymap.ListClose),
 		width:  90,
-		rows:   rows,
 		cursor: cursor,
 		hint:   windowHint(colors, keys, text, keymap.WorktreesSwitch, keymap.ListSearch),
-	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil)).view(colors, screenWidth, screenHeight)
+	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	muted := panel.Foreground(colors.TextMuted)
+	current := text.Text("worktrees.current", nil)
+
+	titles := []string{text.Text("worktrees.column.name", nil), text.Text("worktrees.column.branch", nil), text.Text("worktrees.column.path", nil)}
+	nameWidth, branchWidth := ansi.StringWidth(titles[0]), ansi.StringWidth(titles[1])
+	for _, worktree := range worktrees {
+		cell := visible(filepath.Base(worktree.Path))
+		if worktree.Current {
+			cell += " " + current
+		}
+		nameWidth = max(nameWidth, ansi.StringWidth(cell))
+		branchWidth = max(branchWidth, ansi.StringWidth(visible(worktree.Branch)))
+	}
+	widths := []int{min(nameWidth, maxNameColumn), min(branchWidth, maxNameColumn), 0}
+	widths[2] = max(box.rowWidth(screenWidth)-widths[0]-widths[1]-2*columnGap, 1)
+
+	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted}, titles...)
+
+	name := panel.Foreground(colors.Worktree)
+	gap := panel.Render(strings.Repeat(" ", columnGap))
+	styles := []lipgloss.Style{panel.Foreground(colors.Accent), muted}
+	box.rows = make([]string, len(worktrees))
+	for index, worktree := range worktrees {
+		box.rows[index] = markedCell(panel, name, widths[0], filepath.Base(worktree.Path), worktree.Current, current) + gap + tableRow(panel, widths[1:], styles, worktree.Branch, worktree.Path)
+	}
+
+	return box.view(colors, screenWidth, screenHeight)
 }

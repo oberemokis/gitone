@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -61,7 +62,13 @@ func pressable(action keymap.Action, hint string) string {
 // keyHint это пара «клавиша подпись» для подвала и окон: клавиша цветом
 // текста, подпись приглушённая, чтобы клавиша не терялась рядом с ней (#89).
 func keyHint(base lipgloss.Style, colors theme.Theme, key, label string) string {
-	return base.Render(key) + base.Foreground(colors.TextMuted).Render(" "+label)
+	return coloredHint(base, colors.TextMuted, key, label)
+}
+
+// coloredHint это keyHint с подписью заданного цвета: имя ветки и worktree в
+// подвале идут цветом своей роли, а не приглушённым.
+func coloredHint(base lipgloss.Style, labelColor color.Color, key, label string) string {
+	return base.Render(key) + base.Foreground(labelColor).Render(" "+label)
 }
 
 // closeHint это «esc close» для заголовка окна по его действию закрытия.

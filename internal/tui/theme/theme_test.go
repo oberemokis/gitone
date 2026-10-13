@@ -48,6 +48,24 @@ func TestBuildOverlaysDark(t *testing.T) {
 			},
 		},
 		{
+			name: "ключ worktree перекрашивает роль",
+			file: config.ThemeFile{Colors: map[string]config.Color{"worktree": "#ff0000"}},
+			check: func(t *testing.T, got theme.Theme) {
+				if got.Worktree != lipgloss.Color("#ff0000") {
+					t.Errorf("Build(file).Worktree = %v, want #ff0000", got.Worktree)
+				}
+			},
+		},
+		{
+			name: "без ключа worktree роль жёлтая",
+			file: config.ThemeFile{Colors: map[string]config.Color{"accent": "#123456"}},
+			check: func(t *testing.T, got theme.Theme) {
+				if got.Worktree != lipgloss.Color("#e5c07b") {
+					t.Errorf("Build(file).Worktree = %v, want жёлтый #e5c07b", got.Worktree)
+				}
+			},
+		},
+		{
 			name: "число как ANSI",
 			file: config.ThemeFile{Colors: map[string]config.Color{"textMuted": "8"}},
 			check: func(t *testing.T, got theme.Theme) {
