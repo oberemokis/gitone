@@ -19,10 +19,11 @@ var configFlags = []string{"-c", "core.quotePath=false", "-c", "core.bigFileThre
 
 // Отключают то, что пользователь мог включить в ~/.gitconfig и что ломает
 // разбор: внешний дифф, цвет, пути без префиксов, относительные пути, лог
-// подмодулей вместо строки коммита.
+// подмодулей вместо строки коммита. --full-index даёт полные хэши версий в
+// строке index: по короткому git может не найти объект однозначно (#140).
 var diffFlags = []string{
 	"--no-color", "--no-ext-diff", "--no-relative", "--submodule=short",
-	"--src-prefix=a/", "--dst-prefix=b/",
+	"--src-prefix=a/", "--dst-prefix=b/", "--full-index",
 }
 
 // Diff возвращает текст `git diff` для каталога. С аргументами они уходят в
