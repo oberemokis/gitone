@@ -28,7 +28,7 @@ func TestStashPushApplyDrop(t *testing.T) {
 		t.Fatalf("stash %v, ошибка %v; ожидался один", stashes, err)
 	}
 
-	if err := git.StashApply(repo, stashes[0].Ref); err != nil {
+	if err := git.StashApply(repo, stashes[0]); err != nil {
 		t.Fatalf("StashApply: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "two\n" {
@@ -38,7 +38,7 @@ func TestStashPushApplyDrop(t *testing.T) {
 		t.Fatalf("apply удалил stash: %v", again)
 	}
 
-	if err := git.StashDrop(repo, stashes[0].Ref); err != nil {
+	if err := git.StashDrop(repo, stashes[0]); err != nil {
 		t.Fatalf("StashDrop: %v", err)
 	}
 	if left, _ := git.Stashes(repo); len(left) != 0 {

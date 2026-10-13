@@ -59,15 +59,35 @@ func stashPush(dir string) error {
 	return err
 }
 
-// StashApply применяет stash и оставляет его в списке.
-func StashApply(dir string, ref string) error {
-	_, err := inRoot(dir, "stash", "apply", ref)
-	return failed("stash apply", err)
+// StashApply применяет stash и оставляет его в списке. Если stash@{N} уже
+// другой коммит, чем у строки списка, отказывает и ничего не применяет.
+func StashApply(dir string, stash Stash) error {
+	return failed("stash apply", stashAt(dir, stash, "apply"))
 }
 
 // StashDrop удаляет stash без применения. Вернуть его можно только через
-// reflog, поэтому удаление спрашивается заранее.
-func StashDrop(dir string, ref string) error {
-	_, err := inRoot(dir, "stash", "drop", ref)
-	return failed("stash drop", err)
+// reflog, поэтому удаление спрашивается заранее. Если stash@{N} уже другой
+// коммит, чем у строки списка, отказывает и ничего не удаляет.
+func StashDrop(dir string, stash Stash) error {
+	return failed("stash drop", stashAt(dir, stash, "drop"))
+}
+
+// stashAt выполняет git stash <действие> stash@{N}, только пока ссылка указывает
+// на коммит из записи. refs/stash общий для всех worktree: git stash push из
+// соседнего терминала сдвигает номера, и позиция из списка попала бы в чужой
+// stash. Между проверкой и действием остаётся окно в миллисекунды, закрыть его
+// git не даёт: drop принимает только ссылку.
+func stashAt(dir string, stash Stash, action string) error {
+	root, err := topLevel(dir)
+	if err != nil {
+		return err
+	}
+
+	hash, err := run(call{dir: root}, "rev-parse", "--verify", "--quiet", stash.Ref)
+	if err != nil || strings.TrimSpace(hash) != stash.Hash {
+		return i18n.New("git.stashChanged", nil)
+	}
+
+	_, err = run(call{dir: root}, "stash", action, stash.Ref)
+	return err
 }

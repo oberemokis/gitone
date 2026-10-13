@@ -95,6 +95,61 @@ func TestStashDiffSurvivesExternalPush(t *testing.T) {
 	}
 }
 
+// openStaleStashWindow открывает окно Z с одним stash «two» и после этого
+// кладёт в stash «three» из соседнего терминала: stash@{0} теперь другой
+// stash, чем строка в окне. Рабочее дерево после обоих stash чистое, a.txt «one».
+func openStaleStashWindow(t *testing.T) (string, tea.Model) {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "stash", "push", "-q")
+
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	model = settle(model, cmd, 4)
+
+	write(t, repo, "a.txt", "three\n")
+	runGit(t, repo, "stash", "push", "-q")
+
+	return repo, model
+}
+
+// Строка окна выбрана до внешнего git stash push. d, y не удаляют ни её, ни
+// новый stash: пользователь выбирал строку, а stash@{0} теперь другой.
+func TestStashDropRefusesAfterExternalPush(t *testing.T) {
+	repo, model := openStaleStashWindow(t)
+	before := runGit(t, repo, "stash", "list")
+
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	model = settle(model, cmd, 4)
+
+	if after := runGit(t, repo, "stash", "list"); after != before {
+		t.Fatalf("список stash изменился:\nдо:\n%s\nпосле:\n%s", before, after)
+	}
+	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "stash changed, reopen the list") {
+		t.Fatalf("отказа нет в подвале:\n%s", body)
+	}
+}
+
+// То же для a: применился бы новый stash «three», а выбран был «two».
+func TestStashApplyRefusesAfterExternalPush(t *testing.T) {
+	repo, model := openStaleStashWindow(t)
+
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	model = settle(model, cmd, 4)
+
+	if got := readText(t, repo+"/a.txt"); got != "one\n" {
+		t.Fatalf("после a файл %q, ожидался отказ без изменений", got)
+	}
+	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "stash changed, reopen the list") {
+		t.Fatalf("отказа нет в подвале:\n%s", body)
+	}
+}
+
 // d спрашивает, удаляет stash только y.
 func TestStashDropNeedsYes(t *testing.T) {
 	repo := newRepo(t)
