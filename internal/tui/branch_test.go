@@ -9,6 +9,33 @@ import (
 	"gitone/internal/layout"
 )
 
+// Отказ git switch виден в подвале, а текущая ветка остаётся. Правка a.txt
+// мешает: в feature этот файл другой, и git не перезапишет его молча.
+func TestBranchSwitchRefusalShowsInFooter(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "feature")
+	write(t, repo, "a.txt", "feature\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+	write(t, repo, "a.txt", "local\n")
+
+	model := resize(open(t, options(repo, layout.Focus())), 160, 20)
+	model = openAsync(model, key('B'))
+	// ветки идут по алфавиту: feature над main, курсор стоит на текущей
+	model, _ = model.Update(key('k'))
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, cmd, 4)
+
+	if footer := footerOf(model); !strings.Contains(footer, "Your local changes") {
+		t.Fatalf("в подвале %q, ожидался отказ git", footer)
+	}
+	if current := runGit(t, repo, "branch", "--show-current"); current != "main" {
+		t.Fatalf("текущая ветка %q, want main", current)
+	}
+}
+
 // B открывает список веток с текущей, k ставит курсор на другую, enter
 // переключает её.
 func TestBranchListSwitches(t *testing.T) {
