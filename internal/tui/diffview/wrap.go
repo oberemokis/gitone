@@ -143,17 +143,21 @@ func pieceCount(width, size int) int {
 
 // textWidths это ширина кода строки: левой и правой стороны split или
 // единственной стороны unified. Таб считается четырьмя пробелами, как при
-// отрисовке.
+// отрисовке, значок ␍ одной клеткой.
 func (l line) textWidths() (int, int) {
 	switch {
 	case l.split != nil:
-		return textWidth(l.split.Left.Text), textWidth(l.split.Right.Text)
+		return textWidth(l.split.Left.Text, l.split.Left.CR), textWidth(l.split.Right.Text, l.split.Right.CR)
 	case l.unified != nil:
-		return textWidth(l.unified.Text), 0
+		return textWidth(l.unified.Text, l.unified.CR), 0
 	}
 	return 0, 0
 }
 
-func textWidth(text string) int {
+func textWidth(text string, cr bool) int {
+	if cr {
+		text += crMark
+	}
+
 	return ansi.StringWidth(strings.ReplaceAll(text, "\t", tabSpaces))
 }
