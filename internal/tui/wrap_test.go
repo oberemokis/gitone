@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -193,6 +194,83 @@ func TestNewFileResetsShift(t *testing.T) {
 	}
 	if row := addedRow(model); !strings.HasPrefix(row, " 1 + 0123456789") {
 		t.Fatalf("после смены файла строка %q, want без сдвига", row)
+	}
+}
+
+// narrowDiff открывает дифф, где x заменён строками lines, в unified на экране
+// шириной 25: номер и знак занимают 5 колонок, на код остаётся 20.
+func narrowDiff(t *testing.T, change func(*config.Config), lines ...string) tea.Model {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "x\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", strings.Join(lines, "\n")+"\n")
+
+	opts := options(repo, layout.Focus())
+	opts.Config.Diff.Mode = "unified"
+	if change != nil {
+		change(&opts.Config)
+	}
+	return resize(open(t, opts), 25, 20)
+}
+
+// Широкий символ на границе куска не пропадает: он не помещается в хвост
+// куска и целиком уходит в начало следующего.
+func TestWrapKeepsWideCharacterAtChunkEdge(t *testing.T) {
+	model := narrowDiff(t, nil, strings.Repeat("a", 19)+"世"+strings.Repeat("b", 18)+"XYccc")
+
+	want := []string{
+		" 1 - x",
+		" 1 + " + strings.Repeat("a", 19),
+		"     世" + strings.Repeat("b", 18),
+		"     XYccc",
+	}
+	if got := bodyRows(model, len(want)); !slices.Equal(got, want) {
+		t.Errorf("строки диффа %q, want %q", got, want)
+	}
+}
+
+// В split куски левой и правой половины начинаются в разных колонках: слева
+// 世 не влезает в первый кусок, справа ровный ряд символов режется по ширине.
+func TestSplitWrapCutsHalvesIndependently(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", strings.Repeat("a", 19)+"世bbb\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", strings.Repeat("c", 30)+"\n")
+
+	opts := options(repo, layout.Focus())
+	opts.Config.Diff.Mode = "split"
+	model := resize(open(t, opts), 50, 20)
+
+	// половина 25 колонок: номер и знак 5, на код 20
+	want := []string{
+		" 1 - " + strings.Repeat("a", 19) + "  1 + " + strings.Repeat("c", 20),
+		"     世bbb" + strings.Repeat(" ", 15) + "     " + strings.Repeat("c", 10),
+	}
+	if got := bodyRows(model, len(want)); !slices.Equal(got, want) {
+		t.Errorf("строки диффа %q, want %q", got, want)
+	}
+}
+
+// Без переноса после сдвига на 8 колонок широкий символ на краю окна
+// заменяется пробелом: остаток строки стоит в тех же колонках, что у соседних
+// строк. Девятка в колонке 9 и Z в колонке 25 второй строки должны стоять
+// под девяткой и пятёркой линейки в первой.
+func TestShiftReplacesWideCharacterAtLeftEdgeWithSpace(t *testing.T) {
+	model := narrowDiff(t, noWrap,
+		"0123456789"+"0123456789"+"0123456789",
+		"aaaaaaa世9"+strings.Repeat("b", 15)+"Z"+"bbbb",
+	)
+
+	model, _ = model.Update(right)
+
+	want := []string{
+		" 1 + 89012345678901234567",
+		" 2 +  9bbbbbbbbbbbbbbbZbb",
+	}
+	if got := bodyRows(model, 3)[1:]; !slices.Equal(got, want) {
+		t.Errorf("строки диффа %q, want %q", got, want)
 	}
 }
 

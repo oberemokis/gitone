@@ -281,12 +281,12 @@ func shortMode(mode string) string {
 }
 
 // line это строка экрана до отрисовки. Заполнено ровно одно из split, unified
-// и notice. part это номер куска строки файла при переносе, 0 у первого.
+// и notice. chunk это кусок строки файла при переносе (wrap.go).
 type line struct {
 	split   *diff.SplitRow
 	unified *diff.UnifiedRow
 	notice  *notice
-	part    int
+	chunk
 }
 
 // notice это служебная строка вместо строки файла. plain значит текст как

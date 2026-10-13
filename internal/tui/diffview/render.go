@@ -25,9 +25,9 @@ func (m Model) render(line line) string {
 	case line.notice != nil:
 		return m.renderNotice(*line.notice)
 	case line.split != nil:
-		return m.renderSplit(*line.split, line.part)
+		return m.renderSplit(*line.split, line.chunk)
 	default:
-		return m.renderUnified(*line.unified, line.part)
+		return m.renderUnified(*line.unified, line.chunk)
 	}
 }
 
@@ -40,7 +40,7 @@ func (m Model) renderNotice(note notice) string {
 	return style.Render(fill(m.width, note.text))
 }
 
-func (m Model) renderUnified(row diff.UnifiedRow, part int) string {
+func (m Model) renderUnified(row diff.UnifiedRow, at chunk) string {
 	switch row.Kind {
 	case diff.RowGap:
 		return ""
@@ -57,22 +57,23 @@ func (m Model) renderUnified(row diff.UnifiedRow, part int) string {
 	// Один столбец номеров: у строки контекста старый и новый номер
 	// дублировали бы друг друга. Удалённая строка с её старым номером, а
 	// от добавленной с тем же номером её отличают знак и цвет.
-	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.CR, row.Changed, spans, part)
+	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.CR, row.Changed, spans, at, 0)
 }
 
 // renderSplit делит ширину на половины по стыку (split.go). Половина без
 // строки остаётся пустой и без фона, чтобы было видно, с какой стороны строки
 // нет.
-func (m Model) renderSplit(row diff.SplitRow, part int) string {
+func (m Model) renderSplit(row diff.SplitRow, at chunk) string {
 	if row.Kind == diff.RowGap {
 		return ""
 	}
 
 	leftWidth := m.splitLeft()
-	return m.half(leftWidth, row.Kind, row.Left, m.oldCode, part) + m.half(m.width-leftWidth, row.Kind, row.Right, m.newCode, part)
+	return m.half(leftWidth, row.Kind, row.Left, m.oldCode, at, 0) + m.half(m.width-leftWidth, row.Kind, row.Right, m.newCode, at, 1)
 }
 
-func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code, part int) string {
+// half рисует половину split: index 0 у левой, 1 у правой.
+func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code, at chunk, index int) string {
 	switch {
 	case side.Kind == "":
 		return strings.Repeat(" ", width)
@@ -80,7 +81,7 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code,
 		return m.noNewline(width)
 	}
 
-	return m.cell(width, side.Kind, side.Number, side.Text, side.CR, side.Changed, sideCode[side.Number], part)
+	return m.cell(width, side.Kind, side.Number, side.Text, side.CR, side.Changed, sideCode[side.Number], at, index)
 }
 
 // cell рисует строку файла шириной ровно width: отступ, номер, знак и текст,
@@ -89,8 +90,9 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code,
 // знак идут её цветом на своём фоне, светлее фона кода: так изменение видно
 // по краю, даже когда код длинный. Продолжение перенесённой строки (part
 // больше нуля) идёт без номера и знака, с тем же фоном. spans это подсветка
-// синтаксиса строки, cr значок ␍ после текста.
-func (m Model) cell(width int, kind diff.LineKind, number int, text string, cr bool, changed []diff.Span, spans []syntax.Span, part int) string {
+// синтаксиса строки, cr значок ␍ после текста. index 0 у левой стороны, 1 у
+// правой: колонки начала куска у них свои.
+func (m Model) cell(width int, kind diff.LineKind, number int, text string, cr bool, changed []diff.Span, spans []syntax.Span, at chunk, index int) string {
 	base := lipgloss.NewStyle()
 	gutter := base.Foreground(m.colors.TextMuted)
 	wordBg := m.colors.DiffAddedWordBg
@@ -112,12 +114,11 @@ func (m Model) cell(width int, kind diff.LineKind, number int, text string, cr b
 	if !m.hideNumbers {
 		prefix = " " + m.formatNumber(number) + " " + marker + " "
 	}
-	if part > 0 {
+	if at.part > 0 {
 		prefix = strings.Repeat(" ", ansi.StringWidth(prefix))
 	}
 
-	codeWidth := width - ansi.StringWidth(prefix)
-	return gutter.Render(prefix) + m.textCells(codeWidth, m.skip(part, codeWidth), base, wordBg, text, cr, changed, spans)
+	return gutter.Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), m.skip(at, index), base, wordBg, text, cr, changed, spans)
 }
 
 // crMark это значок «␍» после текста строки, чей перевод CRLF отличает её от
@@ -132,32 +133,65 @@ const crMark = "␍"
 // текстом и сдвигается и переносится вместе с ним.
 func (m Model) textCells(width, skip int, base lipgloss.Style, wordBg color.Color, text string, cr bool, changed []diff.Span, code []syntax.Span) string {
 	var out strings.Builder
-	left := max(width, 0)
+	width = max(width, 0)
 
 	parts := pieces(text, changed, code)
 	if cr {
 		parts = append(parts, piece{text: crMark, muted: true})
 	}
 
+	// column это колонка текста, с которой начинается кусок, used занятые клетки
+	column, used := 0, 0
 	for _, piece := range parts {
-		if left == 0 {
+		if column >= skip+width {
 			break
 		}
 
 		content := strings.ReplaceAll(piece.text, "\t", tabSpaces)
-		if pieceWidth := ansi.StringWidth(content); skip >= pieceWidth {
-			skip -= pieceWidth
+		visible := window(content, skip-column, skip+width-column)
+		column += ansi.StringWidth(content)
+		if visible == "" {
 			continue
 		}
-		content = ansi.Truncate(ansi.TruncateLeft(content, skip, ""), left, "")
-		skip = 0
-		style := m.pieceStyle(base, piece, wordBg)
 
-		out.WriteString(style.Render(content))
-		left -= ansi.StringWidth(content)
+		out.WriteString(m.pieceStyle(base, piece, wordBg).Render(visible))
+		used += ansi.StringWidth(visible)
 	}
 
-	return out.String() + base.Render(strings.Repeat(" ", left))
+	return out.String() + base.Render(strings.Repeat(" ", width-used))
+}
+
+// window оставляет от текста колонки с from до to, не включая to; from бывает
+// отрицательным, to больше ширины текста. Кластер, пересекающий левый край,
+// становится пробелами на видимой части: ansi.TruncateLeft оставил бы его
+// целиком, и всё правее съехало бы на колонку. Кластер, пересекающий правый
+// край, отбрасывается, его место добивают пробелами, а целиком он стоит в
+// следующем куске переноса.
+func window(text string, from, to int) string {
+	// куски левее окна и целиком внутри него не режутся посимвольно
+	if size := ansi.StringWidth(text); size <= from {
+		return ""
+	} else if from <= 0 && size <= to {
+		return text
+	}
+
+	var out strings.Builder
+	column := 0
+	for text != "" && column < to {
+		cluster, size := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
+		text = text[len(cluster):]
+
+		start, end := column, column+size
+		column = end
+		switch {
+		case start >= from && end <= to:
+			out.WriteString(cluster)
+		case start < from && end > from:
+			out.WriteString(strings.Repeat(" ", min(end, to)-from))
+		}
+	}
+
+	return out.String()
 }
 
 // pieceStyle красит кусок: цвет категории синтаксиса, фон слова, если слово
