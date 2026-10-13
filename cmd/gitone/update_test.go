@@ -133,6 +133,47 @@ func TestUpdateWindowsMovesOldAside(t *testing.T) {
 	}
 }
 
+// Занятый .old на Windows изображает непустой каталог: удалить его нельзя.
+// Запасной файл тогда получает имя с pid.
+func TestUpdateWindowsOldInUse(t *testing.T) {
+	base := serve(t, release{tag: "v0.4.0", files: map[string]string{"gitone_windows_amd64.exe": fakeBinary("0.4.0")}})
+	exe := installed(t)
+	if err := os.MkdirAll(filepath.Join(exe+".old", "busy"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	u := newUpdater(base, "0.3.0", exe)
+	u.goos = "windows"
+	if _, err := u.run(t.Context()); err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+
+	if got := readFile(t, exe); got != fakeBinary("0.4.0") {
+		t.Errorf("бинарник после run() = %q, want новый", got)
+	}
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe, exe + ".old"}) {
+		t.Errorf("файлы рядом с exe после run() = %q, want exe и занятый .old", got)
+	}
+}
+
+// Сбой второго rename возвращает старый exe на место: без отката update
+// оставил бы пользователя без gitone.
+func TestReplaceWindowsRollsBackOnFailure(t *testing.T) {
+	exe := installed(t)
+
+	err := replace("windows", filepath.Join(t.TempDir(), "missing"), exe)
+
+	if err == nil {
+		t.Error("replace() с отсутствующим новым файлом error = nil, want ошибка")
+	}
+	if got := readFile(t, exe); got != "old" {
+		t.Errorf("exe после неудачного replace() = %q, want прежний", got)
+	}
+	if got := siblings(t, exe); !slices.Equal(got, []string{exe}) {
+		t.Errorf("файлы рядом с exe после неудачного replace() = %q, want только exe", got)
+	}
+}
+
 // Запасной файл с pid на Windows занят, пока старый gitone работает, и убрать
 // его в тот же update нельзя. Следующий update должен найти его и убрать.
 func TestUpdateWindowsRemovesLeftoverOldFiles(t *testing.T) {
@@ -183,6 +224,8 @@ func TestUpdateKeepsBinaryOnFailure(t *testing.T) {
 		{name: "сумма не сошлась", release: release{tag: "v0.4.0", files: good, sums: strings.Repeat("0", 64) + "  gitone_linux_amd64\n"}, current: "0.3.0", wantErr: "checksum"},
 		{name: "нет строки в checksums.txt", release: release{tag: "v0.4.0", files: good, sums: strings.Repeat("0", 64) + "  other\n"}, current: "0.3.0", wantErr: "gitone_linux_amd64"},
 		{name: "нет сборки под систему", release: release{tag: "v0.4.0", files: map[string]string{"gitone_darwin_arm64": fakeBinary("0.4.0")}}, current: "0.3.0", wantErr: "gitone_linux_amd64"},
+		// файла нет, а строка в checksums.txt есть: до загрузки доходит, и 404 не должен уйти в бинарник
+		{name: "строка в checksums.txt есть, файла нет", release: release{tag: "v0.4.0", sums: strings.Repeat("0", 64) + "  gitone_linux_amd64\n"}, current: "0.3.0", wantErr: "gitone_linux_amd64: 404 Not Found"},
 		{name: "бинарник называет не ту версию", release: release{tag: "v0.4.0", files: map[string]string{"gitone_linux_amd64": fakeBinary("0.3.9")}}, current: "0.3.0", wantErr: "0.3.9"},
 		{name: "бинарник не запускается", release: release{tag: "v0.4.0", files: map[string]string{"gitone_linux_amd64": "not a program"}}, current: "0.3.0", wantErr: "does not run"},
 		{name: "сборка из исходников", release: release{tag: "v0.4.0", files: good}, current: "dev", wantErr: "make build"},
@@ -204,6 +247,25 @@ func TestUpdateKeepsBinaryOnFailure(t *testing.T) {
 				t.Errorf("в каталоге после run() %d файлов, want только gitone", len(entries))
 			}
 		})
+	}
+}
+
+// Страница 404 вместо checksums.txt не должна сойти за ответ: ошибка называет
+// запрошенный адрес и статус.
+func TestUpdateChecksumsNotFound(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	base := server.URL + "/releases"
+	exe := installed(t)
+
+	_, err := newUpdater(base, "0.3.0", exe).run(t.Context())
+
+	want := base + "/latest/download/checksums.txt: 404 Not Found"
+	if err == nil || err.Error() != want {
+		t.Errorf("run() error = %v, want %q", err, want)
+	}
+	if got := readFile(t, exe); got != "old" {
+		t.Errorf("бинарник после run() = %q, want нетронутый", got)
 	}
 }
 
