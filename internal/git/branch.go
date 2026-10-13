@@ -13,21 +13,26 @@ type Branch struct {
 }
 
 // Branches возвращает локальные ветки по имени. Текущая помечена. Время
-// относительное, как в логе: «4 minutes ago».
+// относительное, как в логе: «4 minutes ago». Имя берётся срезом двух
+// компонентов refs/heads, а не %(refname:short): рядом с тегом или удалённой
+// веткой того же имени git отдаёт неоднозначное heads/v1. Автор стоит в формате
+// последним и режется по первым трём разделителям: в имени автора разделитель
+// допустим, и такая ветка не должна пропадать.
 func Branches(dir string) ([]Branch, error) {
-	out, err := inRoot(dir, "for-each-ref", "--format=%(refname:short)%1f%(HEAD)%1f%(authorname)%1f%(committerdate:relative)", "refs/heads")
+	out, err := inRoot(dir, "for-each-ref", "--format=%(refname:lstrip=2)%1f%(HEAD)%1f%(committerdate:relative)%1f%(authorname)", "refs/heads")
 	if err != nil {
 		return nil, failed("branch", err)
 	}
 
 	var branches []Branch
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		fields := strings.Split(line, "\x1f")
-		if len(fields) != 4 || fields[0] == "" {
+		fields := strings.SplitN(line, "\x1f", 4)
+		// пустой вывод даёт одну пустую строку, у настоящей ветки полей четыре
+		if len(fields) != 4 {
 			continue
 		}
 
-		branches = append(branches, Branch{Name: fields[0], Current: fields[1] == "*", Author: fields[2], When: fields[3]})
+		branches = append(branches, Branch{Name: fields[0], Current: fields[1] == "*", When: fields[2], Author: fields[3]})
 	}
 
 	return branches, nil

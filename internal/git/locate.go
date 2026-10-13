@@ -13,20 +13,23 @@ type Location struct {
 }
 
 // Locate называет ветку и worktree каталога dir. symbolic-ref знает ветку и в
-// репозитории без коммитов, а rev-parse нужен только для detached HEAD.
+// репозитории без коммитов, а rev-parse нужен только для detached HEAD. Префикс
+// refs/heads/ снимается вручную: --short при теге с именем ветки отдаёт
+// неоднозначное heads/v1. Хэш короткий в 7 символов, как у Worktrees, а не
+// той длины, что выберут core.abbrev и размер репозитория.
 func Locate(dir string) (Location, error) {
 	root, err := topLevel(dir)
 	if err != nil {
 		return Location{}, failed("rev-parse", err)
 	}
 
-	branch, err := run(call{dir: root}, "symbolic-ref", "--quiet", "--short", "HEAD")
+	branch, err := run(call{dir: root}, "symbolic-ref", "--quiet", "HEAD")
 	if err != nil {
-		branch, err = run(call{dir: root}, "rev-parse", "--short", "HEAD")
+		branch, err = run(call{dir: root}, "rev-parse", "--short=7", "HEAD")
 	}
 	if err != nil {
 		return Location{}, failed("rev-parse", err)
 	}
 
-	return Location{Branch: strings.TrimSpace(branch), Worktree: filepath.Base(root)}, nil
+	return Location{Branch: strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/"), Worktree: filepath.Base(root)}, nil
 }
