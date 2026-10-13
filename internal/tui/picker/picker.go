@@ -91,12 +91,18 @@ func (m Model) HandleKey(key tea.KeyPressMsg) (Model, Outcome) {
 		}
 	default:
 		if key.Text != "" {
-			m.query += key.Text
-			m = m.filter()
+			m = m.Type(key.Text)
 		}
 	}
 
 	return m, Pending
+}
+
+// Type дописывает text к запросу, как набранные клавиши: так приходит вставка
+// из буфера.
+func (m Model) Type(text string) Model {
+	m.query += text
+	return m.filter()
 }
 
 // Select ставит выделение на позицию среди найденных (Shown), например по

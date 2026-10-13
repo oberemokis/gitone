@@ -74,13 +74,25 @@ func commitRow(entries []git.LogEntry, from, to int) int {
 	return from
 }
 
-// logShown это коммиты под фильтром поиска: запрос в хэше, теме или авторе.
+// logShown это коммиты под фильтром поиска: запрос в начале хэша либо в теме
+// или авторе. Хэш сравнивается по префиксу: видно семь символов из сорока, и
+// подстрока по всем сорока оставляла бы коммиты, где запрос нигде не виден
+// (#153). Полный хэш из буфера начинается с видимых семи и находит коммит.
 // Ищется по загруженным коммитам, без вызова git. У строк соединения графа
 // текста нет, под фильтром они уходят.
 func (m Model) logShown() []git.LogEntry {
-	return matching(m.logEntries, m.query, func(entry git.LogEntry) string {
-		return entry.Hash + "\x00" + entry.Subject + "\x00" + entry.Author
-	})
+	if m.query == "" {
+		return m.logEntries
+	}
+
+	query := strings.ToLower(m.query)
+	var shown []git.LogEntry
+	for _, entry := range m.logEntries {
+		if strings.HasPrefix(entry.Hash, query) || strings.Contains(strings.ToLower(entry.Subject+"\x00"+entry.Author), query) {
+			shown = append(shown, entry)
+		}
+	}
+	return shown
 }
 
 // Ширина столбцов лога: граф и хэш короткие, автор и дата по самому длинному
@@ -117,7 +129,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 	titles := []string{text.Text("log.column.commit", nil), text.Text("log.column.message", nil), text.Text("log.column.author", nil), text.Text("log.column.date", nil)}
 	authorWidth, dateWidth := ansi.StringWidth(titles[2]), ansi.StringWidth(titles[3])
 	for _, entry := range entries {
-		authorWidth = max(authorWidth, ansi.StringWidth(entry.Author))
+		authorWidth = max(authorWidth, ansi.StringWidth(cellText(entry.Author)))
 		dateWidth = max(dateWidth, ansi.StringWidth(entry.When))
 	}
 	graphWidth := 0
@@ -174,6 +186,16 @@ func graphCell(panel lipgloss.Style, lanes []color.Color, graph string, width in
 	return cell.String()
 }
 
+// tabSpaces это таб в ячейке, как в diffview: Render раскрывает его в четыре
+// пробела, а ansi.StringWidth считает нулевым. Git хранит таб в теме и в имени
+// автора, поэтому ячейку раскрывают до измерения и обрезки (#153). Данные
+// остаются как есть, вид решает окно.
+const tabSpaces = "    "
+
+func cellText(cell string) string {
+	return strings.ReplaceAll(cell, "\t", tabSpaces)
+}
+
 // tableRow собирает строку таблицы лога и окна веток: каждая ячейка своим
 // стилем из styles, обрезана «…» и дополнена пробелами до ширины столбца,
 // между столбцами промежуток.
@@ -183,7 +205,7 @@ func tableRow(panel lipgloss.Style, widths []int, styles []lipgloss.Style, cells
 		if index > 0 {
 			row.WriteString(panel.Render(strings.Repeat(" ", columnGap)))
 		}
-		cell = ansi.Truncate(cell, widths[index], "…")
+		cell = ansi.Truncate(cellText(cell), widths[index], "…")
 		row.WriteString(styles[index].Render(cell + strings.Repeat(" ", widths[index]-ansi.StringWidth(cell))))
 	}
 	return row.String()

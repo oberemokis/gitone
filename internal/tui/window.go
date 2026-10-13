@@ -158,6 +158,26 @@ func (m Model) typeSearch(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// paste кладёт вставку из буфера в открытое текстовое поле: тему коммита,
+// поиск файлов или поиск в списке. Уходит первая строка: перевод строки
+// сработал бы как enter и отправил коммит. Без открытого поля вставка ничего
+// не делает (#153).
+func (m Model) paste(content string) Model {
+	line, _, _ := strings.Cut(content, "\n")
+	line = strings.TrimSuffix(line, "\r")
+
+	switch {
+	case m.active == commitWindow:
+		m.subject += line
+	case m.active == pickerWindow:
+		m.picker = m.picker.Type(line)
+	case m.searching && (m.active == logWindow || m.active == branchWindow || m.active == worktreeWindow):
+		m.query += line
+		m.cursor = 0
+	}
+	return m
+}
+
 // matching оставляет элементы, в тексте которых есть запрос без учёта
 // регистра. Без запроса список как есть.
 func matching[T any](items []T, query string, text func(T) string) []T {
@@ -209,7 +229,8 @@ const (
 
 // withSearch ставит над строками поле поиска, пока оно открыто или фильтр не
 // снят: «/ запрос», при наборе с курсором и подсказкой поля. Пустой список под
-// фильтром говорит noMatches.
+// запросом говорит noMatches. Открытое поле с пустым запросом фильтром не
+// считается, там остаётся текст пустого списка (#153).
 func (l list) withSearch(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, query string, typing bool, noMatches string) list {
 	if !typing && query == "" {
 		return l
@@ -221,7 +242,9 @@ func (l list) withSearch(colors theme.Theme, text i18n.Dictionary, keys keymap.K
 		l.search += panel.Background(colors.Primary).Render(" ")
 		l.hint = windowHint(colors, keys, text, keymap.ListSearchDone, keymap.ListSearchCancel)
 	}
-	l.empty = []string{noMatches}
+	if query != "" {
+		l.empty = []string{noMatches}
+	}
 	return l
 }
 
@@ -244,10 +267,10 @@ func (l list) rowWidth(screenWidth int) int {
 // прокручивается так, чтобы курсор оставался видимым.
 func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	width := l.windowWidth(screenWidth)
-	// без отступов окна, заголовка с пустой строкой под ним и подсказки с
-	// пустой строкой над ней, заголовков столбцов и поиска с пустой строкой
-	// под ним
-	chrome := 7
+	// без двух отступов окна, заголовка с пустой строкой под ним и подсказки
+	// с пустой строкой над ней (по две строки), заголовков столбцов (одна) и
+	// поиска с пустой строкой под ним (две) (#153)
+	chrome := 6
 	if l.header != "" {
 		chrome++
 	}
@@ -256,7 +279,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	}
 	shown := max(min(len(l.rows), screenHeight-chrome), 1)
 	if l.fill {
-		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-chrome+1, 1)
+		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-chrome, 1)
 	}
 	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
 	content := width - 2*windowPaddingX
@@ -296,7 +319,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	}
 
 	// окно на весь экран держит высоту и с коротким списком
-	for l.fill && len(lines) < shown+chrome-5 {
+	for l.fill && len(lines) < shown+chrome-4 {
 		lines = append(lines, "")
 	}
 

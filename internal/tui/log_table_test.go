@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -19,6 +20,13 @@ import (
 func tableLog(t *testing.T, subjects, authors []string) []string {
 	t.Helper()
 
+	return tableLogAt(t, subjects, authors, 140)
+}
+
+// tableLogAt это tableLog на экране шириной width.
+func tableLogAt(t *testing.T, subjects, authors []string, width int) []string {
+	t.Helper()
+
 	repo := newRepo(t)
 	for index, subject := range subjects {
 		write(t, repo, "a.txt", subject+"\n")
@@ -27,7 +35,7 @@ func tableLog(t *testing.T, subjects, authors []string) []string {
 		runGit(t, repo, "commit", "-q", "-m", subject)
 	}
 
-	model := resize(open(t, options(repo, layout.Focus())), 140, 40)
+	model := resize(open(t, options(repo, layout.Focus())), width, 40)
 	return screenOf(openAsync(model, key('l')))
 }
 
@@ -107,6 +115,40 @@ func TestLogLongCellsAreCut(t *testing.T) {
 	}
 }
 
+// Таб в теме или в имени автора рисуется четырьмя пробелами, и столбцы остаются
+// на местах: автор и дата начинаются под своими заголовками (#153).
+func TestLogTabInCellsKeepsColumns(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		subjects []string
+		authors  []string
+		tabbed   string
+	}{
+		{name: "tab in subject", subjects: []string{"plain", "tab\tsubject"}, authors: []string{"ann", "bob"}, tabbed: "tab    s"},
+		{name: "tab in author", subjects: []string{"plain", "other"}, authors: []string{"ann", "bob\tx"}, tabbed: "bob    x"},
+	} {
+		for _, width := range []int{120, 70} {
+			t.Run(fmt.Sprintf("%s at %d", tc.name, width), func(t *testing.T) {
+				screen := tableLogAt(t, tc.subjects, tc.authors, width)
+
+				header, plain, tabbed := rowWith(t, screen, "Author"), rowWith(t, screen, "ann"), rowWith(t, screen, tc.tabbed)
+				for _, pair := range []struct{ title, text, other string }{
+					{title: "Author", text: "ann", other: "bob"},
+					{title: "Date", text: relativeDate.FindString(plain), other: relativeDate.FindString(tabbed)},
+				} {
+					want := column(header, pair.title)
+					if got := column(plain, pair.text); got != want {
+						t.Errorf("%q с колонки %d, заголовок %q с %d:\n%s\n%s", pair.text, got, pair.title, want, header, plain)
+					}
+					if got := column(tabbed, pair.other); got != want {
+						t.Errorf("%q с колонки %d, заголовок %q с %d:\n%s\n%s", pair.other, got, pair.title, want, header, tabbed)
+					}
+				}
+			})
+		}
+	}
+}
+
 // В окне worktree ветка цветом accent, путь приглушённый.
 func TestWorktreeColors(t *testing.T) {
 	_, model := threeFileRepo(t)
@@ -171,6 +213,31 @@ func TestBranchColumnsLineUp(t *testing.T) {
 	}
 	if !strings.Contains(long, "bob with a very lon…") {
 		t.Errorf("длинный автор не обрезан до 20 колонок: %q", long)
+	}
+}
+
+// Таб в имени автора последнего коммита ветки рисуется четырьмя пробелами,
+// автор не обрезан, а дата стоит под своим заголовком (#153).
+func TestBranchTabInAuthorKeepsColumns(t *testing.T) {
+	repo := newRepo(t)
+	t.Setenv("GIT_AUTHOR_NAME", "ann")
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "other")
+	t.Setenv("GIT_AUTHOR_NAME", "bob\tx")
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+
+	model := resize(open(t, options(repo, layout.Focus())), 120, 40)
+	screen := screenOf(openAsync(model, key('B')))
+
+	header, plain, tabbed := rowWith(t, screen, "Author"), rowWith(t, screen, "main"), rowWith(t, screen, "bob    x")
+	want := column(header, "Date")
+	for _, row := range []string{plain, tabbed} {
+		if got := column(row, relativeDate.FindString(row)); got != want {
+			t.Errorf("дата с колонки %d, заголовок с %d:\n%s\n%s", got, want, header, row)
+		}
 	}
 }
 

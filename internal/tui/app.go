@@ -178,6 +178,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resize()
 	case tea.KeyPressMsg:
 		return m.keyPress(msg)
+	case tea.PasteMsg:
+		m = m.paste(msg.Content)
 	// окно лежит поверх диффа: крутить то, что закрыто, нечем и незачем (#150).
 	// Вопрос discard окна не рисует, под ним дифф виден и крутится.
 	case tea.MouseWheelMsg:
@@ -523,6 +525,7 @@ func pickerBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, fil
 		close:  closeHint(colors, keys, text, keymap.SearchClose),
 		width:  90,
 		cursor: files.Selected(),
+		empty:  []string{noMatches},
 	}.withSearch(colors, text, keys, files.Query(), true, noMatches)
 	box.hint = windowHint(colors, keys, text, keymap.SearchChoose)
 
