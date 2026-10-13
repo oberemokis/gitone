@@ -57,6 +57,11 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.active == pickerWindow {
 		return m.pickerKey(key)
 	}
+	// ctrl+c зашит и здесь, как в окнах: app.quit можно отключить, а выход
+	// из приложения не должен теряться из-за конфига
+	if key.String() == "ctrl+c" {
+		return m, tea.Quit
+	}
 	if next, handled := m.helpKey(key.String()); handled {
 		return next, nil
 	}
