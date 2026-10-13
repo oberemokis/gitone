@@ -42,6 +42,7 @@
   "branches.column.date": "Date",
   "branches.column.name": "Branch",
   "branches.current": "(current)",
+  "branches.empty": "No branches",
   "branches.title": "Branches",
   "category.diff": "Diff",
   "category.files": "Files",

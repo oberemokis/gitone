@@ -525,6 +525,7 @@ func pickerBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, fil
 		close:  closeHint(colors, keys, text, keymap.SearchClose),
 		width:  90,
 		cursor: files.Selected(),
+		empty:  []string{noMatches},
 	}.withSearch(colors, text, keys, files.Query(), true, noMatches)
 	box.hint = windowHint(colors, keys, text, keymap.SearchChoose)
 

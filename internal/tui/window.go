@@ -229,7 +229,8 @@ const (
 
 // withSearch ставит над строками поле поиска, пока оно открыто или фильтр не
 // снят: «/ запрос», при наборе с курсором и подсказкой поля. Пустой список под
-// фильтром говорит noMatches.
+// запросом говорит noMatches. Открытое поле с пустым запросом фильтром не
+// считается, там остаётся текст пустого списка (#153).
 func (l list) withSearch(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, query string, typing bool, noMatches string) list {
 	if !typing && query == "" {
 		return l
@@ -241,7 +242,9 @@ func (l list) withSearch(colors theme.Theme, text i18n.Dictionary, keys keymap.K
 		l.search += panel.Background(colors.Primary).Render(" ")
 		l.hint = windowHint(colors, keys, text, keymap.ListSearchDone, keymap.ListSearchCancel)
 	}
-	l.empty = []string{noMatches}
+	if query != "" {
+		l.empty = []string{noMatches}
+	}
 	return l
 }
 
