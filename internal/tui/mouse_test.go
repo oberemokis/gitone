@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -130,6 +131,82 @@ func TestWheelUnderDiscardQuestionScrollsDiff(t *testing.T) {
 
 	if top := topNumber(t, screenOf(model)); top != 4 {
 		t.Fatalf("верхняя строка диффа %d, want 4", top)
+	}
+}
+
+// clock это управляемые часы: время стоит, пока тест его не сдвинул.
+type clock struct{ now time.Time }
+
+func (c *clock) Now() time.Time { return c.now }
+
+// searchOverPanel открывает поиск файлов ctrl+p поверх панели файлов в
+// репозитории из файлов a1.txt … a8.txt на экране 100 на 20. Окно закрывает
+// край панели: строка a3.txt в окне и седьмая строка панели, a7.txt, стоят в
+// одной клетке экрана.
+func searchOverPanel(t *testing.T) (tea.Model, *clock) {
+	t.Helper()
+
+	repo := newRepo(t)
+	names := []string{"a1.txt", "a2.txt", "a3.txt", "a4.txt", "a5.txt", "a6.txt", "a7.txt", "a8.txt"}
+	for _, name := range names {
+		write(t, repo, name, "old\n")
+	}
+	commitAll(t, repo)
+	for _, name := range names {
+		write(t, repo, name, "new\n")
+	}
+
+	ticking := &clock{now: time.Date(2026, time.October, 13, 12, 0, 0, 0, time.UTC)}
+	opts := options(repo, layout.Default())
+	opts.Now = ticking.Now
+	model := resize(open(t, opts), 100, 20)
+	model, _ = model.Update(key('f'))
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	return model, ticking
+}
+
+// lastLocate находит клетку последнего места экрана, где написан text: строка
+// окна стоит ниже одноимённой строки панели.
+func lastLocate(t *testing.T, model tea.Model, text string) (x, y int) {
+	t.Helper()
+
+	screen := screenOf(model)
+	for y := len(screen) - 1; y >= 0; y-- {
+		if x := column(screen[y], text); x >= 0 {
+			return x, y
+		}
+	}
+
+	t.Fatalf("на экране нет %q:\n%s", text, screenText(model))
+	return 0, 0
+}
+
+// Второй клик двойного клика попадает в панель файлов под закрывшимся окном
+// и открыл бы другой файл: клик в ту же клетку в течение 400 мс отбрасывается.
+func TestDoubleClickAfterWindowClosesIsIgnored(t *testing.T) {
+	model, ticking := searchOverPanel(t)
+	x, y := lastLocate(t, model, "a3.txt")
+
+	model = clickAt(model, x, y)
+	ticking.now = ticking.now.Add(100 * time.Millisecond)
+	model = clickAt(model, x, y)
+
+	if opened := openedFile(screenOf(model)); opened != "a3.txt" {
+		t.Fatalf("открыт %s, want a3.txt", opened)
+	}
+}
+
+// Через секунду клик в ту же клетку уже обычный и открывает файл панели.
+func TestClickInSameCellLaterWorks(t *testing.T) {
+	model, ticking := searchOverPanel(t)
+	x, y := lastLocate(t, model, "a3.txt")
+
+	model = clickAt(model, x, y)
+	ticking.now = ticking.now.Add(time.Second)
+	model = clickAt(model, x, y)
+
+	if opened := openedFile(screenOf(model)); opened != "a7.txt" {
+		t.Fatalf("открыт %s, want a7.txt", opened)
 	}
 }
 

@@ -3,6 +3,7 @@ package tui
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -19,15 +20,42 @@ const (
 	fileTarget  = "file:"
 )
 
-// click делает то, что лежит под мышью (#119). Место ищется по тому же
-// рисунку, что выводит View, поэтому клик не расходится с экраном. Вопрос
-// discard клики не принимает: справка под ним видна, но из неё нельзя
-// безопасно выполнить действие, а ответ на вопрос идёт клавишей (#150).
+// Двойной клик по строке окна закрывает окно первым кликом, а вторым попадает
+// в панель под ним (#150). Клик в ту же клетку быстрее этого времени после
+// клика, закрывшего окно, отбрасывается.
+const doubleClick = 400 * time.Millisecond
+
+// closedClick это клик, закрывший окно: когда и в какой клетке.
+type closedClick struct {
+	at   time.Time
+	x, y int
+}
+
+// click принимает клик, если ему есть куда попасть, и помнит тот, что закрыл
+// окно. Вопрос discard клики не принимает: справка под ним видна, но из неё
+// нельзя безопасно выполнить действие, а ответ на вопрос идёт клавишей.
 func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
-	if m.active == discardWindow {
+	if m.active == discardWindow || m.repeatsClosing(x, y) {
 		return m, nil
 	}
 
+	next, cmd := m.clickZone(x, y)
+	if after, isModel := next.(Model); isModel && m.active != noWindow && after.active == noWindow {
+		after.closing = closedClick{at: m.now(), x: x, y: y}
+		return after, cmd
+	}
+	return next, cmd
+}
+
+// repeatsClosing говорит, что клик в клетку x, y повторяет только что
+// закрывший окно клик.
+func (m Model) repeatsClosing(x, y int) bool {
+	return x == m.closing.x && y == m.closing.y && m.now().Sub(m.closing.at) < doubleClick
+}
+
+// clickZone делает то, что лежит под мышью (#119). Место ищется по тому же
+// рисунку, что выводит View, поэтому клик не расходится с экраном.
+func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 	_, zones := m.screen()
 	target := zone.At(zones, x, y, button)
 

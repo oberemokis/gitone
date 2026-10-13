@@ -13,14 +13,22 @@ import (
 func clickOn(t *testing.T, model tea.Model, text string) tea.Model {
 	t.Helper()
 
+	x, y := locate(t, model, text)
+	return clickAt(model, x, y)
+}
+
+// locate находит клетку первого места экрана, где написан text.
+func locate(t *testing.T, model tea.Model, text string) (x, y int) {
+	t.Helper()
+
 	for y, line := range screenOf(model) {
 		if x := column(line, text); x >= 0 {
-			return clickAt(model, x, y)
+			return x, y
 		}
 	}
 
 	t.Fatalf("на экране нет %q:\n%s", text, screenText(model))
-	return nil
+	return 0, 0
 }
 
 func clickAt(model tea.Model, x, y int) tea.Model {
