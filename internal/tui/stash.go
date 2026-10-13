@@ -28,15 +28,15 @@ func stashPushCmd(dir string) tea.Cmd {
 	}
 }
 
-func stashApplyCmd(dir, ref string) tea.Cmd {
+func stashApplyCmd(dir string, stash git.Stash) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.StashApply(dir, ref)}
+		return actionDoneMsg{err: git.StashApply(dir, stash)}
 	}
 }
 
-func stashDropCmd(dir, ref string) tea.Cmd {
+func stashDropCmd(dir string, stash git.Stash) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.StashDrop(dir, ref)}
+		return actionDoneMsg{err: git.StashDrop(dir, stash)}
 	}
 }
 
@@ -50,16 +50,20 @@ func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	ref := m.stashes[m.cursor].Ref
+	stash := m.stashes[m.cursor]
 	pressed := key.String()
 	switch {
 	case m.keys.Is(keymap.StashDiff, pressed):
 		m.active = noWindow
-		m.args = []string{ref + "^!"}
+		// stash это коммит слияния HEAD и индекса: <хэш>^! дал бы комбинированный
+		// diff --cc. Родитель и сам stash дают обычный дифф, как git stash show -p.
+		// Хэш, а не stash@{N}: перечитывание не уйдёт на другой stash после
+		// внешнего git stash push.
+		m.args = []string{stash.Hash + "^1", stash.Hash}
 		return m.startReload()
 	case m.keys.Is(keymap.StashApply, pressed):
 		m.active = noWindow
-		return m, stashApplyCmd(m.dir, ref)
+		return m, stashApplyCmd(m.dir, stash)
 	case m.keys.Is(keymap.StashDrop, pressed):
 		m.active = stashDropWindow
 	}
@@ -77,7 +81,7 @@ func (m Model) answerStashDrop(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.active = noWindow
-	return m, stashDropCmd(m.dir, m.stashes[m.cursor].Ref)
+	return m, stashDropCmd(m.dir, m.stashes[m.cursor])
 }
 
 // stashBox рисует список stash. Вопрос об удалении стоит в последней строке

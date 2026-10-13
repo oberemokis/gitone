@@ -59,6 +59,7 @@
   "files.title": "Files",
   "git.noPaths": "no files to change",
   "git.nothingToStash": "no changes to save in stash",
+  "git.stashChanged": "stash changed, reopen the list",
   "git.submoduleDiscard": "submodule \"{path}\" cannot be discarded",
   "help.title": "Hotkeys",
   "json.extraText": "extra text after JSON",

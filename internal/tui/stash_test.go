@@ -36,6 +36,191 @@ func TestStashFromApp(t *testing.T) {
 	}
 }
 
+// Stash это коммит слияния HEAD и индекса, и git diff stash@{0}^! отдаёт для
+// него комбинированный diff --cc одной сырой записью. Дифф берётся как у
+// git stash show -p: правка вне индекса и правка в индексе идут обычными
+// файлами.
+func TestStashDiffShowsWorktreeAndIndexFiles(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	write(t, repo, "s.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	write(t, repo, "s.txt", "two\n")
+	runGit(t, repo, "add", "s.txt")
+	runGit(t, repo, "stash", "push", "-q")
+
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	model = settle(model, cmd, 4)
+	model, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, cmd, 4)
+
+	screen := screenOf(model)
+	if got := openedFile(screen); got != "a.txt" {
+		t.Fatalf("первый файл диффа stash %q, ожидался a.txt:\n%s", got, strings.Join(screen, "\n"))
+	}
+	if body := strings.Join(screen, "\n"); strings.Contains(body, "diff --cc") || !strings.Contains(body, "two") {
+		t.Fatalf("дифф a.txt не обычный:\n%s", body)
+	}
+
+	model, _ = model.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
+	screen = screenOf(model)
+	if got := openedFile(screen); got != "s.txt" {
+		t.Fatalf("второй файл диффа stash %q, ожидался s.txt:\n%s", got, strings.Join(screen, "\n"))
+	}
+}
+
+// Внешний git stash push сдвигает stash@{0}: открытый дифф держит свой stash
+// по хэшу и при перечитывании не переходит на новый.
+func TestStashDiffSurvivesExternalPush(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "stash", "push", "-q")
+
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	model = settle(model, cmd, 4)
+	model, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, cmd, 4)
+
+	write(t, repo, "a.txt", "three\n")
+	runGit(t, repo, "stash", "push", "-q")
+	model = pressReload(t, model)
+
+	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "two") || strings.Contains(body, "three") {
+		t.Fatalf("после перечитывания на экране не тот stash:\n%s", body)
+	}
+}
+
+// openStaleStashWindow открывает окно Z с одним stash «two» и после этого
+// кладёт в stash «three» из соседнего терминала: stash@{0} теперь другой
+// stash, чем строка в окне. Рабочее дерево после обоих stash чистое, a.txt «one».
+func openStaleStashWindow(t *testing.T) (string, tea.Model) {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "stash", "push", "-q")
+
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	model = settle(model, cmd, 4)
+
+	write(t, repo, "a.txt", "three\n")
+	runGit(t, repo, "stash", "push", "-q")
+
+	return repo, model
+}
+
+// Строка окна выбрана до внешнего git stash push. d, y не удаляют ни её, ни
+// новый stash: пользователь выбирал строку, а stash@{0} теперь другой.
+func TestStashDropRefusesAfterExternalPush(t *testing.T) {
+	repo, model := openStaleStashWindow(t)
+	before := runGit(t, repo, "stash", "list")
+
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	model = settle(model, cmd, 4)
+
+	if after := runGit(t, repo, "stash", "list"); after != before {
+		t.Fatalf("список stash изменился:\nдо:\n%s\nпосле:\n%s", before, after)
+	}
+	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "stash changed, reopen the list") {
+		t.Fatalf("отказа нет в подвале:\n%s", body)
+	}
+}
+
+// То же для a: применился бы новый stash «three», а выбран был «two».
+func TestStashApplyRefusesAfterExternalPush(t *testing.T) {
+	repo, model := openStaleStashWindow(t)
+
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	model = settle(model, cmd, 4)
+
+	if got := readText(t, repo+"/a.txt"); got != "one\n" {
+		t.Fatalf("после a файл %q, ожидался отказ без изменений", got)
+	}
+	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "stash changed, reopen the list") {
+		t.Fatalf("отказа нет в подвале:\n%s", body)
+	}
+}
+
+// openTwoStashes открывает окно Z с двумя stash: нижний stash@{1} хранит «two»,
+// верхний stash@{0} «three». Рабочее дерево чистое, a.txt «one».
+func openTwoStashes(t *testing.T) (string, tea.Model) {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "stash", "push", "-q")
+	write(t, repo, "a.txt", "three\n")
+	runGit(t, repo, "stash", "push", "-q")
+
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	return repo, settle(model, cmd, 4)
+}
+
+// Курсор на втором stash: d, y удаляют его, а не первый.
+func TestStashDropTakesStashUnderCursor(t *testing.T) {
+	repo, model := openTwoStashes(t)
+
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	settle(model, cmd, 4)
+
+	if count := len(strings.Split(runGit(t, repo, "stash", "list"), "\n")); count != 1 {
+		t.Fatalf("в списке %d stash, ожидался один", count)
+	}
+	if got := runGit(t, repo, "show", "stash@{0}:a.txt"); got != "three" {
+		t.Fatalf("остался stash с %q, ожидался верхний с \"three\"", got)
+	}
+}
+
+// Курсор на втором stash: a применяет его, а не первый.
+func TestStashApplyTakesStashUnderCursor(t *testing.T) {
+	repo, model := openTwoStashes(t)
+
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	settle(model, cmd, 4)
+
+	if got := readText(t, repo+"/a.txt"); got != "two\n" {
+		t.Fatalf("после a файл %q, ожидалось содержимое нижнего stash \"two\\n\"", got)
+	}
+}
+
+// enter в окне stash закрывает окно и открывает дифф выбранного stash.
+func TestStashEnterOpensDiffAndClosesWindow(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "stash", "push", "-q")
+
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	model = settle(model, cmd, 4)
+	model, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = settle(model, cmd, 4)
+
+	screen := screenOf(model)
+	if body := strings.Join(screen, "\n"); strings.Contains(body, "Stash") {
+		t.Fatalf("окно stash осталось открытым:\n%s", body)
+	}
+	if got := openedFile(screen); got != "a.txt" {
+		t.Fatalf("открыт %q, ожидался дифф a.txt:\n%s", got, strings.Join(screen, "\n"))
+	}
+}
+
 // d спрашивает, удаляет stash только y.
 func TestStashDropNeedsYes(t *testing.T) {
 	repo := newRepo(t)

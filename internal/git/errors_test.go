@@ -22,7 +22,7 @@ func TestErrorsNameOperationOnce(t *testing.T) {
 			return git.Switch(repo, "ghost")
 		}},
 		{name: "применение несуществующего stash", prefix: "stash apply: ", call: func(repo string) error {
-			return git.StashApply(repo, "stash@{5}")
+			return git.StashApply(repo, git.Stash{Ref: "stash@{5}", Hash: "0000000000000000000000000000000000000000"})
 		}},
 		{name: "дифф вне репозитория", prefix: "diff: ", call: func(string) error {
 			_, err := git.Diff(t.TempDir(), nil)
