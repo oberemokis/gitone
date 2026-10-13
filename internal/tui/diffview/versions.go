@@ -68,13 +68,20 @@ func (m Model) UseVersions(key string) (Model, bool) {
 }
 
 // wholeFile размечает версию файла целиком, строки нумеруются с единицы, как
-// в хунках. Без версии nil.
+// в хунках. Без версии nil. Строки очищаются так же, как строки диффа (конец
+// CRLF срезан, управляющие символы значками): отрезки подсветки считаются в
+// байтах и должны ложиться на текст, который стоит на экране, а значок в
+// три байта сдвинул бы их.
 func wholeFile(lexer syntax.Lexer, content []byte) code {
 	if content == nil {
 		return nil
 	}
 
 	lines := strings.Split(strings.TrimSuffix(string(content), "\n"), "\n")
+	for index, line := range lines {
+		lines[index] = diff.Printable(strings.TrimSuffix(line, "\r"))
+	}
+
 	result := code{}
 	for index, spans := range lexer.Lines(lines) {
 		result[index+1] = spans
