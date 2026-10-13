@@ -63,6 +63,10 @@ func TestKinds(t *testing.T) {
 		{name: "go: nil", path: "a.go", lines: goLines, line: 3, text: "nil", want: syntax.Constant},
 		{name: "ts: ключевое слово", path: "a.ts", lines: tsLines, line: 0, text: "const", want: syntax.Keyword},
 		{name: "ts: await", path: "a.ts", lines: tsLines, line: 0, text: "await", want: syntax.Keyword},
+		// (identifier) @variable стоит в запросе первым и без цвета не должно
+		// занимать имя вызова (#140)
+		{name: "ts: вызов функции", path: "a.ts", lines: tsLines, line: 0, text: "fetch", want: syntax.Function},
+		{name: "ts: конструктор", path: "a.ts", lines: tsLines, line: 2, text: "Error", want: syntax.Function},
 		{name: "ts: свойство", path: "a.ts", lines: tsLines, line: 1, text: "ok", want: syntax.Property},
 		{name: "ts: оператор", path: "a.ts", lines: tsLines, line: 1, text: "||", want: syntax.Operator},
 		{name: "ts: шаблонная строка", path: "a.ts", lines: tsLines, line: 2, text: "`Failed", want: syntax.String},
