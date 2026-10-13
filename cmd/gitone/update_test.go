@@ -1,15 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 )
 
 // release это релиз на локальном сервере: последняя версия и файлы по
@@ -212,6 +217,68 @@ func TestUpdateWithoutWritePermission(t *testing.T) {
 	if got := readFile(t, exe); got != "old" {
 		t.Errorf("бинарник после run() = %q, want нетронутый", got)
 	}
+}
+
+// roundTripFunc это транспорт из функции: тест отдаёт ответ сам, без сети.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+// drip отдаёт тело кусками по килобайту с паузой между ними. С hang после
+// последнего куска тело молчит и не заканчивается, как повисшее соединение.
+// Отмена запроса обрывает тело, как у настоящего транспорта. Паузы идут по
+// часам пузыря synctest, настоящего ожидания нет.
+func drip(chunks int, gap time.Duration, hang bool) http.RoundTripper {
+	return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, writer := io.Pipe()
+		go func() {
+			<-req.Context().Done()
+			writer.CloseWithError(context.Cause(req.Context()))
+		}()
+		go func() {
+			for range chunks {
+				time.Sleep(gap)
+				writer.Write(bytes.Repeat([]byte("x"), 1024))
+			}
+			if !hang {
+				writer.Close()
+			}
+		}()
+
+		return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: body}, nil
+	})
+}
+
+// Загрузка дольше таймаута простоя проходит, пока байты идут: общего потолка
+// на неё нет. Бинарник около 27 МБ на медленном канале иначе не скачать.
+func TestFetchSlowBodyWithinIdleTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		u := updater{client: &http.Client{Transport: drip(6, 100*time.Millisecond, false)}, idle: 300 * time.Millisecond}
+
+		body, _, err := u.fetch(t.Context(), "https://example.test/gitone")
+
+		if err != nil {
+			t.Fatalf("fetch() error = %v", err)
+		}
+		if len(body) != 6*1024 {
+			t.Errorf("fetch() отдал %d байт, want %d", len(body), 6*1024)
+		}
+	})
+}
+
+func TestFetchStalledBody(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		u := updater{client: &http.Client{Transport: drip(2, 100*time.Millisecond, true)}, idle: 300 * time.Millisecond}
+
+		_, _, err := u.fetch(t.Context(), "https://example.test/gitone")
+
+		want := "https://example.test/gitone: no data for 300ms, nothing was installed"
+		if err == nil || err.Error() != want {
+			t.Errorf("fetch() error = %v, want %q", err, want)
+		}
+	})
 }
 
 func TestNewer(t *testing.T) {

@@ -116,6 +116,7 @@
   "update.noChecksum": "checksums.txt has no line for {asset}, nothing was installed",
   "update.noPermission": "cannot write to {dir}, run: sudo {exe} update",
   "update.noVersion": "cannot find the release version in {url}",
+  "update.stalled": "{url}: no data for {timeout}, nothing was installed",
   "update.upToDate": "gitone {version} is the latest version",
   "update.wrongVersion": "the downloaded gitone reports \"{got}\" instead of \"{want}\", nothing was installed",
   "window.close": "close",
