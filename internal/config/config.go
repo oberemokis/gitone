@@ -146,10 +146,13 @@ func decodeStrict(data []byte, target any) error {
 }
 
 // Dir возвращает каталог настроек: $XDG_CONFIG_HOME/gitone, а без переменной
-// ~/.config/gitone. Переменные передаются снаружи, чтобы функция не читала
+// ~/.config/gitone. Относительный $XDG_CONFIG_HOME (чаще нераскрытая тильда из
+// launchctl или environment.d) игнорируется, как велит спецификация XDG: его
+// путь считался бы от просматриваемого репозитория, и репозиторий подставлял
+// бы свои настройки. Переменные передаются снаружи, чтобы функция не читала
 // окружение и проверялась таблицей.
 func Dir(xdgConfigHome, home string) string {
-	if xdgConfigHome != "" {
+	if filepath.IsAbs(xdgConfigHome) {
 		return filepath.Join(xdgConfigHome, "gitone")
 	}
 

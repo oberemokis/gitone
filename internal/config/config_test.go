@@ -148,6 +148,10 @@ func TestDir(t *testing.T) {
 	}{
 		{name: "XDG задан", xdg: "/x", home: "/h", want: "/x/gitone"},
 		{name: "XDG не задан", home: "/h", want: "/h/.config/gitone"},
+		// спецификация XDG велит игнорировать относительный путь: от cwd он
+		// указал бы на просматриваемый репозиторий
+		{name: "XDG относительный", xdg: "cfg", home: "/h", want: "/h/.config/gitone"},
+		{name: "XDG с нераскрытой тильдой", xdg: "~/.config", home: "/h", want: "/h/.config/gitone"},
 	}
 
 	for _, tc := range tests {
