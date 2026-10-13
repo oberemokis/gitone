@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -26,6 +27,14 @@ func TestErrorsNameOperationOnce(t *testing.T) {
 		}},
 		{name: "дифф вне репозитория", prefix: "diff: ", call: func(string) error {
 			_, err := git.Diff(t.TempDir(), nil)
+			return err
+		}},
+		{name: "pull ветки без upstream", prefix: "pull: ", call: func(repo string) error {
+			_, err := git.Pull(context.Background(), repo)
+			return err
+		}},
+		{name: "push без origin", prefix: "push: ", call: func(repo string) error {
+			_, err := git.Push(context.Background(), repo)
 			return err
 		}},
 	}

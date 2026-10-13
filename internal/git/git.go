@@ -2,6 +2,7 @@ package git
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -196,6 +197,9 @@ func inRoot(dir string, args ...string) (string, error) {
 }
 
 type call struct {
+	// ctx отменяет команду, убивая git вместе с детьми (stopGroup). Нужен долгим
+	// вызовам, которые ходят по сети: pull и push. nil значит без отмены.
+	ctx   context.Context
 	dir   string
 	env   []string
 	stdin string
@@ -246,7 +250,12 @@ func failed(operation string, err error) error {
 
 // run запускает git и возвращает его вывод. Отказ git приходит как *gitError.
 func run(options call, args ...string) (string, error) {
-	command := exec.Command("git", append(append([]string{}, configFlags...), args...)...)
+	args = append(append([]string{}, configFlags...), args...)
+	command := exec.Command("git", args...)
+	if options.ctx != nil {
+		command = exec.CommandContext(options.ctx, "git", args...)
+		stopGroup(command)
+	}
 	command.Dir = options.dir
 	command.Stdin = strings.NewReader(options.stdin)
 	// GIT_OPTIONAL_LOCKS=0: чтение диффа не берёт index.lock, иначе

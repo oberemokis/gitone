@@ -67,6 +67,7 @@
   "files.noMatches": "No matching files",
   "files.none": "No files",
   "files.title": "Files",
+  "git.detachedHead": "HEAD is detached, switch to a branch first",
   "git.noPaths": "no files to change",
   "git.nothingToCommit": "nothing to commit",
   "git.nothingToStash": "no changes to save in stash",
