@@ -36,6 +36,15 @@ func TestLocate(t *testing.T) {
 			},
 			want: func(string) git.Location { return git.Location{Branch: "side", Worktree: "side-tree"} },
 		},
+		{
+			name: "тег с именем ветки",
+			prepare: func(t *testing.T, repo string) string {
+				runGit(t, repo, "switch", "-q", "-c", "v1")
+				runGit(t, repo, "tag", "v1")
+				return repo
+			},
+			want: func(repo string) git.Location { return git.Location{Branch: "v1", Worktree: filepath.Base(repo)} },
+		},
 	}
 
 	for _, tc := range tests {
@@ -69,6 +78,33 @@ func TestLocateDetachedShowsShortHash(t *testing.T) {
 	}
 	if got.Branch != hash {
 		t.Fatalf("Branch = %q, want короткий хэш %q", got.Branch, hash)
+	}
+}
+
+// Длина хэша не зависит от core.abbrev: подвал (Locate) и окно worktree
+// (Worktrees) показывают для detached HEAD одни и те же 7 символов.
+func TestLocateDetachedHashMatchesWorktreesDespiteAbbrev(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "config", "core.abbrev", "12")
+	hash := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	runGit(t, repo, "switch", "-q", "--detach")
+
+	got, err := git.Locate(repo)
+	if err != nil {
+		t.Fatalf("Locate: %v", err)
+	}
+	if got.Branch != hash[:7] {
+		t.Fatalf("Locate.Branch = %q, want %q", got.Branch, hash[:7])
+	}
+
+	worktrees, err := git.Worktrees(repo)
+	if err != nil {
+		t.Fatalf("Worktrees: %v", err)
+	}
+	if len(worktrees) != 1 || worktrees[0].Branch != hash[:7] {
+		t.Fatalf("Worktrees = %+v, want одно дерево с веткой %q", worktrees, hash[:7])
 	}
 }
 
