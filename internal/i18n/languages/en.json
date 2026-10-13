@@ -139,6 +139,9 @@
   "update.upToDate": "gitone {version} is the latest version",
   "update.wrongVersion": "the downloaded gitone reports \"{got}\" instead of \"{want}\", nothing was installed",
   "window.close": "close",
+  "worktrees.column.branch": "Branch",
+  "worktrees.column.name": "Worktree",
+  "worktrees.column.path": "Path",
   "worktrees.current": "(current)",
   "worktrees.title": "Worktrees"
 }

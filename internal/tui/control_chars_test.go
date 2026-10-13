@@ -195,8 +195,11 @@ func sideWorktree(t *testing.T, dir, branch string) tea.Model {
 func TestWorktreeWithControlsIsPrintableInWindowAndFooter(t *testing.T) {
 	model := openAsync(sideWorktree(t, "w\x1b[2J", "side\u009bq"), key('W'))
 
-	if body := screenText(model); !strings.Contains(body, "w␛[2J  side�q") || !strings.Contains(body, "/w␛[2J") {
-		t.Errorf("в окне worktree нет каталога, ветки и пути значками:\n%s", body)
+	// строка соседнего дерева: каталог, ветка и путь значками, ветка под заголовком
+	screen := screenOf(model)
+	row := rowWith(t, screen, "w␛[2J")
+	if !strings.Contains(row, "side�q") || !strings.Contains(row, "/w␛[2J") || column(row, "side�q") != column(rowWith(t, screen, "Branch"), "Branch") {
+		t.Errorf("в окне worktree нет каталога, ветки и пути значками:\n%s", strings.Join(screen, "\n"))
 	}
 	noEscapes(t, model)
 
@@ -210,12 +213,15 @@ func TestWorktreeWithControlsIsPrintableInWindowAndFooter(t *testing.T) {
 	noEscapes(t, model)
 }
 
-// Таб в имени каталога worktree занимает четыре колонки, как в ячейках лога.
+// Таб в имени каталога worktree занимает четыре колонки, как в ячейках лога, и
+// ветка остаётся под своим заголовком.
 func TestWorktreePathWithTabIsExpanded(t *testing.T) {
 	model := openAsync(sideWorktree(t, "a\tb", "side"), key('W'))
 
-	if body := screenText(model); !strings.Contains(body, "a    b  side") {
-		t.Errorf("в окне worktree таб не раскрыт в четыре пробела:\n%s", body)
+	screen := screenOf(model)
+	row := rowWith(t, screen, "a    b")
+	if want := column(rowWith(t, screen, "Branch"), "Branch"); column(row, "side") != want {
+		t.Errorf("в окне worktree таб не раскрыт в четыре пробела, ветка не с колонки %d:\n%s", want, strings.Join(screen, "\n"))
 	}
 	noEscapes(t, model)
 }

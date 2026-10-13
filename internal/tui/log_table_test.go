@@ -157,16 +157,25 @@ func TestLogTabInCellsKeepsColumns(t *testing.T) {
 	}
 }
 
-// В окне worktree ветка цветом accent, путь приглушённый.
+// В окне worktree имя каталога цветом worktree, ветка цветом accent, путь и
+// заголовки столбцов приглушённые.
 func TestWorktreeColors(t *testing.T) {
-	_, model := threeFileRepo(t)
+	repo, model := threeFileRepo(t)
 	raw := openAsync(model, key('W')).View().Content
 
-	if code := styleBefore(t, raw, "(current)", "main"); !strings.Contains(code, "38;2;157;124;216") {
+	if code := styleBefore(t, raw, "(current)", filepath.Base(repo)); !strings.Contains(code, worktreeFg) {
+		t.Errorf("имя каталога не цветом worktree: %q", code)
+	}
+	if code := styleBefore(t, raw, "(current)", "main"); !strings.Contains(code, accentFg) {
 		t.Errorf("ветка не цветом accent: %q", code)
 	}
 	if code := styleBefore(t, raw, "(current)", string(filepath.Separator)); !strings.Contains(code, "90") {
 		t.Errorf("путь не приглушён: %q", code)
+	}
+	for _, title := range []string{"Worktree", "Branch", "Path"} {
+		if code := styleBefore(t, raw, "Branch", title); !strings.Contains(code, "90") {
+			t.Errorf("заголовок %s не приглушён: %q", title, code)
+		}
 	}
 }
 

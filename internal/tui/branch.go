@@ -103,22 +103,23 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 	gap := panel.Render(strings.Repeat(" ", columnGap))
 	box.rows = make([]string, len(branches))
 	for index, branch := range branches {
-		box.rows[index] = branchCell(panel, name, widths[0], branch, current) + gap + tableRow(panel, widths[1:], []lipgloss.Style{muted, muted}, branch.Author, branch.When)
+		box.rows[index] = markedCell(panel, name, widths[0], branch.Name, branch.Current, current) + gap + tableRow(panel, widths[1:], []lipgloss.Style{muted, muted}, branch.Author, branch.When)
 	}
 
 	return box.view(colors, screenWidth, screenHeight)
 }
 
-// branchCell это ячейка имени шириной width: имя цветом name, у текущей за
-// ним через пробел отметка цветом текста. Длинное имя обрезается «…», отметка
-// остаётся видна.
-func branchCell(panel, name lipgloss.Style, width int, branch git.Branch, current string) string {
-	mark := ""
-	if branch.Current {
-		mark = " " + current
+// markedCell это ячейка имени шириной width для окон веток и worktree: имя
+// цветом name, у текущей за ним через пробел отметка mark цветом текста. Длинное
+// имя обрезается «…», отметка остаётся видна.
+func markedCell(panel, name lipgloss.Style, width int, label string, current bool, mark string) string {
+	if current {
+		mark = " " + mark
+	} else {
+		mark = ""
 	}
 
-	label := ansi.Truncate(visible(branch.Name), max(width-ansi.StringWidth(mark), 1), "…")
+	label = ansi.Truncate(visible(label), max(width-ansi.StringWidth(mark), 1), "…")
 	used := ansi.StringWidth(label) + ansi.StringWidth(mark)
 	return name.Render(label) + panel.Render(mark+strings.Repeat(" ", max(width-used, 0)))
 }
