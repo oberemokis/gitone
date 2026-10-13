@@ -40,6 +40,14 @@ var allowedImports = map[string][]string{
 	"gitone/internal/diff":           {},
 }
 
+// Листья config, git и diff не знают терминала (docs/architecture.md). Таблица
+// выше видит только пакеты gitone, поэтому библиотеки терминала проверяются
+// отдельно, по префиксу пути.
+var (
+	terminalFreeLeaves = []string{"gitone/internal/config", "gitone/internal/git", "gitone/internal/diff"}
+	terminalPrefixes   = []string{"charm.land/", "github.com/charmbracelet/"}
+)
+
 func TestImportDirections(t *testing.T) {
 	out, err := exec.Command("go", "list", "-f", `{{.ImportPath}} {{join .Imports " "}}`, "./...").Output()
 	if err != nil {
@@ -59,6 +67,10 @@ func TestImportDirections(t *testing.T) {
 		for _, imported := range imports {
 			if strings.HasPrefix(imported, "gitone/") && !slices.Contains(allowed, imported) {
 				t.Errorf("%s импортирует %s, граф это запрещает", pkg, imported)
+			}
+
+			if slices.Contains(terminalFreeLeaves, pkg) && slices.ContainsFunc(terminalPrefixes, func(prefix string) bool { return strings.HasPrefix(imported, prefix) }) {
+				t.Errorf("%s импортирует %s, листья не знают терминала", pkg, imported)
 			}
 		}
 	}
