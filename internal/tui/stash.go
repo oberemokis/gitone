@@ -50,16 +50,20 @@ func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	ref := m.stashes[m.cursor].Ref
+	stash := m.stashes[m.cursor]
 	pressed := key.String()
 	switch {
 	case m.keys.Is(keymap.StashDiff, pressed):
 		m.active = noWindow
-		m.args = []string{ref + "^!"}
+		// stash это коммит слияния HEAD и индекса: <хэш>^! дал бы комбинированный
+		// diff --cc. Родитель и сам stash дают обычный дифф, как git stash show -p.
+		// Хэш, а не stash@{N}: перечитывание не уйдёт на другой stash после
+		// внешнего git stash push.
+		m.args = []string{stash.Hash + "^1", stash.Hash}
 		return m.startReload()
 	case m.keys.Is(keymap.StashApply, pressed):
 		m.active = noWindow
-		return m, stashApplyCmd(m.dir, ref)
+		return m, stashApplyCmd(m.dir, stash.Ref)
 	case m.keys.Is(keymap.StashDrop, pressed):
 		m.active = stashDropWindow
 	}

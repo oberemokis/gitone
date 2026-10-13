@@ -6,27 +6,30 @@ import (
 	"gitone/internal/i18n"
 )
 
-// Stash это запись stash: ссылка вида stash@{N} и её подпись git.
+// Stash это запись stash: ссылка вида stash@{N}, хэш коммита stash и подпись
+// git. Ссылка позиционная и сдвигается от любого git stash push, поэтому
+// запись держит хэш: по нему находится именно тот stash, что видел пользователь.
 type Stash struct {
 	Ref     string
+	Hash    string
 	Subject string
 }
 
 // Stashes возвращает stash от новых к старым.
 func Stashes(dir string) ([]Stash, error) {
-	out, err := inRoot(dir, "stash", "list", "--format=%gd%x1f%gs")
+	out, err := inRoot(dir, "stash", "list", "--format=%gd%x1f%H%x1f%gs")
 	if err != nil {
 		return nil, failed("stash list", err)
 	}
 
 	var stashes []Stash
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		ref, subject, found := strings.Cut(line, "\x1f")
-		if !found || ref == "" {
+		fields := strings.SplitN(line, "\x1f", 3)
+		if len(fields) < 3 || fields[0] == "" {
 			continue
 		}
 
-		stashes = append(stashes, Stash{Ref: ref, Subject: subject})
+		stashes = append(stashes, Stash{Ref: fields[0], Hash: fields[1], Subject: fields[2]})
 	}
 
 	return stashes, nil
