@@ -24,6 +24,7 @@ func TestLoad(t *testing.T) {
 		{name: "нет файла", missing: true, want: defaultQuit},
 		{name: "переназначение", content: `{"keybinds":{"app.quit":"e"}}`, want: []string{"e"}},
 		{name: "массив", content: `{"keybinds":{"app.quit":["e","y"]}}`, want: []string{"e", "y"}},
+		{name: "повтор клавиши в действии", content: `{"keybinds":{"app.quit":["q","ctrl+c","q"]}}`, want: []string{"q", "ctrl+c"}},
 		{name: "none отключает", content: `{"keybinds":{"app.quit":"none"}}`, want: nil},
 		{name: "false отключает", content: `{"keybinds":{"app.quit":false}}`, want: nil},
 		{name: "неизвестное действие", content: `{"keybinds":{"app.quitt":"w"}}`, want: defaultQuit, wantErr: "app.quitt"},

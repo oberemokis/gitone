@@ -320,8 +320,8 @@ func parseKeys(raw json.RawMessage) ([]string, error) {
 	return nil, i18n.New("keymap.badKeys", nil)
 }
 
-// checkKeys проверяет каждую клавишу. Имя действия к ошибке добавляет
-// вызывающий.
+// checkKeys проверяет каждую клавишу и убирает повторы: одна клавиша дважды в
+// одном действии не конфликт. Имя действия к ошибке добавляет вызывающий.
 func checkKeys(keys []string) ([]string, error) {
 	for _, key := range keys {
 		var err error
@@ -340,7 +340,12 @@ func checkKeys(keys []string) ([]string, error) {
 		}
 	}
 
-	return keys, nil
+	seen := make(map[string]bool)
+	return slices.DeleteFunc(keys, func(key string) bool {
+		repeat := seen[key]
+		seen[key] = true
+		return repeat
+	}), nil
 }
 
 // modifiers идут в том порядке, в каком их пишет Keystroke.
