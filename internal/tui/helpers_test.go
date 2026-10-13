@@ -25,9 +25,12 @@ import (
 // выполнение команд так, как это делает Bubble Tea.
 
 // newRepo создаёт репозиторий во временном каталоге. Глобальный и системный
-// конфиги отключены: результат не должен зависеть от настроек машины.
+// конфиги отключены, язык C: результат не должен зависеть от настроек машины,
+// а тесты сверяют английские сообщения git. Git с gettext (Homebrew) при C
+// игнорирует и LANGUAGE.
 func newRepo(t *testing.T) string {
 	t.Helper()
+	t.Setenv("LC_ALL", "C")
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
 	t.Setenv("GIT_AUTHOR_NAME", "test")

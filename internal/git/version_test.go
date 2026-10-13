@@ -54,6 +54,25 @@ func TestVersionReadsBothSides(t *testing.T) {
 	}
 }
 
+// Новая версия есть в git (коммит из лога, stash, --staged): читается она, а
+// не файл рабочего дерева, который мог измениться после. Иначе подсветка
+// строилась бы по чужому тексту.
+func TestVersionPrefersGitObjectOverWorkingTree(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "App.vue", "old\n")
+	commitAll(t, repo)
+	write(t, repo, "App.vue", "committed\n")
+	commitAll(t, repo)
+	write(t, repo, "App.vue", "dirty\n")
+	changed := fileAt(t, load(t, repo, []string{"HEAD^!"}), "App.vue")
+
+	got, err := git.Version(repo, changed.NewBlob, changed.NewPath)
+
+	if err != nil || string(got) != "committed\n" {
+		t.Errorf("Version(NewBlob, NewPath) = %q, %v; want %q", got, err, "committed\n")
+	}
+}
+
 // Версии нет: ни содержимого, ни ошибки. Хэша нет в git и путь не задан:
 // ошибка, а не пустой файл.
 func TestVersionWithoutObject(t *testing.T) {

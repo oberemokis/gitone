@@ -36,7 +36,7 @@ func Diff(dir string, args []string) (string, error) {
 
 func diffText(dir string, args []string) (string, error) {
 	if len(args) > 0 {
-		return run(call{dir: dir}, diffCommand(args...)...)
+		return run(call{dir: dir, diffExit: true}, diffCommand(args...)...)
 	}
 
 	root, err := topLevel(dir)
@@ -199,6 +199,10 @@ type call struct {
 	dir   string
 	env   []string
 	stdin string
+	// diffExit читает код выхода 1 с выводом как успех. Так отвечает `git diff`
+	// с --no-index и --exit-code, когда различия есть: дифф лежит на stdout.
+	// Нужен только вызову, куда пользователь передаёт свои аргументы.
+	diffExit bool
 }
 
 // literalPathspecs заставляет git читать пути-аргументы как имена файлов, а не
@@ -255,8 +259,13 @@ func run(options call, args ...string) (string, error) {
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
-		// часть сообщений git пишет в stdout: «nothing to commit» идёт туда же
-		message := cmp.Or(strings.TrimSpace(string(exitError.Stderr)), strings.TrimSpace(string(out)))
+		if options.diffExit && exitError.ExitCode() == 1 && len(out) > 0 {
+			return string(out), nil
+		}
+
+		// часть сообщений git пишет в stdout: конфликт `stash apply` идёт туда.
+		// Отказ без единой строки (хук с `exit 1`) называется кодом выхода.
+		message := cmp.Or(strings.TrimSpace(string(exitError.Stderr)), strings.TrimSpace(string(out)), exitError.Error())
 		return "", &gitError{message: message, exit: exitError}
 	}
 

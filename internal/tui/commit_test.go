@@ -1,6 +1,8 @@
 package tui_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -32,6 +34,54 @@ func TestCommitFromApp(t *testing.T) {
 	}
 	if got := runGit(t, repo, "log", "-1", "--format=%s"); got != "fix text" {
 		t.Fatalf("тема коммита %q, ожидалась fix text", got)
+	}
+}
+
+// commitFooter набирает тему в поле коммита, отправляет по enter и возвращает
+// подвал после ответа git.
+func commitFooter(model tea.Model) string {
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	model = typeText(model, "x")
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	screen := screenOf(settle(model, cmd, 4))
+
+	return screen[footerRow(screen)]
+}
+
+// Без застейдженных правок подвал называет причину текстом из словаря. Отчёт
+// git commit («On branch main») причины первой строкой не даёт.
+func TestCommitWithNothingStagedExplainsInFooter(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	opts := options(repo, layout.Default())
+	opts.Text = pseudo()
+
+	footer := commitFooter(resize(open(t, opts), 100, 20))
+
+	if !strings.Contains(footer, "commit: ⟦nothing to commit⟧") {
+		t.Fatalf("подвал = %q, ожидалось «commit: ⟦nothing to commit⟧»", footer)
+	}
+}
+
+// Хук без вывода отказывает, и подвал называет код выхода: «commit: » с пустым
+// текстом ничего не говорил.
+func TestCommitSilentHookShowsExitStatus(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "add", "a.txt")
+	write(t, repo, ".git/hooks/pre-commit", "#!/bin/sh\nexit 1\n")
+	if err := os.Chmod(filepath.Join(repo, ".git/hooks/pre-commit"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	footer := commitFooter(resize(open(t, options(repo, layout.Default())), 100, 20))
+
+	if !strings.Contains(footer, "commit: exit status 1") {
+		t.Fatalf("подвал = %q, ожидалось «commit: exit status 1»", footer)
 	}
 }
 

@@ -1,12 +1,14 @@
 package git_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 )
 
 func lastSubject(t *testing.T, repo string) string {
@@ -29,14 +31,34 @@ func TestCommitRecordsSubject(t *testing.T) {
 	}
 }
 
+// Пустой индекс: отказ из словаря, а не «On branch main» из вывода git commit.
 func TestCommitWithNothingStagedFails(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
 	err := git.Commit(repo, "пусто")
-	if err == nil || !strings.Contains(err.Error(), "nothing to commit") {
-		t.Fatalf("ошибка %v, ожидалось nothing to commit", err)
+
+	var refusal *i18n.Error
+	if !errors.As(err, &refusal) || refusal.Key != "git.nothingToCommit" {
+		t.Fatalf("ошибка %v, ожидался отказ git.nothingToCommit", err)
+	}
+	if err.Error() != "commit: nothing to commit" {
+		t.Fatalf("ошибка %q, ожидалось «commit: nothing to commit»", err)
+	}
+}
+
+// Первый коммит репозитория: HEAD ещё нет, а в индексе есть файл.
+func TestCommitFirstCommit(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "a.txt")
+
+	if err := git.Commit(repo, "первый"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if got := lastSubject(t, repo); got != "первый" {
+		t.Fatalf("тема коммита %q", got)
 	}
 }
 

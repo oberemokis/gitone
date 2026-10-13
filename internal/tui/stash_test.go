@@ -221,6 +221,28 @@ func TestStashEnterOpensDiffAndClosesWindow(t *testing.T) {
 	}
 }
 
+// Конфликт при apply: подвал называет строку CONFLICT, а не «Auto-merging
+// a.txt», с которой git начинает вывод.
+func TestStashApplyConflictShowsConflictInFooter(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "stash", "push", "-q")
+	write(t, repo, "a.txt", "three\n")
+	commitAll(t, repo)
+
+	model := resize(open(t, options(repo, layout.Default())), 100, 20)
+	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+	model = settle(model, cmd, 4)
+	model, cmd = model.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	screen := screenOf(settle(model, cmd, 4))
+
+	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "stash apply: CONFLICT (content): Merge conflict in a.txt") {
+		t.Fatalf("подвал = %q, ожидалась строка CONFLICT", footer)
+	}
+}
+
 // d спрашивает, удаляет stash только y.
 func TestStashDropNeedsYes(t *testing.T) {
 	repo := newRepo(t)

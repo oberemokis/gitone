@@ -1,6 +1,8 @@
 package git
 
 import (
+	"errors"
+	"slices"
 	"strings"
 
 	"gitone/internal/i18n"
@@ -60,9 +62,25 @@ func stashPush(dir string) error {
 }
 
 // StashApply применяет stash и оставляет его в списке. Если stash@{N} уже
-// другой коммит, чем у строки списка, отказывает и ничего не применяет.
+// другой коммит, чем у строки списка, отказывает и ничего не применяет. Отказ
+// git сводится к одной строке: при конфликте git начинает вывод с
+// «Auto-merging a.txt», и причина стоит в нём не первой.
 func StashApply(dir string, stash Stash) error {
-	return failed("stash apply", stashAt(dir, stash, "apply"))
+	return failed("stash apply", headline(stashAt(dir, stash, "apply")))
+}
+
+// headline оставляет в отказе git одну строку: CONFLICT, а без неё первую.
+// Код выхода остаётся в цепочке.
+func headline(err error) error {
+	var refusal *gitError
+	if !errors.As(err, &refusal) {
+		return err
+	}
+
+	lines := strings.Split(refusal.message, "\n")
+	conflict := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, "CONFLICT") })
+
+	return &gitError{message: lines[max(conflict, 0)], exit: refusal.exit}
 }
 
 // StashDrop удаляет stash без применения. Вернуть его можно только через
