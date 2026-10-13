@@ -20,10 +20,10 @@ type LogEntry struct {
 // Log возвращает limit последних коммитов текущей ветки от новых к старым
 // вместе с графом, между ними строки соединения графа. В репозитории без
 // коммитов список пуст без ошибки. Формат задан явно: нулевой байт отделяет
-// рисунок графа от полей. Тема это произвольный текст и может содержать
-// разделитель полей, поэтому стоит в формате последней и режется по первым
-// четырём разделителям. log.showSignature из конфига пользователя вставил бы
-// между графом и форматом строку проверки подписи.
+// рисунок графа от полей и поля друг от друга. Имя автора и тема это
+// произвольный текст, и \x1f или другой печатный разделитель в них возможен, а
+// NUL git в этих полях не допускает. log.showSignature из конфига пользователя
+// вставил бы между графом и форматом строку проверки подписи.
 func Log(dir string, limit int) ([]LogEntry, error) {
 	root, err := topLevel(dir)
 	if err != nil {
@@ -34,7 +34,7 @@ func Log(dir string, limit int) ([]LogEntry, error) {
 		return nil, nil
 	}
 
-	out, err := run(call{dir: root}, "log", "--graph", "--no-color", "--no-show-signature", "-n", strconv.Itoa(limit), "--format=%x00%H%x1f%P%x1f%an%x1f%cr%x1f%s")
+	out, err := run(call{dir: root}, "log", "--graph", "--no-color", "--no-show-signature", "-n", strconv.Itoa(limit), "--format=%x00%H%x00%P%x00%an%x00%cr%x00%s")
 	if err != nil {
 		return nil, failed("log", err)
 	}
@@ -48,7 +48,7 @@ func Log(dir string, limit int) ([]LogEntry, error) {
 			continue
 		}
 
-		fields := strings.SplitN(commit, "\x1f", 5)
+		fields := strings.SplitN(commit, "\x00", 5)
 		entries = append(entries, LogEntry{
 			Graph:   graph,
 			Hash:    fields[0],

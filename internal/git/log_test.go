@@ -119,6 +119,27 @@ func TestLogKeepsCommitWithSeparatorInSubject(t *testing.T) {
 	}
 }
 
+// Разделитель полей может оказаться и в имени автора, а оно стоит в формате
+// посередине: поля после него не сдвигаются, коммит один.
+func TestLogKeepsFieldsWithSeparatorInAuthor(t *testing.T) {
+	repo := newRepo(t)
+	t.Setenv("GIT_AUTHOR_NAME", "Ann\x1fLee")
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+
+	entries, err := git.Log(repo, 200)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("строк %d, ожидалась 1: %+v", len(entries), entries)
+	}
+	if entry := entries[0]; entry.Author != "Ann\x1fLee" || entry.Subject != "commit" || !entry.Root || !strings.HasSuffix(entry.When, " ago") {
+		t.Fatalf("строка %+v, ожидался корневой коммит «commit» автора «Ann\\x1fLee»", entry)
+	}
+}
+
 func TestLogOfEmptyRepositoryIsEmpty(t *testing.T) {
 	repo := newRepo(t)
 
