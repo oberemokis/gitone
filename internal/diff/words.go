@@ -182,32 +182,16 @@ func markPair(removed, added Line) (mark, mark) {
 	return mark{oldSpans, endingOnly && removed.CR}, mark{newSpans, endingOnly && added.CR}
 }
 
-// pairMarks ставит пары в блоках: удалённые строки подряд, за ними добавленные.
-// Пара это строки на одной позиции в своих блоках, как в split. Лишние строки
-// пары не получают. Результат по индексу строки хунка.
+// pairMarks ставит пары по тем же слотам, что строит split (slots): удалённая
+// строка и добавленная напротив неё метят друг друга. Лишние строки пары не
+// получают. Результат по индексу строки хунка.
 func pairMarks(lines []Line) map[int]mark {
 	marks := make(map[int]mark)
 
-	for start := 0; start < len(lines); {
-		if lines[start].Kind != LineRemoved {
-			start++
-			continue
+	for _, row := range slots(lines) {
+		if row.replaced() {
+			marks[row.left], marks[row.right] = markPair(lines[row.left], lines[row.right])
 		}
-
-		end := start
-		for end < len(lines) && lines[end].Kind == LineRemoved {
-			end++
-		}
-		addedEnd := end
-		for addedEnd < len(lines) && lines[addedEnd].Kind == LineAdded {
-			addedEnd++
-		}
-
-		for offset := range min(end-start, addedEnd-end) {
-			marks[start+offset], marks[end+offset] = markPair(lines[start+offset], lines[end+offset])
-		}
-
-		start = addedEnd
 	}
 
 	return marks

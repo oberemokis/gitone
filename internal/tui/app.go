@@ -293,10 +293,10 @@ func (m Model) startReload() (Model, tea.Cmd) {
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать
-// от экрана список файлов.
+// от экрана список файлов. Положение панели здесь не нужно, только размер.
 func (m Model) resize() Model {
-	if diffPane, found := findPane(m.placement(), "diff"); found {
-		m.view = m.view.SetSize(diffPane.Width, diffPane.Height)
+	if area, found := paneArea(m.placement(), "diff", image.Point{}); found {
+		m.view = m.view.SetSize(area.Dx(), area.Dy())
 	}
 	return m
 }
@@ -354,20 +354,6 @@ func (m Model) wheel(msg tea.MouseWheelMsg) diffview.Model {
 		return m.view.ScrollRight(-shiftStep)
 	}
 	return m.view
-}
-
-func findPane(placed layout.Placed, pane string) (layout.Placed, bool) {
-	if placed.Pane == pane && len(placed.Children) == 0 {
-		return placed, true
-	}
-
-	for _, child := range placed.Children {
-		if found, ok := findPane(child, pane); ok {
-			return found, true
-		}
-	}
-
-	return layout.Placed{}, false
 }
 
 func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {

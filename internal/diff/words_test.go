@@ -117,6 +117,57 @@ func TestSplitMarksPairedCells(t *testing.T) {
 	}
 }
 
+// Правило пар одно на оба вида: удалённые строки блока встают в пары с
+// добавленными по порядку, пока не встретится контекст. На чередовании
+// -p +p +q -q +r вторая удалённая строка стоит напротив второй добавленной и
+// в split, и в unified. Git такой хунк не выдаёт, но разбор принимает любой
+// текст, а правка одного из видов не должна молча развести подсветку.
+func TestSplitAndUnifiedPairInterleavedLinesTheSame(t *testing.T) {
+	file := diff.File{Hunks: []diff.Hunk{{
+		OldStart: 1,
+		NewStart: 1,
+		Lines:    []diff.Line{removed("p one"), added("p uno"), added("q dos"), removed("q two"), added("r tres")},
+	}}}
+
+	split := diff.Split(file)
+	if len(split) != 3 {
+		t.Fatalf("строк split %d, ожидалось 3", len(split))
+	}
+	unified := diff.Unified(file)
+	if len(unified) != 5 {
+		t.Fatalf("строк unified %d, ожидалось 5", len(unified))
+	}
+
+	marked := func(text string, spans []diff.Span) string {
+		return strings.Join(spanTexts(text, spans), ",")
+	}
+
+	// порядок: p one, p uno, q two, q dos
+	want := []string{"one", "uno", "two", "dos"}
+	gotSplit := []string{
+		marked(split[0].Left.Text, split[0].Left.Changed),
+		marked(split[0].Right.Text, split[0].Right.Changed),
+		marked(split[1].Left.Text, split[1].Left.Changed),
+		marked(split[1].Right.Text, split[1].Right.Changed),
+	}
+	gotUnified := []string{
+		marked(unified[0].Text, unified[0].Changed),
+		marked(unified[1].Text, unified[1].Changed),
+		marked(unified[3].Text, unified[3].Changed),
+		marked(unified[2].Text, unified[2].Changed),
+	}
+
+	if !slices.Equal(gotSplit, want) {
+		t.Errorf("отрезки split %q, ожидалось %q", gotSplit, want)
+	}
+	if !slices.Equal(gotUnified, want) {
+		t.Errorf("отрезки unified %q, ожидалось %q", gotUnified, want)
+	}
+	if len(split[2].Right.Changed) != 0 || len(unified[4].Changed) != 0 {
+		t.Errorf("добавленная строка без пары подсвечена: split %v, unified %v", split[2].Right.Changed, unified[4].Changed)
+	}
+}
+
 // Длинная строка не считается: ограничение памяти важнее подсветки.
 func TestLongLinesGetNoMarks(t *testing.T) {
 	long := strings.Repeat("w ", 400)

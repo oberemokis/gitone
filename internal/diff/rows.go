@@ -93,47 +93,83 @@ func Split(file File) []SplitRow {
 	return rows
 }
 
-// splitHunk ставит удалённые строки в пары с добавленными, которые идут за
-// ними, по порядку: так правка строки стоит на одной высоте с обеих сторон.
-// Лишние строки получают пустую половину напротив.
-func splitHunk(hunk Hunk) []SplitRow {
-	var rows []SplitRow
-	var removedRun, addedRun []numbered
-	oldNumber, newNumber := hunk.OldStart, hunk.NewStart
+// noLine стоит в слоте на месте пустой половины.
+const noLine = -1
+
+// slot это одна строка split в индексах строк хунка: слева и справа. У строки
+// контекста обе стороны одного индекса.
+type slot struct {
+	left  int
+	right int
+}
+
+// replaced говорит, что в слоте удалённая строка стоит напротив добавленной.
+func (s slot) replaced() bool {
+	return s.left != noLine && s.right != noLine && s.left != s.right
+}
+
+// slots раскладывает хунк по строкам split. Удалённые строки встают в пары с
+// добавленными по порядку, пока не встретится контекст: так правка строки
+// стоит на одной высоте с обеих сторон. Лишние строки получают пустую половину
+// напротив. Правило пар записано только здесь: по слотам split строит строки,
+// а unified ставит подсветку слов (pairMarks), и два вида не расходятся.
+func slots(lines []Line) []slot {
+	var result []slot
+	var removedRun, addedRun []int
 
 	flush := func() {
 		for index := range max(len(removedRun), len(addedRun)) {
-			var left, right numbered
-			if index < len(removedRun) {
-				left = removedRun[index]
-			}
-			if index < len(addedRun) {
-				right = addedRun[index]
-			}
-
-			rows = append(rows, pair(left, right)...)
+			result = append(result, slot{runAt(removedRun, index), runAt(addedRun, index)})
 		}
 
 		removedRun, addedRun = nil, nil
 	}
 
-	for _, line := range hunk.Lines {
+	for index, line := range lines {
 		switch line.Kind {
 		case LineContext:
 			flush()
-			rows = append(rows, pair(numbered{line, oldNumber}, numbered{line, newNumber})...)
-			oldNumber++
-			newNumber++
+			result = append(result, slot{index, index})
 		case LineRemoved:
-			removedRun = append(removedRun, numbered{line, oldNumber})
-			oldNumber++
+			removedRun = append(removedRun, index)
 		case LineAdded:
-			addedRun = append(addedRun, numbered{line, newNumber})
-			newNumber++
+			addedRun = append(addedRun, index)
 		}
 	}
 
 	flush()
+	return result
+}
+
+// runAt это индекс строки блока на позиции index, а у короткого блока noLine.
+func runAt(run []int, index int) int {
+	if index < len(run) {
+		return run[index]
+	}
+
+	return noLine
+}
+
+// splitHunk строит строки split по слотам. Номер у каждой стороны растёт с её
+// строками: слева контекст и удалённые, справа контекст и добавленные.
+func splitHunk(hunk Hunk) []SplitRow {
+	var rows []SplitRow
+	oldNumber, newNumber := hunk.OldStart, hunk.NewStart
+
+	for _, row := range slots(hunk.Lines) {
+		var left, right numbered
+		if row.left != noLine {
+			left = numbered{hunk.Lines[row.left], oldNumber}
+			oldNumber++
+		}
+		if row.right != noLine {
+			right = numbered{hunk.Lines[row.right], newNumber}
+			newNumber++
+		}
+
+		rows = append(rows, pair(left, right)...)
+	}
+
 	return rows
 }
 

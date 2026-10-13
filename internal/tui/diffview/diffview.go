@@ -14,6 +14,9 @@ import (
 	"gitone/internal/tui/theme"
 )
 
+// Mode это вид диффа. Набор режимов проверяет и config при чтении файла
+// (decode, ошибка config.badMode): импортировать этот пакет он не может, и
+// новый режим правится в обоих местах и в тексте ошибки словаря.
 type Mode string
 
 const (

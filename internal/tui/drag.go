@@ -117,7 +117,9 @@ func (m Model) mouseDrag(msg tea.Msg) Model {
 }
 
 // paneArea это прямоугольник панели на экране: дерево размещения кладёт
-// детей подряд по своей оси, начиная с origin.
+// детей подряд по своей оси, начиная с origin. Панель это лист дерева с её
+// именем, и это единственное место, где так её ищут: резайз берёт отсюда
+// размер, стыки положение.
 func paneArea(placed layout.Placed, pane string, origin image.Point) (image.Rectangle, bool) {
 	if placed.Pane == pane && len(placed.Children) == 0 {
 		return image.Rectangle{Min: origin, Max: origin.Add(image.Pt(placed.Width, placed.Height))}, true
