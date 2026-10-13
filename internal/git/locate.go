@@ -15,8 +15,9 @@ type Location struct {
 // Locate называет ветку и worktree каталога dir. symbolic-ref знает ветку и в
 // репозитории без коммитов, а rev-parse нужен только для detached HEAD. Префикс
 // refs/heads/ снимается вручную: --short при теге с именем ветки отдаёт
-// неоднозначное heads/v1. Хэш короткий в 7 символов, как у Worktrees, а не
-// той длины, что выберут core.abbrev и размер репозитория.
+// неоднозначное heads/v1. Хэш режется из полного той же shortHash, что у
+// Worktrees: --short=7 при коллизии префикса отдаёт 8 символов и больше, и
+// core.abbrev длину тоже меняет.
 func Locate(dir string) (Location, error) {
 	root, err := topLevel(dir)
 	if err != nil {
@@ -25,11 +26,18 @@ func Locate(dir string) (Location, error) {
 
 	branch, err := run(call{dir: root}, "symbolic-ref", "--quiet", "HEAD")
 	if err != nil {
-		branch, err = run(call{dir: root}, "rev-parse", "--short=7", "HEAD")
-	}
-	if err != nil {
-		return Location{}, failed("rev-parse", err)
+		var head string
+		if head, err = run(call{dir: root}, "rev-parse", "HEAD"); err != nil {
+			return Location{}, failed("rev-parse", err)
+		}
+		branch = shortHash(strings.TrimSpace(head))
 	}
 
 	return Location{Branch: strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/"), Worktree: filepath.Base(root)}, nil
+}
+
+// shortHash это 7 первых символов полного хэша: так хэш detached HEAD виден в
+// подвале и в окне worktree.
+func shortHash(full string) string {
+	return full[:min(len(full), 7)]
 }
