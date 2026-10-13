@@ -64,12 +64,18 @@ func diffText(dir string, args []string) (string, error) {
 // всё индексированное и неотслеженное показывается добавленным. Хеш пустого
 // дерева спрашивается у git, он разный у репозиториев на SHA-1 и SHA-256.
 func baseRevision(dir string) (string, error) {
-	if _, err := run(call{dir: dir}, "rev-parse", "--verify", "--quiet", "HEAD"); err == nil {
+	if hasCommits(dir) {
 		return "HEAD", nil
 	}
 
 	emptyTree, err := run(call{dir: dir}, "hash-object", "-t", "tree", "--stdin")
 	return strings.TrimSuffix(emptyTree, "\n"), err
+}
+
+// hasCommits говорит, есть ли у репозитория HEAD: до первого коммита его нет.
+func hasCommits(dir string) bool {
+	_, err := run(call{dir: dir}, "rev-parse", "--verify", "--quiet", "HEAD")
+	return err == nil
 }
 
 func diffCommand(args ...string) []string {
@@ -116,7 +122,7 @@ func fillIndex(root, realIndex, index, untracked string) error {
 	}
 
 	if untracked != "" {
-		addCall := call{dir: root, env: []string{"GIT_INDEX_FILE=" + index}, stdin: untracked}
+		addCall := call{dir: root, env: []string{"GIT_INDEX_FILE=" + index, literalPathspecs}, stdin: untracked}
 		if _, err := run(addCall, "add", "--intent-to-add", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
 			return err
 		}
@@ -193,6 +199,18 @@ type call struct {
 	dir   string
 	env   []string
 	stdin string
+}
+
+// literalPathspecs заставляет git читать пути-аргументы как имена файлов, а не
+// как шаблоны. Путь из диффа `app/[id]/page.tsx` без этого совпал бы и с
+// `app/d/page.tsx`, а `:note.md` читался бы как магия pathspec. Включается
+// только вызовам, куда пути отдаёт сам gitone: то, что пользователь пишет в
+// `gitone -- 'src/*.go'`, остаётся шаблоном.
+const literalPathspecs = "GIT_LITERAL_PATHSPECS=1"
+
+// literal это вызов из корня репозитория с буквальными путями.
+func literal(root string) call {
+	return call{dir: root, env: []string{literalPathspecs}}
 }
 
 // gitError это отказ git. Текст из вывода git нужен пользователю: «not a git

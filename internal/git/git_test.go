@@ -22,6 +22,20 @@ func TestUntrackedFileIsShownAsAdded(t *testing.T) {
 	wantStatuses(t, files, map[string]diff.Status{"new.txt": diff.StatusAdded})
 }
 
+// Имя с ведущим двоеточием git читал как магию pathspec и падал на всём
+// запуске: «pathspec ':note.md' did not match any files».
+func TestUntrackedFileWithPathspecCharactersIsShownAsAdded(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "tracked.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, ":note.md", "fresh\n")
+	write(t, repo, "pages/[id].vue", "fresh\n")
+
+	files := load(t, repo, nil)
+
+	wantStatuses(t, files, map[string]diff.Status{":note.md": diff.StatusAdded, "pages/[id].vue": diff.StatusAdded})
+}
+
 func TestArgumentsGoToGitDiffWithoutUntrackedFiles(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "staged.txt", "one\n")
