@@ -14,11 +14,11 @@ func headerPaths(rest string) (string, string) {
 		return path(quoted, "a/"), path(strings.TrimPrefix(rest[len(quoted):], " "), "b/")
 	}
 
-	half := (len(rest) - 1) / 2
-	if half < 0 {
+	if rest == "" {
 		return "", ""
 	}
 
+	half := (len(rest) - 1) / 2
 	return path(rest[:half], "a/"), path(rest[half+1:], "b/")
 }
 

@@ -442,6 +442,17 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// У строки «diff --git » нет путей, делить пополам нечего: разбор оставляет
+// файл с пустыми путями, а не падает на срезе.
+func TestParseHeaderWithoutPaths(t *testing.T) {
+	got := diff.Parse("diff --git \n")
+
+	want := []diff.File{{Status: diff.StatusModified}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Parse(%q) = %+v, want %+v", "diff --git \n", got, want)
+	}
+}
+
 // withoutBlobs убирает хэши версий: здесь проверяется устройство файлов, а
 // хэши проверяет TestParseBlobs.
 func withoutBlobs(files []diff.File) []diff.File {
