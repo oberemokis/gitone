@@ -66,7 +66,10 @@ func TestKinds(t *testing.T) {
 		// (identifier) @variable стоит в запросе первым и без цвета не должно
 		// занимать имя вызова (#140)
 		{name: "ts: вызов функции", path: "a.ts", lines: tsLines, line: 0, text: "fetch", want: syntax.Function},
-		{name: "ts: конструктор", path: "a.ts", lines: tsLines, line: 2, text: "Error", want: syntax.Function},
+		// запрос TS ставит (identifier) @type с ^[A-Z] ниже такого же шаблона
+		// @constructor, и побеждает поздний: имя класса в TS это тип, а не
+		// функция (#160)
+		{name: "ts: конструктор", path: "a.ts", lines: tsLines, line: 2, text: "Error", want: syntax.Type},
 		{name: "ts: свойство", path: "a.ts", lines: tsLines, line: 1, text: "ok", want: syntax.Property},
 		{name: "ts: оператор", path: "a.ts", lines: tsLines, line: 1, text: "||", want: syntax.Operator},
 		{name: "ts: шаблонная строка", path: "a.ts", lines: tsLines, line: 2, text: "`Failed", want: syntax.String},
@@ -89,6 +92,158 @@ func TestKinds(t *testing.T) {
 			}
 		})
 	}
+}
+
+// kindCase это ожидание вида одного слова в исходнике: слово ищется в строке
+// line по тексту text.
+type kindCase struct {
+	name  string
+	path  string
+	lines []string
+	line  int
+	text  string
+	want  syntax.Kind
+}
+
+func checkKinds(t *testing.T, tests []kindCase) {
+	t.Helper()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			spans := syntax.Detect(tc.path).Lines(tc.lines)
+			if got := kindOf(tc.lines, spans, tc.line, tc.text); got != tc.want {
+				t.Errorf("%q в строке %d: вид %q, want %q (%+v)", tc.text, tc.line, got, tc.want, spans)
+			}
+		})
+	}
+}
+
+// Узлу достаётся шаблон, в котором он вложен (поле или родитель в шаблоне,
+// предикат), а не голый (тип) @вид, и среди равных поздний: так написаны
+// запросы upstream (#160). Голый (property_identifier) @property стоит в
+// запросе TS выше шаблона вызова метода, но вызову уступать не должен.
+func TestPatternPriority(t *testing.T) {
+	tsLines := []string{
+		"const out = items.map((x) => x.label);",
+		"const data = await response.json();",
+	}
+	jsLines := []string{"const MAX_SIZE = 10;"}
+	cppLines := []string{
+		"class A {",
+		"public:",
+		"  void run();",
+		"};",
+		"void use(A a) {",
+		"  a.run();",
+		"}",
+	}
+	nixLines := []string{
+		"{ pkgs, lib }:",
+		"let x = pkgs.hello; in",
+		"x",
+	}
+	goLines := []string{
+		"func (m Model) View() string {",
+		"\treturn fmt.Sprintf(\"%d\", m.count)",
+		"}",
+	}
+	pyLines := []string{
+		"os.getcwd()",
+		"print(os.sep)",
+	}
+
+	checkKinds(t, []kindCase{
+		{name: "ts: метод в вызове", path: "a.ts", lines: tsLines, line: 0, text: "map", want: syntax.Function},
+		{name: "ts: метод после await", path: "a.ts", lines: tsLines, line: 1, text: "json", want: syntax.Function},
+		{name: "ts: свойство без вызова", path: "a.ts", lines: tsLines, line: 0, text: "label", want: syntax.Property},
+		{name: "js: константа в верхнем регистре", path: "a.js", lines: jsLines, line: 0, text: "MAX_SIZE", want: syntax.Constant},
+		{name: "cpp: метод в вызове", path: "a.cpp", lines: cppLines, line: 5, text: "run", want: syntax.Function},
+		{name: "cpp: метод в классе", path: "a.cpp", lines: cppLines, line: 2, text: "run", want: syntax.Function},
+		// имена формальных параметров и переменные без цвета, имена полей свойства
+		{name: "nix: параметр", path: "a.nix", lines: nixLines, line: 0, text: "lib", want: ""},
+		{name: "nix: переменная", path: "a.nix", lines: nixLines, line: 2, text: "x", want: ""},
+		{name: "nix: поле в select", path: "a.nix", lines: nixLines, line: 1, text: "hello", want: syntax.Property},
+		// голый (field_identifier) @property в Go стоит ниже вызова метода
+		{name: "go: метод в вызове", path: "a.go", lines: goLines, line: 1, text: "Sprintf", want: syntax.Function},
+		{name: "go: метод в объявлении", path: "a.go", lines: goLines, line: 0, text: "View", want: syntax.Function},
+		{name: "go: поле", path: "a.go", lines: goLines, line: 1, text: "count", want: syntax.Property},
+		// в Python (attribute attribute: …) @property стоит ниже вызова метода,
+		// но у вызова шаблон длиннее
+		{name: "python: метод в вызове", path: "a.py", lines: pyLines, line: 0, text: "getcwd", want: syntax.Function},
+		{name: "python: атрибут", path: "a.py", lines: pyLines, line: 1, text: "sep", want: syntax.Property},
+	})
+}
+
+// Нынешнее имя поля в nvim-treesitter это variable.member, прежнее field.
+// Обе записи дают свойство: hcl, zig, julia, haskell и ещё несколько языков
+// пишут запросы с новым именем (#160).
+func TestVariableMemberIsProperty(t *testing.T) {
+	hcl := []string{`name = var.region`}
+	zig := []string{"const Counter = struct { count: u32 };"}
+
+	checkKinds(t, []kindCase{
+		{name: "hcl: поле объекта", path: "main.tf", lines: hcl, line: 0, text: "region", want: syntax.Property},
+		{name: "zig: поле структуры", path: "a.zig", lines: zig, line: 0, text: "count", want: syntax.Property},
+	})
+}
+
+// Код внутри строки отмечен в запросах захватом @embedded: диапазон
+// подстановки занимает пустой вид, и строковый цвет внешней строки не лежит
+// под именами, у которых нет своего шаблона (#160). Свои цвета у вложенного
+// кода сохраняются.
+func TestEmbeddedCaptureInString(t *testing.T) {
+	ts := []string{"const s = `Failed: ${response.status} ${count + 1} ${a ? b : c}`;"}
+	py := []string{`print(f"hi {name} {len(name)}")`}
+	rb := []string{`puts "hi #{name} #{name.upcase}"`}
+	sh := []string{`echo "hi ${name} $(date)"`}
+
+	checkKinds(t, []kindCase{
+		{name: "ts: текст шаблонной строки", path: "a.ts", lines: ts, line: 0, text: "Failed", want: syntax.String},
+		{name: "ts: имя в подстановке", path: "a.ts", lines: ts, line: 0, text: "response", want: ""},
+		{name: "ts: свойство в подстановке", path: "a.ts", lines: ts, line: 0, text: "status", want: syntax.Property},
+		{name: "ts: имя в выражении", path: "a.ts", lines: ts, line: 0, text: "count", want: ""},
+		{name: "ts: число в выражении", path: "a.ts", lines: ts, line: 0, text: "1}", want: syntax.Number},
+		{name: "ts: условное выражение", path: "a.ts", lines: ts, line: 0, text: "a ? b", want: ""},
+		{name: "python: текст f-строки", path: "a.py", lines: py, line: 0, text: "hi ", want: syntax.String},
+		{name: "python: имя в подстановке", path: "a.py", lines: py, line: 0, text: "name", want: ""},
+		{name: "python: вызов в подстановке", path: "a.py", lines: py, line: 0, text: "len", want: syntax.Function},
+		{name: "ruby: текст строки", path: "a.rb", lines: rb, line: 0, text: "hi ", want: syntax.String},
+		{name: "ruby: имя в подстановке", path: "a.rb", lines: rb, line: 0, text: "name", want: ""},
+		{name: "ruby: вызов в подстановке", path: "a.rb", lines: rb, line: 0, text: "upcase", want: syntax.Function},
+		{name: "bash: текст строки", path: "a.sh", lines: sh, line: 0, text: "hi ", want: syntax.String},
+		{name: "bash: граница подстановки", path: "a.sh", lines: sh, line: 0, text: "${", want: ""},
+		{name: "bash: имя переменной в подстановке", path: "a.sh", lines: sh, line: 0, text: "name", want: syntax.Property},
+		{name: "bash: команда в подстановке", path: "a.sh", lines: sh, line: 0, text: "date", want: syntax.Function},
+	})
+}
+
+// gotreesitter не проверяет #is-not? local: шаблон ((identifier)
+// @function.method (#is-not? local)) ловил бы каждый идентификатор Ruby.
+// Таблицы областей видимости у нас нет, поэтому такие шаблоны пропускаются:
+// ложная функция хуже ненайденной (#160). Имена с собственным шаблоном
+// (объявление метода, вызов через точку) красятся как раньше.
+func TestIsNotLocalPatternsSkipped(t *testing.T) {
+	ruby := []string{
+		"def total(list)",
+		"  sum = 0",
+		"  list.each { |row| sum += row.price }",
+		"end",
+	}
+	js := []string{"console.log(1);", "const load = require;"}
+
+	checkKinds(t, []kindCase{
+		{name: "ruby: объявление метода", path: "a.rb", lines: ruby, line: 0, text: "total", want: syntax.Function},
+		{name: "ruby: параметр метода", path: "a.rb", lines: ruby, line: 0, text: "list", want: ""},
+		{name: "ruby: локальная переменная", path: "a.rb", lines: ruby, line: 1, text: "sum", want: ""},
+		{name: "ruby: получатель вызова", path: "a.rb", lines: ruby, line: 2, text: "list", want: ""},
+		{name: "ruby: параметр блока", path: "a.rb", lines: ruby, line: 2, text: "row", want: ""},
+		{name: "ruby: вызов с блоком", path: "a.rb", lines: ruby, line: 2, text: "each", want: syntax.Function},
+		{name: "ruby: вызов через точку", path: "a.rb", lines: ruby, line: 2, text: "price", want: syntax.Function},
+		// встроенные имена JS стоят под #is-not? local: подсветить console и
+		// require, не отличив их от локальных, нельзя
+		{name: "js: console без таблицы областей", path: "a.js", lines: js, line: 0, text: "console", want: ""},
+		{name: "js: require без таблицы областей", path: "a.js", lines: js, line: 1, text: "require", want: ""},
+		{name: "js: метод через точку", path: "a.js", lines: js, line: 0, text: "log", want: syntax.Function},
+	})
 }
 
 // Многострочный комментарий окрашен во всех своих строках: разбирается вся

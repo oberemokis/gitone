@@ -106,14 +106,43 @@ func (l Lexer) Lines(lines []string) [][]Span {
 	return result
 }
 
-// paint красит каждый байт исходника видом. Для каждого узла берётся первый
-// подошедший шаблон запроса, как в tree-sitter: запросы upstream написаны под
-// этот порядок, общее (identifier) @variable стоит в конце и не должно
-// затирать функции. Highlighter из gotreesitter отдаёт победу позднему
-// шаблону, поэтому запрос выполняется здесь. Захват без вида (variable,
-// punctuation) узел не занимает: в запросе JavaScript общее (identifier)
-// @variable стоит первым и иначе гасило бы имена вызовов (#140). Вложенный
-// узел перекрывает внешний: код внутри ${…} шаблонной строки красится как код.
+// capture это захват запроса, претендующий на узел [start, end).
+type capture struct {
+	start, end uint32
+	kind       Kind
+	pattern    int
+	depth      int
+}
+
+// beats говорит, что захват c забирает узел у old. Побеждает шаблон
+// специфичнее (глубже вложены скобки), среди равных поздний: так написана
+// часть запросов upstream, и gotreesitter сам ставит запрос языка-потомка
+// после родительского, чтобы он перекрывал родителя. Одно правило «поздний» на
+// все языки не годится: в Go голый (field_identifier) @property стоит ниже
+// вызова метода и перекрыл бы его, в Python (attribute attribute: …)
+// @property стоит ниже вызова метода, а он длиннее. В одном шаблоне вид
+// важнее пустого захвата рядом (@string.documentation @spell).
+func (c capture) beats(old capture) bool {
+	switch {
+	case c.depth != old.depth:
+		return c.depth > old.depth
+	case c.pattern != old.pattern:
+		return c.pattern > old.pattern
+	}
+	return old.kind == ""
+}
+
+// paint красит каждый байт исходника видом. Запрос выполняется здесь, а не
+// highlighter'ом из gotreesitter: узел получает захват по правилу beats.
+// Захват без вида (variable, punctuation) занимает узел, только если шаблон
+// не голый: так (formal name: (identifier) @variable.parameter) в Nix гасит
+// общее (identifier) @property, а голый (identifier) @variable, стоящий в
+// запросе JavaScript первым, имена вызовов не гасит (#140). Вложенный узел
+// перекрывает внешний: код внутри ${…} шаблонной строки красится как код.
+// Подстановку в строке запросы отмечают захватом @embedded: он занимает узел
+// пустым видом, и строковый цвет внешней строки не остаётся под именами без
+// своего шаблона. Длинные внешние узлы красятся раньше коротких внутренних,
+// это даёт сортировка по длине.
 func (l Lexer) paint(source []byte) []Kind {
 	language := l.entry.Language()
 	query, err := compiled(l.entry.Name, l.query, language)
@@ -126,20 +155,19 @@ func (l Lexer) paint(source []byte) []Kind {
 		return nil
 	}
 
-	type capture struct {
-		start, end uint32
-		kind       Kind
-		pattern    int
-	}
 	best := map[[2]uint32]capture{}
 	for _, match := range query.Execute(tree) {
+		depth := query.depth[match.PatternIndex]
 		for _, found := range match.Captures {
 			kind := kindOf(found.Name)
-			key := [2]uint32{found.Node.StartByte(), found.Node.EndByte()}
-			if old, seen := best[key]; kind == "" || seen && old.pattern <= match.PatternIndex {
+			if kind == "" && depth < 2 && found.Name != "embedded" {
 				continue
 			}
-			best[key] = capture{start: key[0], end: key[1], kind: kind, pattern: match.PatternIndex}
+			key := [2]uint32{found.Node.StartByte(), found.Node.EndByte()}
+			next := capture{start: key[0], end: key[1], kind: kind, pattern: match.PatternIndex, depth: depth}
+			if old, seen := best[key]; !seen || next.beats(old) {
+				best[key] = next
+			}
 		}
 	}
 
@@ -178,19 +206,65 @@ func parse(entry *grammars.LangEntry, language *ts.Language, source []byte) (*ts
 var queries sync.Map
 
 type compiledQuery struct {
-	query *ts.Query
+	*ts.Query
+	depth []int // по номеру шаблона, см. patternDepth
 	err   error
 }
 
-func compiled(name, source string, language *ts.Language) (*ts.Query, error) {
+func compiled(name, source string, language *ts.Language) (compiledQuery, error) {
 	if cached, found := queries.Load(name); found {
 		entry := cached.(compiledQuery)
-		return entry.query, entry.err
+		return entry, entry.err
 	}
 
 	query, err := ts.NewQuery(source, language)
-	queries.Store(name, compiledQuery{query: query, err: err})
-	return query, err
+	entry := compiledQuery{Query: query, err: err}
+	if err == nil {
+		for index := range uint32(query.PatternCount()) {
+			start, _ := query.StartByteForPattern(index)
+			end, _ := query.EndByteForPattern(index)
+			entry.depth = append(entry.depth, patternDepth(source[start:end]))
+
+			// gotreesitter не проверяет #is-not? local, и такой шаблон ловит
+			// каждый идентификатор. Таблицы областей видимости нет, а ложная
+			// функция хуже ненайденной: шаблон выключается целиком (#160).
+			properties, _ := query.PropertyPredicatesForPattern(index)
+			if slices.ContainsFunc(properties, func(p ts.QueryPropertyPredicate) bool { return p.Property == "local" && !p.Positive }) {
+				query.DisablePattern(index)
+			}
+		}
+	}
+	queries.Store(name, entry)
+	return entry, err
+}
+
+// patternDepth это глубина вложенности круглых скобок шаблона: голый (тип)
+// @вид и список ["a" "b"] @вид дают 1 и 0, вызов метода через родителя и поле
+// 3, предикат и группа добавляют уровень. Чем глубже, тем специфичнее
+// шаблон. gotreesitter не отдаёт устройство шаблона, поэтому считается его
+// текст. Строки и комментарии пропускаются, в них скобки бывают.
+func patternDepth(text string) int {
+	depth, deepest := 0, 0
+	for at := 0; at < len(text); at++ {
+		switch text[at] {
+		case '(':
+			depth++
+			deepest = max(deepest, depth)
+		case ')':
+			depth--
+		case '"':
+			for at++; at < len(text) && text[at] != '"'; at++ {
+				if text[at] == '\\' {
+					at++
+				}
+			}
+		case ';':
+			for at < len(text) && text[at] != '\n' {
+				at++
+			}
+		}
+	}
+	return deepest
 }
 
 // runs сворачивает виды байтов строки в отрезки. Байты без вида (имена
@@ -214,8 +288,11 @@ func runs(kinds []Kind) []Span {
 // string.special) в вид. Захваты без вида, как variable и punctuation,
 // остаются цветом текста.
 func kindOf(capture string) Kind {
-	if capture == "variable.builtin" {
+	switch capture {
+	case "variable.builtin":
 		return Constant
+	case "variable.member": // нынешнее имя field
+		return Property
 	}
 
 	group, _, _ := strings.Cut(capture, ".")
