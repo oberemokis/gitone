@@ -76,11 +76,13 @@ type Model struct {
 	width      int
 	height     int
 	helpOpen   bool
-	colors     theme.Theme
-	text       i18n.Dictionary
-	files      []diff.File
-	current    int
-	view       diffview.Model
+	// helpTop первая показанная строка справки, когда она выше тела (help.go)
+	helpTop int
+	colors  theme.Theme
+	text    i18n.Dictionary
+	files   []diff.File
+	current int
+	view    diffview.Model
 	// reading ключ версий файла, которые сейчас читаются (versions.go)
 	reading string
 }
@@ -164,7 +166,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.keyPress(msg)
 	case tea.MouseWheelMsg:
-		m.view = m.wheel(msg)
+		if m.helpOverflow() > 0 {
+			m = m.wheelHelp(msg.Button)
+		} else {
+			m.view = m.wheel(msg)
+		}
 	case tea.MouseClickMsg:
 		if msg.Button == tea.MouseLeft {
 			return m.click(msg.X, msg.Y)
@@ -341,6 +347,7 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case keymap.AppHelp:
 		m.helpOpen = !m.helpOpen
+		m.helpTop = 0
 	case keymap.HelpClose:
 		m.helpOpen = false
 	case keymap.FilesPick:
