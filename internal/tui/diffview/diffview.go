@@ -235,10 +235,9 @@ func (m Model) rebuild() Model {
 	m.numberWidth = len(strconv.Itoa(largest))
 
 	m.longest = 0
-	m.lines = m.notices()
-	for _, row := range rows {
-		left, right := row.textWidths()
-		m.longest = max(m.longest, left, right)
+	m.lines = nil
+	for _, row := range append(m.notices(), rows...) {
+		m.longest = max(m.longest, m.extent(row))
 		m.lines = append(m.lines, m.parts(row)...)
 	}
 

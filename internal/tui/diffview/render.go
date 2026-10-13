@@ -23,7 +23,7 @@ const tabSpaces = "    "
 func (m Model) render(line line) string {
 	switch {
 	case line.notice != nil:
-		return m.renderNotice(*line.notice)
+		return m.renderNotice(*line.notice, line.chunk)
 	case line.split != nil:
 		return m.renderSplit(*line.split, line.chunk)
 	default:
@@ -31,13 +31,14 @@ func (m Model) render(line line) string {
 	}
 }
 
-func (m Model) renderNotice(note notice) string {
-	style := lipgloss.NewStyle()
-	if !note.plain {
-		style = style.Foreground(m.colors.TextMuted)
+// renderNotice рисует служебную строку. Текст как есть (сырой блок git) идёт
+// как код: с той же колонки skip, переносом или сдвигом, без номера и знака.
+func (m Model) renderNotice(note notice, at chunk) string {
+	if note.plain {
+		return m.textCells(m.width, m.skip(at, 0), lipgloss.NewStyle(), nil, note.text, false, nil, nil)
 	}
 
-	return style.Render(fill(m.width, note.text))
+	return lipgloss.NewStyle().Foreground(m.colors.TextMuted).Render(fill(m.width, note.text))
 }
 
 func (m Model) renderUnified(row diff.UnifiedRow, at chunk) string {

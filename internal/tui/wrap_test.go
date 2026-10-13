@@ -274,6 +274,56 @@ func TestShiftReplacesWideCharacterAtLeftEdgeWithSpace(t *testing.T) {
 	}
 }
 
+// rawStat открывает `git diff --stat` для файла с именем из ста букв Q: строка
+// статистики шире панели в 60 колонок. Q нет ни в заголовке, ни в подвале.
+func rawStat(t *testing.T, change func(*config.Config)) tea.Model {
+	t.Helper()
+
+	repo := newRepo(t)
+	name := strings.Repeat("Q", 100) + ".txt"
+	write(t, repo, name, "x\n")
+	commitAll(t, repo)
+	write(t, repo, name, "y\n")
+
+	opts := options(repo, layout.Focus())
+	opts.Args = []string{"--stat=250"}
+	if change != nil {
+		change(&opts.Config)
+	}
+	return resize(open(t, opts), 60, 20)
+}
+
+// Строка сырого блока, которую разбор не узнал, переносится как строка кода:
+// хвост со статистикой виден, каждая буква имени стоит на экране один раз.
+func TestRawLineWrapsToShowTail(t *testing.T) {
+	body := screenText(rawStat(t, nil))
+
+	if got := strings.Count(body, "Q"); got != 100 {
+		t.Errorf("на экране %d букв Q, want 100:\n%s", got, body)
+	}
+	if !strings.Contains(body, "| 2 +-") {
+		t.Errorf("хвост строки статистики не виден:\n%s", body)
+	}
+}
+
+// Без переноса строка сырого блока сдвигается вбок вместе с кодом: в начале
+// видно имя, после сдвигов хвост.
+func TestRawLineShiftsToShowTail(t *testing.T) {
+	model := rawStat(t, noWrap)
+
+	start := screenText(model)
+	if !strings.Contains(start, " QQQQ") || strings.Contains(start, "| 2 +-") {
+		t.Fatalf("в начале должны быть имя без хвоста:\n%s", start)
+	}
+
+	for range 10 {
+		model, _ = model.Update(right)
+	}
+	if end := screenText(model); !strings.Contains(end, ".txt | 2 +-") {
+		t.Errorf("после сдвигов хвост не виден:\n%s", end)
+	}
+}
+
 // Номер строки с отступом слева, в unified один столбец номеров: у строки
 // контекста и добавленной новый номер, у удалённой старый.
 func TestUnifiedSingleNumberColumn(t *testing.T) {

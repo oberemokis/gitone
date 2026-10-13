@@ -123,6 +123,10 @@ func (m Model) parts(row line) []line {
 
 	left, right := row.texts()
 	leftWidth, rightWidth := m.codeWidths()
+	if row.notice != nil {
+		// сырая строка занимает панель целиком
+		leftWidth = m.width
+	}
 	leftCuts, rightCuts := cuts(left, leftWidth), cuts(right, rightWidth)
 
 	result := make([]line, max(len(leftCuts), len(rightCuts))-1)
@@ -167,14 +171,16 @@ func (m Model) skip(at chunk, side int) int {
 }
 
 // texts это код строки как он стоит на экране: левой и правой стороны split
-// или единственной стороны unified. Таб занимает четыре пробела, как при
-// отрисовке, значок ␍ одну клетку.
+// или единственной стороны unified, у сырой строки её текст. Таб занимает
+// четыре пробела, как при отрисовке, значок ␍ одну клетку.
 func (l line) texts() (string, string) {
 	switch {
 	case l.split != nil:
 		return shown(l.split.Left.Text, l.split.Left.CR), shown(l.split.Right.Text, l.split.Right.CR)
 	case l.unified != nil:
 		return shown(l.unified.Text, l.unified.CR), ""
+	case l.notice != nil && l.notice.plain:
+		return shown(l.notice.text, false), ""
 	}
 	return "", ""
 }
@@ -191,4 +197,15 @@ func shown(text string, cr bool) string {
 func (l line) textWidths() (int, int) {
 	left, right := l.texts()
 	return ansi.StringWidth(left), ansi.StringWidth(right)
+}
+
+// extent это ширина строки в колонках кода, от неё зависит самый дальний сдвиг.
+// Сырая строка занимает панель целиком, поэтому с неё вычитается то, на что
+// панель шире кода: сдвиг, при котором виден её конец, тот же, что у кода.
+func (m Model) extent(row line) int {
+	left, right := row.textWidths()
+	if row.notice != nil {
+		return left - (m.width - m.visibleWidth())
+	}
+	return max(left, right)
 }
