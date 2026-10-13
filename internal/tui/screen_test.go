@@ -91,7 +91,7 @@ func TestScrollStopsAtBothEnds(t *testing.T) {
 
 	// высота 20: заголовок и подвал, оба с пустыми строками над и под ними,
 	// оставляют телу 14 строк, полэкрана это 7
-	var model tea.Model = open(t, options(repo, layout.Focus()))
+	model := open(t, options(repo, layout.Focus()))
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	steps := []struct {
@@ -136,7 +136,7 @@ func TestModeToggleKeepsTopLine(t *testing.T) {
 
 	// unified: 35 удалённых строк, затем 35 добавленных. Пять раз на
 	// полэкрана (по 7 строк) ставят наверх первую добавленную, её номер 1.
-	var model tea.Model = open(t, options(repo, layout.Focus()))
+	model := open(t, options(repo, layout.Focus()))
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	for range 5 {
 		model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})

@@ -4,8 +4,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // windowText это часть строки экрана внутри окна: от начала его заголовка
@@ -54,7 +52,7 @@ func TestLogSearchKeepsWindowHeight(t *testing.T) {
 	_, model := openLog(t, 40, 120, 40)
 	before := rowOf(screenOf(model), "commit diff")
 
-	var searching tea.Model = typeText(model, "/")
+	searching := typeText(model, "/")
 	if after := rowOf(screenOf(searching), "esc clear"); after != before {
 		t.Fatalf("подсказка окна на строке %d, без поиска на %d", after, before)
 	}
