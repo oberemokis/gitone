@@ -22,13 +22,12 @@ func (l Lexer) Embeds() bool {
 }
 
 // place это где в дереве разметки стоит узел: тип родителя, внутри ли он
-// директивы vue, после ли as в {#each} Svelte, и элемент script или style с
-// его атрибутом lang.
+// директивы vue, после ли as в {#each} Svelte и атрибут lang у script или
+// style, внутри которого стоит узел.
 type place struct {
 	parent    string
 	directive bool
 	binding   bool
-	element   string
 	lang      string
 }
 
@@ -86,7 +85,7 @@ func (l Lexer) inject(root *ts.Node, language *ts.Language, source []byte, kinds
 
 		switch kind {
 		case "script_element", "style_element":
-			at.element, at.lang = kind, langAttribute(node, language, source)
+			at.lang = langAttribute(node, language, source)
 		case "directive_attribute":
 			at.directive = true
 		}
