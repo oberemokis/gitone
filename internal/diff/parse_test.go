@@ -281,7 +281,7 @@ func TestParse(t *testing.T) {
 			want: []diff.File{{OldPath: `old"q.txt`, NewPath: `new"q.txt`, Status: diff.StatusRenamed}},
 		},
 		{
-			name: "перевод строки CRLF срезается, управляющие символы становятся видимыми значками",
+			name: "перевод строки CRLF срезается и остаётся признаком CR, управляющие символы становятся видимыми значками",
 			input: lines(
 				"diff --git a/crlf.txt b/crlf.txt",
 				"index cf9b2a8..1119ddb 100644",
@@ -300,7 +300,10 @@ func TestParse(t *testing.T) {
 				Added:   2,
 				Removed: 1,
 				Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
-					context("line one"), removed("line two"), added("line 2"), added("␛[31mred␛[0m\tend␡"),
+					{Kind: diff.LineContext, Text: "line one", CR: true},
+					{Kind: diff.LineRemoved, Text: "line two", CR: true},
+					{Kind: diff.LineAdded, Text: "line 2", CR: true},
+					added("␛[31mred␛[0m\tend␡"),
 				}}},
 			}},
 		},

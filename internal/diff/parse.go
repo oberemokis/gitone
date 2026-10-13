@@ -135,17 +135,21 @@ func (p *parser) hunkLine(line string) {
 	file := p.current()
 	hunk := &file.Hunks[len(file.Hunks)-1]
 
+	// `\r` остаётся признаком: clean его срезает из текста, а по признаку
+	// видно правку, которая меняет только конец строки (CR на Line).
+	cr := strings.HasSuffix(line, "\r")
+
 	switch {
 	case strings.HasPrefix(line, "+"):
-		hunk.Lines = append(hunk.Lines, Line{Kind: LineAdded, Text: clean(line[1:])})
+		hunk.Lines = append(hunk.Lines, Line{Kind: LineAdded, Text: clean(line[1:]), CR: cr})
 		file.Added++
 		p.newLeft--
 	case strings.HasPrefix(line, "-"):
-		hunk.Lines = append(hunk.Lines, Line{Kind: LineRemoved, Text: clean(line[1:])})
+		hunk.Lines = append(hunk.Lines, Line{Kind: LineRemoved, Text: clean(line[1:]), CR: cr})
 		file.Removed++
 		p.oldLeft--
 	default:
-		hunk.Lines = append(hunk.Lines, Line{Kind: LineContext, Text: clean(strings.TrimPrefix(line, " "))})
+		hunk.Lines = append(hunk.Lines, Line{Kind: LineContext, Text: clean(strings.TrimPrefix(line, " ")), CR: cr})
 		p.oldLeft--
 		p.newLeft--
 	}

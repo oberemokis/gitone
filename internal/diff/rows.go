@@ -19,6 +19,9 @@ type Cell struct {
 	Text   string
 	// изменённые слова пары, пусто без пары или когда подсветки нет
 	Changed []Span
+	// Строка кончалась `\r\n`, а пара отличается от неё только этим: экран
+	// рисует значок ␍. В обычном CRLF-файле значков нет.
+	CR bool
 }
 
 type SplitRow struct {
@@ -37,6 +40,8 @@ type UnifiedRow struct {
 	Text      string
 	// изменённые слова пары, пусто без пары или когда подсветки нет
 	Changed []Span
+	// как Cell.CR
+	CR bool
 }
 
 func Unified(file File) []UnifiedRow {
@@ -47,10 +52,10 @@ func Unified(file File) []UnifiedRow {
 			rows = append(rows, UnifiedRow{Kind: RowGap})
 		}
 
-		marks := wordMarks(hunk.Lines)
+		marks := pairMarks(hunk.Lines)
 		oldNumber, newNumber := hunk.OldStart, hunk.NewStart
 		for lineIndex, line := range hunk.Lines {
-			row := UnifiedRow{Kind: RowLine, Line: line.Kind, Text: line.Text, Changed: marks[lineIndex]}
+			row := UnifiedRow{Kind: RowLine, Line: line.Kind, Text: line.Text, Changed: marks[lineIndex].changed, CR: marks[lineIndex].cr}
 			switch line.Kind {
 			case LineContext:
 				row.OldNumber, row.NewNumber = oldNumber, newNumber
@@ -152,7 +157,9 @@ func (n numbered) cell() Cell {
 func pair(left, right numbered) []SplitRow {
 	leftCell, rightCell := left.cell(), right.cell()
 	if left.line.Kind == LineRemoved && right.line.Kind == LineAdded {
-		leftCell.Changed, rightCell.Changed = wordSpans(left.line.Text, right.line.Text)
+		leftMark, rightMark := markPair(left.line, right.line)
+		leftCell.Changed, leftCell.CR = leftMark.changed, leftMark.cr
+		rightCell.Changed, rightCell.CR = rightMark.changed, rightMark.cr
 	}
 
 	rows := []SplitRow{{Kind: RowLine, Left: leftCell, Right: rightCell}}

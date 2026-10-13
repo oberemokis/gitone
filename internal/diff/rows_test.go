@@ -41,6 +41,45 @@ func TestUnified(t *testing.T) {
 				{Kind: diff.RowLine, Line: diff.LineAdded, NewNumber: 1, Text: "tail"},
 			},
 		},
+		{
+			name: "CRLF заменён на LF: значок CR у удалённых строк, где пара отличается только концом строки",
+			file: diff.File{Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
+				{Kind: diff.LineRemoved, Text: "one", CR: true},
+				{Kind: diff.LineRemoved, Text: "two", CR: true},
+				added("one"),
+				added("two"),
+			}}}},
+			want: []diff.UnifiedRow{
+				{Kind: diff.RowLine, Line: diff.LineRemoved, OldNumber: 1, Text: "one", CR: true},
+				{Kind: diff.RowLine, Line: diff.LineRemoved, OldNumber: 2, Text: "two", CR: true},
+				{Kind: diff.RowLine, Line: diff.LineAdded, NewNumber: 1, Text: "one"},
+				{Kind: diff.RowLine, Line: diff.LineAdded, NewNumber: 2, Text: "two"},
+			},
+		},
+		{
+			name: "LF заменён на CRLF: значок CR у добавленной строки",
+			file: diff.File{Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
+				removed("one"),
+				{Kind: diff.LineAdded, Text: "one", CR: true},
+			}}}},
+			want: []diff.UnifiedRow{
+				{Kind: diff.RowLine, Line: diff.LineRemoved, OldNumber: 1, Text: "one"},
+				{Kind: diff.RowLine, Line: diff.LineAdded, NewNumber: 1, Text: "one", CR: true},
+			},
+		},
+		{
+			name: "правка строки в CRLF-файле обходится без значков",
+			file: diff.File{Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
+				{Kind: diff.LineContext, Text: "keep", CR: true},
+				{Kind: diff.LineRemoved, Text: "old", CR: true},
+				{Kind: diff.LineAdded, Text: "new", CR: true},
+			}}}},
+			want: []diff.UnifiedRow{
+				{Kind: diff.RowLine, Line: diff.LineContext, OldNumber: 1, NewNumber: 1, Text: "keep"},
+				{Kind: diff.RowLine, Line: diff.LineRemoved, OldNumber: 2, Text: "old"},
+				{Kind: diff.RowLine, Line: diff.LineAdded, NewNumber: 2, Text: "new"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -103,6 +142,26 @@ func TestSplit(t *testing.T) {
 			want: []diff.SplitRow{
 				line(cell(diff.LineRemoved, 1, "tail"), cell(diff.LineAdded, 1, "tail")),
 				{Kind: diff.RowNoNewline, Left: diff.Cell{Kind: diff.LineRemoved}},
+			},
+		},
+		{
+			name: "CRLF заменён на LF: значок CR только в левой половине пары",
+			file: diff.File{Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
+				{Kind: diff.LineRemoved, Text: "one", CR: true},
+				added("one"),
+			}}}},
+			want: []diff.SplitRow{
+				line(diff.Cell{Kind: diff.LineRemoved, Number: 1, Text: "one", CR: true}, cell(diff.LineAdded, 1, "one")),
+			},
+		},
+		{
+			name: "правка строки в CRLF-файле обходится без значков",
+			file: diff.File{Hunks: []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{
+				{Kind: diff.LineRemoved, Text: "old", CR: true},
+				{Kind: diff.LineAdded, Text: "new", CR: true},
+			}}}},
+			want: []diff.SplitRow{
+				line(cell(diff.LineRemoved, 1, "old"), cell(diff.LineAdded, 1, "new")),
 			},
 		},
 	}

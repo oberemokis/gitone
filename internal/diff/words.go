@@ -154,11 +154,28 @@ func unmatchedSpans(tokens []token, matched []bool) []Span {
 	return spans
 }
 
-// wordMarks ставит пары в блоках: удалённые строки подряд, за ними добавленные.
+// mark это то, что строка получает от своей пары: изменённые слова и значок
+// CR.
+type mark struct {
+	changed []Span
+	cr      bool
+}
+
+// markPair размечает пару удалённой и добавленной строки. Значок CR нужен
+// тогда, когда строки совпадают текстом и различаются концом строки: без него
+// правка CRLF в LF выглядела бы парой одинаковых строк.
+func markPair(removed, added Line) (mark, mark) {
+	oldSpans, newSpans := wordSpans(removed.Text, added.Text)
+	endingOnly := removed.Text == added.Text && removed.CR != added.CR
+
+	return mark{oldSpans, endingOnly && removed.CR}, mark{newSpans, endingOnly && added.CR}
+}
+
+// pairMarks ставит пары в блоках: удалённые строки подряд, за ними добавленные.
 // Пара это строки на одной позиции в своих блоках, как в split. Лишние строки
 // пары не получают. Результат по индексу строки хунка.
-func wordMarks(lines []Line) map[int][]Span {
-	marks := make(map[int][]Span)
+func pairMarks(lines []Line) map[int]mark {
+	marks := make(map[int]mark)
 
 	for start := 0; start < len(lines); {
 		if lines[start].Kind != LineRemoved {
@@ -176,9 +193,7 @@ func wordMarks(lines []Line) map[int][]Span {
 		}
 
 		for offset := range min(end-start, addedEnd-end) {
-			oldSpans, newSpans := wordSpans(lines[start+offset].Text, lines[end+offset].Text)
-			marks[start+offset] = oldSpans
-			marks[end+offset] = newSpans
+			marks[start+offset], marks[end+offset] = markPair(lines[start+offset], lines[end+offset])
 		}
 
 		start = addedEnd
