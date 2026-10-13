@@ -303,13 +303,8 @@ func (m Model) noNewline(width int) string {
 	return lipgloss.NewStyle().Foreground(m.colors.TextMuted).Render(fill(width, indent+m.text.Text("diff.noNewline", nil)))
 }
 
-// formatNumber выравнивает номер по правому краю. Ноль значит, что строки с
-// этой стороны нет, и колонка остаётся пустой.
+// formatNumber выравнивает номер по правому краю.
 func (m Model) formatNumber(number int) string {
-	if number == 0 {
-		return strings.Repeat(" ", m.numberWidth)
-	}
-
 	return fmt.Sprintf("%*d", m.numberWidth, number)
 }
 
