@@ -193,17 +193,19 @@ func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, wi
 // клавишей окна, как подсказки справа: «B main   W gitone» (#108). Клавиша
 // берётся из keymap, отключённое окно оставляет одно имя. Клик по паре
 // открывает окно, как её клавиша (#119). Ветка идёт цветом accent, worktree
-// цветом своей роли, клавиши цветом текста.
+// цветом своей роли, клавиши цветом текста. Имена жирные (#208): рядом с
+// подсказками справа они иначе сливаются с ними, а клавиши остаются обычными.
 func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap) string {
 	if location.Branch == "" {
 		return ""
 	}
 
 	pair := func(action keymap.Action, nameColor color.Color, name string) string {
+		styled := lipgloss.NewStyle().Foreground(nameColor).Bold(true).Render(name)
 		if key := firstKey(keys, action); key != "" {
-			return pressable(action, coloredHint(lipgloss.NewStyle(), nameColor, key, name))
+			return pressable(action, key+" "+styled)
 		}
-		return lipgloss.NewStyle().Foreground(nameColor).Render(name)
+		return styled
 	}
 
 	return pair(keymap.AppBranches, colors.Accent, visible(location.Branch)) + "   " + pair(keymap.AppWorktrees, colors.Worktree, visible(location.Worktree))

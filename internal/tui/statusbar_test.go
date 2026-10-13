@@ -3,6 +3,7 @@ package tui_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -73,6 +74,36 @@ func TestFooterLocationColors(t *testing.T) {
 		code := styleBefore(t, raw, " quit", name)
 		if strings.Contains(code, accentFg) || strings.Contains(code, worktreeFg) || strings.Contains(code, mutedFg) {
 			t.Errorf("клавиша %s не цветом текста: %q", name, code)
+		}
+	}
+}
+
+// isBold говорит, включает ли код стиля жирное начертание, параметр 1. Цвета
+// встроенной темы не содержат компоненты 1, поэтому с цветом он не спутается.
+func isBold(code string) bool {
+	params := strings.Split(strings.TrimSuffix(strings.TrimPrefix(code, "\x1b["), "m"), ";")
+	return slices.Contains(params, "1")
+}
+
+// Имена ветки и worktree в подвале жирные, чтобы не сливаться с подсказками, а
+// клавиши B и W остаются обычными. Цвета имён прежние.
+func TestFooterNamesAreBold(t *testing.T) {
+	repo, model := threeFileRepo(t)
+	raw := model.View().Content
+
+	names := []struct{ name, color string }{{"main", accentFg}, {filepath.Base(repo), worktreeFg}}
+	for _, tc := range names {
+		code := styleBefore(t, raw, " quit", tc.name)
+		if !isBold(code) {
+			t.Errorf("имя %q не жирное: %q", tc.name, code)
+		}
+		if !strings.Contains(code, tc.color) {
+			t.Errorf("имя %q потеряло цвет %s: %q", tc.name, tc.color, code)
+		}
+	}
+	for _, key := range []string{"B", "W"} {
+		if code := styleBefore(t, raw, " quit", key); isBold(code) {
+			t.Errorf("клавиша %s жирная: %q", key, code)
 		}
 	}
 }
