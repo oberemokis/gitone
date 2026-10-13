@@ -89,7 +89,7 @@ func (m Model) answerStashDrop(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func stashBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, stashes []git.Stash, cursor int, asking bool, screenWidth, screenHeight int) string {
 	rows := make([]string, len(stashes))
 	for index, stash := range stashes {
-		rows[index] = stash.Ref + "  " + stash.Subject
+		rows[index] = visible(stash.Ref + "  " + stash.Subject)
 	}
 
 	box := list{
@@ -103,7 +103,7 @@ func stashBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, stas
 	}
 	if asking {
 		args := questionArgs(keys)
-		args["ref"] = stashes[cursor].Ref
+		args["ref"] = visible(stashes[cursor].Ref)
 		box.question = text.Text("stash.dropQuestion", args)
 	}
 

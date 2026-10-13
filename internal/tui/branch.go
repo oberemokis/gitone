@@ -91,8 +91,8 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 	titles := []string{text.Text("branches.column.name", nil), text.Text("branches.column.author", nil), text.Text("branches.column.date", nil)}
 	authorWidth, dateWidth := ansi.StringWidth(titles[1]), ansi.StringWidth(titles[2])
 	for _, branch := range branches {
-		authorWidth = max(authorWidth, ansi.StringWidth(cellText(branch.Author)))
-		dateWidth = max(dateWidth, ansi.StringWidth(branch.When))
+		authorWidth = max(authorWidth, ansi.StringWidth(visible(branch.Author)))
+		dateWidth = max(dateWidth, ansi.StringWidth(visible(branch.When)))
 	}
 	widths := []int{0, min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
 	widths[0] = max(box.rowWidth(screenWidth)-widths[1]-widths[2]-2*columnGap, 1)
@@ -118,7 +118,7 @@ func branchCell(panel, name lipgloss.Style, width int, branch git.Branch, curren
 		mark = " " + current
 	}
 
-	label := ansi.Truncate(branch.Name, max(width-ansi.StringWidth(mark), 1), "…")
+	label := ansi.Truncate(visible(branch.Name), max(width-ansi.StringWidth(mark), 1), "…")
 	used := ansi.StringWidth(label) + ansi.StringWidth(mark)
 	return name.Render(label) + panel.Render(mark+strings.Repeat(" ", max(width-used, 0)))
 }
