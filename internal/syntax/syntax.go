@@ -139,6 +139,10 @@ func (c capture) beats(old capture) bool {
 // общее (identifier) @property, а голый (identifier) @variable, стоящий в
 // запросе JavaScript первым, имена вызовов не гасит (#140). Вложенный узел
 // перекрывает внешний: код внутри ${…} шаблонной строки красится как код.
+// Подстановку в строке запросы отмечают захватом @embedded: он занимает узел
+// пустым видом, и строковый цвет внешней строки не остаётся под именами без
+// своего шаблона. Длинные внешние узлы красятся раньше коротких внутренних,
+// это даёт сортировка по длине.
 func (l Lexer) paint(source []byte) []Kind {
 	language := l.entry.Language()
 	query, err := compiled(l.entry.Name, l.query, language)
@@ -156,7 +160,7 @@ func (l Lexer) paint(source []byte) []Kind {
 		depth := query.depth[match.PatternIndex]
 		for _, found := range match.Captures {
 			kind := kindOf(found.Name)
-			if kind == "" && depth < 2 {
+			if kind == "" && depth < 2 && found.Name != "embedded" {
 				continue
 			}
 			key := [2]uint32{found.Node.StartByte(), found.Node.EndByte()}

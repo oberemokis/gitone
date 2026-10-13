@@ -173,6 +173,36 @@ func TestPatternPriority(t *testing.T) {
 	})
 }
 
+// Код внутри строки отмечен в запросах захватом @embedded: диапазон
+// подстановки занимает пустой вид, и строковый цвет внешней строки не лежит
+// под именами, у которых нет своего шаблона (#160). Свои цвета у вложенного
+// кода сохраняются.
+func TestEmbeddedCaptureInString(t *testing.T) {
+	ts := []string{"const s = `Failed: ${response.status} ${count + 1} ${a ? b : c}`;"}
+	py := []string{`print(f"hi {name} {len(name)}")`}
+	rb := []string{`puts "hi #{name} #{name.upcase}"`}
+	sh := []string{`echo "hi ${name} $(date)"`}
+
+	checkKinds(t, []kindCase{
+		{name: "ts: текст шаблонной строки", path: "a.ts", lines: ts, line: 0, text: "Failed", want: syntax.String},
+		{name: "ts: имя в подстановке", path: "a.ts", lines: ts, line: 0, text: "response", want: ""},
+		{name: "ts: свойство в подстановке", path: "a.ts", lines: ts, line: 0, text: "status", want: syntax.Property},
+		{name: "ts: имя в выражении", path: "a.ts", lines: ts, line: 0, text: "count", want: ""},
+		{name: "ts: число в выражении", path: "a.ts", lines: ts, line: 0, text: "1}", want: syntax.Number},
+		{name: "ts: условное выражение", path: "a.ts", lines: ts, line: 0, text: "a ? b", want: ""},
+		{name: "python: текст f-строки", path: "a.py", lines: py, line: 0, text: "hi ", want: syntax.String},
+		{name: "python: имя в подстановке", path: "a.py", lines: py, line: 0, text: "name", want: ""},
+		{name: "python: вызов в подстановке", path: "a.py", lines: py, line: 0, text: "len", want: syntax.Function},
+		{name: "ruby: текст строки", path: "a.rb", lines: rb, line: 0, text: "hi ", want: syntax.String},
+		{name: "ruby: имя в подстановке", path: "a.rb", lines: rb, line: 0, text: "name", want: ""},
+		{name: "ruby: вызов в подстановке", path: "a.rb", lines: rb, line: 0, text: "upcase", want: syntax.Function},
+		{name: "bash: текст строки", path: "a.sh", lines: sh, line: 0, text: "hi ", want: syntax.String},
+		{name: "bash: граница подстановки", path: "a.sh", lines: sh, line: 0, text: "${", want: ""},
+		{name: "bash: имя переменной в подстановке", path: "a.sh", lines: sh, line: 0, text: "name", want: syntax.Property},
+		{name: "bash: команда в подстановке", path: "a.sh", lines: sh, line: 0, text: "date", want: syntax.Function},
+	})
+}
+
 // gotreesitter не проверяет #is-not? local: шаблон ((identifier)
 // @function.method (#is-not? local)) ловил бы каждый идентификатор Ruby.
 // Таблицы областей видимости у нас нет, поэтому такие шаблоны пропускаются:
