@@ -50,8 +50,7 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	entry := shown[m.cursor]
 	m.active = noWindow
 	if entry.Root {
-		m.notice = m.text.Text("log.firstCommitHidden", nil)
-		return m, nil
+		return m.putNotice(m.text.Text("log.firstCommitHidden", nil), true), nil
 	}
 
 	m.args = []string{entry.Hash + "^!"}

@@ -168,6 +168,5 @@ func (m Model) refuseWhileRemote() (next Model, refused bool) {
 		return m, false
 	}
 
-	m.notice = m.text.Text(m.remote.busyKey(), nil)
-	return m, true
+	return m.putNotice(m.text.Text(m.remote.busyKey(), nil), false), true
 }

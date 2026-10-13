@@ -69,11 +69,16 @@ type Model struct {
 	worktrees []git.Worktree
 	stashes   []git.Stash
 	picker    picker.Model
-	// ошибка последнего перечитывания, стоит в подвале до следующего нажатия;
+	// заметка подвала стоит до следующего нажатия, а гаснущая (fades) ещё и
+	// пропадает сама через noticeLifetime (notice.go); noticeID номер заметки, у
+	// таймера свой номер; noFade выключает таймер (Options.KeepNotices).
 	// calm это текст итога pull или push: заметка с таким текстом идёт не цветом
 	// ошибки (sayCalm)
-	notice string
-	calm   string
+	notice   string
+	noticeID int
+	fades    bool
+	noFade   bool
+	calm     string
 	// идущий pull или push (remote.go)
 	remote remote
 	keys   keymap.Keymap
@@ -125,6 +130,9 @@ type Options struct {
 	// Now часы для отбрасывания двойного клика (#150), nil значит time.Now.
 	// Тесты подставляют свои, чтобы не ждать.
 	Now func() time.Time
+	// KeepNotices отключает таймер заметок (#209): они висят до нажатия клавиши.
+	// Нужен тестам, которые доводят команды до конца и не ждут пять секунд.
+	KeepNotices bool
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -150,6 +158,7 @@ func New(opts Options, files []diff.File) Model {
 
 	return Model{
 		now:      now,
+		noFade:   opts.KeepNotices,
 		dir:      opts.Dir,
 		args:     opts.Args,
 		baseArgs: opts.Args,
@@ -172,11 +181,12 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update разбирает сообщение, а после него следит, чтобы открытый
-// однофайловый компонент красился по файлу целиком (versions.go).
+// однофайловый компонент красился по файлу целиком (versions.go) и чтобы у
+// новой гаснущей заметки был таймер (notice.go).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if model, isModel := next.(Model); isModel {
-		return model.wantVersions(cmd)
+		return model.wantVersions(model.wantExpiry(m.noticeID, cmd))
 	}
 	return next, cmd
 }
@@ -233,6 +243,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case remoteDoneMsg:
 		return m.remoteDone(msg)
+	case noticeExpiredMsg:
+		m = m.expire(msg)
 	case reloadMsg:
 		return m.reloaded(msg)
 	case worktreeCheckedMsg:
@@ -278,20 +290,19 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// say ставит асинхронное сообщение в подвал. Висящий вопрос discard при этом
-// отменяется: его текст затёрт, и y не должен стирать правку, о которой
-// пользователь вопроса уже не видит.
+// say ставит асинхронное сообщение в подвал, ошибку: она остаётся до следующего
+// нажатия. Висящий вопрос discard при этом отменяется: его текст затёрт, и y не
+// должен стирать правку, о которой пользователь вопроса уже не видит.
 func (m Model) say(text string) Model {
-	m.notice = text
-	return m.dropQuestion()
+	return m.putNotice(text, false).dropQuestion()
 }
 
-// sayCalm ставит в подвал итог, а не ошибку: он идёт цветом текста. Заметка
-// считается итогом, пока её текст равен m.calm: любая следующая заметка с
-// другим текстом снова красная, и сбрасывать флаг в каждом месте, где заметка
-// пишется или стирается, не нужно.
+// sayCalm ставит в подвал итог, а не ошибку: он идёт цветом текста и гаснет
+// сам. Заметка считается итогом, пока её текст равен m.calm: любая следующая
+// заметка с другим текстом снова красная, и сбрасывать флаг в каждом месте, где
+// заметка пишется или стирается, не нужно.
 func (m Model) sayCalm(text string) Model {
-	m = m.say(text)
+	m = m.putNotice(text, true).dropQuestion()
 	m.calm = text
 	return m
 }
