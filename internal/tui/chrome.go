@@ -121,6 +121,26 @@ func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Bindin
 	return strings.Join(hints, "   ")
 }
 
+// emptyActions это действия, о которых говорит экран без изменений: окна,
+// справка и выход.
+var emptyActions = []keymap.Action{
+	keymap.FilesPick, keymap.AppLog, keymap.AppBranches, keymap.AppWorktrees, keymap.StashList, keymap.AppHelp, keymap.AppQuit,
+}
+
+// emptyHints собирает строки клавиш под «No changes» так же, как подвал:
+// первая клавиша действия, переназначение видно сразу, действие без клавиш
+// в список не идёт. Клик по строке нажимает клавишу (#119).
+func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap) []string {
+	var hints []string
+	for _, action := range emptyActions {
+		if key := firstKey(keys, action); key != "" {
+			hints = append(hints, pressable(action, keyHint(lipgloss.NewStyle(), colors, key, text.Text(footerKey(action), nil))))
+		}
+	}
+
+	return hints
+}
+
 // locationLabel это ветка и worktree для левого края, каждое со своей
 // клавишей окна, как подсказки справа: «B main   W gitone» (#108). Клавиша
 // берётся из keymap, отключённое окно оставляет одно имя. Клик по паре
