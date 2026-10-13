@@ -29,15 +29,22 @@ func noWrap(cfg *config.Config) {
 }
 
 // longLine открывает дифф, где x заменён строкой из 200 цифр, в unified на
-// экране 100 на 20. Полоса прокрутки красится отличимыми цветами: дорожка
-// #010101 (38;2;1;1;1), ползунок #020202 (38;2;2;2;2).
+// экране 100 на 20.
 func longLine(t *testing.T, change func(*config.Config)) tea.Model {
+	t.Helper()
+	return lineDiff(t, digits, change)
+}
+
+// lineDiff открывает дифф, где x заменён строкой line, в unified на экране 100
+// на 20. Полоса прокрутки красится отличимыми цветами: дорожка #010101
+// (38;2;1;1;1), ползунок #020202 (38;2;2;2;2).
+func lineDiff(t *testing.T, line string, change func(*config.Config)) tea.Model {
 	t.Helper()
 
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "x\n")
 	commitAll(t, repo)
-	write(t, repo, "a.txt", digits+"\n")
+	write(t, repo, "a.txt", line+"\n")
 
 	custom := theme.Dark()
 	custom.BackgroundPanel = lipgloss.Color("#010101")
@@ -148,11 +155,11 @@ func TestWKeyTogglesWrap(t *testing.T) {
 	}
 }
 
-// Все строки помещаются: полосы нет.
+// Перенос выключен, но все строки помещаются: полосы нет, внизу пустая строка.
 func TestShortLinesHaveNoScrollbar(t *testing.T) {
-	_, model := threeFileRepo(t)
+	model := lineDiff(t, "short", noWrap)
 
-	if bar := paneBottom(model); strings.TrimSpace(bar) != "" {
+	if bar := ansi.Strip(paneBottom(model)); strings.TrimSpace(bar) != "" {
 		t.Fatalf("у короткого файла внизу %q, want пустая строка", bar)
 	}
 }
