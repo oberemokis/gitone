@@ -28,7 +28,7 @@
   "action.diff.toggleMode.help": "Split or unified",
   "action.diff.toggleWrap.help": "Wrap long lines",
   "action.diff.top.help": "Top",
-  "action.diff.workingTree.help": "Working tree diff",
+  "action.diff.workingTree.help": "Back to the launch diff",
   "action.files.commit.help": "Commit staged changes",
   "action.files.discard.help": "Discard file changes",
   "action.files.next.help": "Next file",
