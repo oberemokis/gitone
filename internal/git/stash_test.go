@@ -46,6 +46,47 @@ func TestStashPushApplyDrop(t *testing.T) {
 	}
 }
 
+// Отказ apply называет причину одной строкой: при конфликте строку CONFLICT, а
+// не «Auto-merging a.txt», которой git начинает вывод; без конфликта первую.
+func TestStashApplyErrorNamesReason(t *testing.T) {
+	cases := []struct {
+		name    string
+		prepare func(t *testing.T, repo string)
+		want    string
+	}{
+		{name: "конфликт", want: "stash apply: CONFLICT (content): Merge conflict in a.txt", prepare: func(t *testing.T, repo string) {
+			write(t, repo, "a.txt", "three\n")
+			commitAll(t, repo)
+		}},
+		{name: "правка мешает", want: "stash apply: error: Your local changes to the following files would be overwritten by merge:", prepare: func(t *testing.T, repo string) {
+			write(t, repo, "a.txt", "three\n")
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", "one\n")
+			commitAll(t, repo)
+			write(t, repo, "a.txt", "two\n")
+			if err := git.StashPush(repo); err != nil {
+				t.Fatalf("StashPush: %v", err)
+			}
+			tc.prepare(t, repo)
+			stashes, err := git.Stashes(repo)
+			if err != nil || len(stashes) != 1 {
+				t.Fatalf("stash %v, ошибка %v; ожидался один", stashes, err)
+			}
+
+			err = git.StashApply(repo, stashes[0])
+
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("StashApply = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestStashPushWithNothingFails(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
