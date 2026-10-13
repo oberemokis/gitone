@@ -357,6 +357,29 @@ func TestEmbeddedUnquotedLang(t *testing.T) {
 	})
 }
 
+// В {#each items as item (item.id)} после as стоит привязка и ключ, а не
+// выражение: как вызов функции item красить нельзя. Выражение слева от as и
+// ключ в скобках остаются кодом (#161).
+func TestSvelteEachBinding(t *testing.T) {
+	svelte := []string{
+		"{#each load(items) as item (item.id)}",
+		"{#each items as item, i (item.id)}",
+		"{#each items as { id, name }}",
+		"{#each items as item (key(item))}",
+	}
+
+	checkKinds(t, []kindCase{
+		{name: "svelte: выражение слева от as", path: "App.svelte", lines: svelte, line: 0, text: "load", want: syntax.Function},
+		{name: "svelte: привязка", path: "App.svelte", lines: svelte, line: 0, text: "item (", want: ""},
+		{name: "svelte: свойство в ключе", path: "App.svelte", lines: svelte, line: 0, text: "id)", want: syntax.Property},
+		{name: "svelte: привязка с индексом", path: "App.svelte", lines: svelte, line: 1, text: "item,", want: ""},
+		{name: "svelte: индекс", path: "App.svelte", lines: svelte, line: 1, text: "i (", want: ""},
+		{name: "svelte: свойство в ключе с индексом", path: "App.svelte", lines: svelte, line: 1, text: "id)", want: syntax.Property},
+		{name: "svelte: деструктуризация без ключа", path: "App.svelte", lines: svelte, line: 2, text: "id,", want: ""},
+		{name: "svelte: вызов в ключе", path: "App.svelte", lines: svelte, line: 3, text: "key", want: syntax.Function},
+	})
+}
+
 // Каждый узел кода внутри разметки разбирается заново, поэтому разбор файла
 // не должен стоить парсера и арены на узел (#161). Меряются выделенные байты,
 // а не время: тест не плавает. Без пула и Release файл в 300 строк и 600
