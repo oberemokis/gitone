@@ -1,8 +1,9 @@
-// Package picker это окно выбора из списка с нечётким поиском, в стиле окон
-// opencode. Это поле ввода, поэтому оно получает нажатия напрямую, а не
+// Package picker это выбор из списка с нечётким поиском: запрос, найденное и
+// выделение. Это поле ввода, поэтому оно получает нажатия напрямую, а не
 // действия: q и ? здесь набираются в поиск. Клавиши своих действий (выбрать,
 // закрыть, вверх, вниз) оно получает от корня строками, остальное набирается.
-// Что делать с выбором, решает корень.
+// Рисует окно и решает, что делать с выбором, корень: окно выглядит как
+// остальные списки (#137).
 package picker
 
 import (
@@ -11,8 +12,6 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-
-	"gitone/internal/tui/theme"
 )
 
 // Item это строка списка. Detail стоит справа серым и различает записи с
@@ -30,19 +29,6 @@ const (
 	Closed
 )
 
-// Texts это тексты окна на языке интерфейса: их собирает корень, сам picker
-// словаря не знает.
-type Texts struct {
-	Title string
-	// подсказка в пустом поле поиска
-	Search string
-	// вместо списка, когда поиск ничего не нашёл
-	NoMatches string
-	// клавиша закрытия в заголовке, как её показывает подвал, и подпись к ней
-	CloseKey   string
-	CloseLabel string
-}
-
 // Keys это клавиши действий окна, как их возвращает KeyPressMsg.String().
 // backspace стирает символ всегда, остальное набирается в поиск.
 type Keys struct {
@@ -50,18 +36,35 @@ type Keys struct {
 }
 
 type Model struct {
-	texts   Texts
 	keys    Keys
 	items   []Item
 	query   string
 	matches []int
 	// позиция выделения в matches
 	selected int
-	colors   theme.Theme
 }
 
-func New(texts Texts, keys Keys, items []Item, colors theme.Theme) Model {
-	return Model{texts: texts, keys: keys, items: items, colors: colors}.filter()
+func New(keys Keys, items []Item) Model {
+	return Model{keys: keys, items: items}.filter()
+}
+
+// Query это набранный запрос.
+func (m Model) Query() string {
+	return m.query
+}
+
+// Shown это найденные элементы по порядку списка, Selected позиция выделения
+// среди них.
+func (m Model) Shown() []Item {
+	shown := make([]Item, len(m.matches))
+	for position, index := range m.matches {
+		shown[position] = m.items[index]
+	}
+	return shown
+}
+
+func (m Model) Selected() int {
+	return m.selected
 }
 
 // HandleKey разбирает нажатие. Chosen значит, что выбран элемент Selected,
@@ -96,8 +99,8 @@ func (m Model) HandleKey(key tea.KeyPressMsg) (Model, Outcome) {
 	return m, Pending
 }
 
-// Select ставит выделение на позицию среди найденных, как её помечает View.
-// Позиция за краем списка выделение не трогает.
+// Select ставит выделение на позицию среди найденных (Shown), например по
+// клику на строку. Позиция за краем списка выделение не трогает.
 func (m Model) Select(position int) Model {
 	if position >= 0 && position < len(m.matches) {
 		m.selected = position

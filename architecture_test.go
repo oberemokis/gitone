@@ -28,7 +28,7 @@ var allowedImports = map[string][]string{
 	},
 	"gitone/internal/tui/diffview":   {"gitone/internal/diff", "gitone/internal/i18n", "gitone/internal/syntax", "gitone/internal/tui/theme"},
 	"gitone/internal/tui/pane/files": {"gitone/internal/tui/theme", "gitone/internal/tui/zone"},
-	"gitone/internal/tui/picker":     {"gitone/internal/tui/theme", "gitone/internal/tui/zone"},
+	"gitone/internal/tui/picker":     {},
 	"gitone/internal/tui/theme":      {"gitone/internal/config", "gitone/internal/i18n"},
 	"gitone/internal/tui/zone":       {},
 	"gitone/internal/layout":         {"gitone/internal/config", "gitone/internal/i18n"},

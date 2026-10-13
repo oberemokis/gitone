@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/keymap"
-	"gitone/internal/tui/picker"
 	"gitone/internal/tui/zone"
 )
 
@@ -43,21 +42,18 @@ func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
 		m.helpOpen = false
 		return m.press(keymap.Action(action))
 	}
-	switch target {
-	case picker.CloseTarget:
-		return m.press(keymap.SearchClose)
-	case filesEdgeTarget, splitEdgeTarget:
+	if target == filesEdgeTarget || target == splitEdgeTarget {
 		return m.startDrag(target, x), nil
 	}
 
 	return m, nil
 }
 
-// button говорит, что цель это кнопка: подсказка, стрелка или закрытие окна
-// поиска. Кнопка ловит клик и на клетку вокруг себя (#134), строки списков
-// нет: клик над первой строкой открывал бы то, чего не выбирали.
+// button говорит, что цель это кнопка: подсказка или стрелка. Кнопка ловит
+// клик и на клетку вокруг себя (#134), строки списков нет: клик над первой
+// строкой открывал бы то, чего не выбирали.
 func button(target string) bool {
-	return strings.HasPrefix(target, pressTarget) || strings.HasPrefix(target, fileTarget) || target == picker.CloseTarget
+	return strings.HasPrefix(target, pressTarget) || strings.HasPrefix(target, fileTarget)
 }
 
 // press нажимает первую клавишу действия: клик идёт тем же путём, что

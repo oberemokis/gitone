@@ -67,7 +67,7 @@ func (m Model) windowBox() string {
 
 	switch m.active {
 	case pickerWindow:
-		return m.picker.View(width, height)
+		return pickerBox(m.colors, m.text, m.keys, m.picker, len(m.files) == 0, width, height)
 	case commitWindow:
 		return commitBox(m.colors, m.text, m.keys, m.subject, width)
 	case logWindow:
