@@ -15,7 +15,17 @@ func Stage(dir string, paths []string) error {
 	return failed("add", stage(dir, paths))
 }
 
+// noPaths это отказ пустому списку путей до вызова git: `git add -A --` без
+// путей ставит в индекс всё дерево.
+func noPaths() error {
+	return i18n.New("git.noPaths", nil)
+}
+
 func stage(dir string, paths []string) error {
+	if len(paths) == 0 {
+		return noPaths()
+	}
+
 	root, err := topLevel(dir)
 	if err != nil {
 		return err
@@ -31,6 +41,10 @@ func Unstage(dir string, paths []string) error {
 }
 
 func unstage(dir string, paths []string) error {
+	if len(paths) == 0 {
+		return noPaths()
+	}
+
 	root, err := topLevel(dir)
 	if err != nil {
 		return err
@@ -59,6 +73,10 @@ func Discard(dir string, paths []string) error {
 }
 
 func discard(dir string, paths []string) error {
+	if len(paths) == 0 {
+		return noPaths()
+	}
+
 	root, err := topLevel(dir)
 	if err != nil {
 		return err

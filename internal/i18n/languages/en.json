@@ -56,6 +56,7 @@
   "files.noMatches": "No matching files",
   "files.none": "No files",
   "files.title": "Files",
+  "git.noPaths": "no files to change",
   "git.nothingToStash": "no changes to save in stash",
   "git.submoduleDiscard": "submodule \"{path}\" cannot be discarded",
   "help.title": "Hotkeys",

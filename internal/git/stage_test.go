@@ -102,6 +102,34 @@ func TestDiscardRestoresTrackedFileWithLeadingColon(t *testing.T) {
 	}
 }
 
+// `git add -A --` без путей ставит в индекс всё дерево, поэтому пустой список
+// отказывает до git. Каталог вне репозитория это доказывает: вызов git дал бы
+// «not a git repository», а не отказ из словаря.
+func TestEmptyPathListIsRefusedBeforeGit(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(dir string, paths []string) error
+	}{
+		{name: "Stage", call: git.Stage},
+		{name: "Unstage", call: git.Unstage},
+		{name: "Discard", call: git.Discard},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			outside := t.TempDir()
+			t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(outside))
+
+			err := tc.call(outside, nil)
+
+			var refusal *i18n.Error
+			if !errors.As(err, &refusal) || refusal.Key != "git.noPaths" {
+				t.Errorf("%s(nil) error = %v, ожидался отказ git.noPaths", tc.name, err)
+			}
+		})
+	}
+}
+
 // До первого коммита restore --staged падает: восстанавливать не из чего. Файл
 // всё равно должен уходить из индекса, а правка на диске оставаться.
 func TestUnstageBeforeFirstCommit(t *testing.T) {
