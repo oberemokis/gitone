@@ -14,8 +14,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/i18n"
 )
@@ -270,8 +274,6 @@ func checkWindowKeys(binding Binding) error {
 		switch {
 		case key == "ctrl+c", inField(action) && key == "backspace":
 			return i18n.New("keymap.reserved", args)
-		case closes(action) && utf8.RuneCountInString(key) > 1 && strings.ToLower(key) != key:
-			return i18n.New("keymap.lowercase", args)
 		case inField(action) && printable(key):
 			return i18n.New("keymap.typesText", args)
 		}
@@ -318,17 +320,95 @@ func parseKeys(raw json.RawMessage) ([]string, error) {
 	return nil, i18n.New("keymap.badKeys", nil)
 }
 
+// checkKeys проверяет каждую клавишу. Имя действия к ошибке добавляет
+// вызывающий.
 func checkKeys(keys []string) ([]string, error) {
 	for _, key := range keys {
-		if key == "" {
-			return nil, i18n.New("keymap.emptyKey", nil)
+		var err error
+		switch {
+		case key == "":
+			err = i18n.New("keymap.emptyKey", nil)
+		case key == "none":
+			err = i18n.New("keymap.noneInList", nil)
+		case strings.HasPrefix(key, "<leader>"):
+			err = i18n.New("keymap.leader", nil)
+		default:
+			err = checkKey(key)
 		}
-		if strings.HasPrefix(key, "<leader>") {
-			return nil, i18n.New("keymap.leader", nil)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return keys, nil
+}
+
+// modifiers идут в том порядке, в каком их пишет Keystroke.
+var modifiers = []string{"ctrl", "alt", "shift", "meta", "hyper", "super"}
+
+// keyNames это клавиши, которые Keystroke пишет словом: значения keyTypeString
+// из github.com/charmbracelet/ultraviolet (версия в go.mod) без одиночных
+// символов и функциональных клавиш f1…f63. Остальное Bubble Tea присылает
+// самим символом.
+const keyNames = `enter tab backspace esc space up down left right begin find insert delete select
+pgup pgdown home end equal mul plus comma minus period div sep
+capslock scrolllock numlock printscreen pause menu
+mediaplay mediapause mediaplaypause mediareverse mediastop mediafastforward mediarewind
+medianext mediaprev mediarecord lowervol raisevol mute
+leftshift leftalt leftctrl leftsuper lefthyper leftmeta
+rightshift rightalt rightctrl rightsuper righthyper rightmeta isolevel3shift isolevel5shift`
+
+// checkKey ловит клавишу, которой Bubble Tea не пришлёт: такая привязка молча
+// мертва. Клавиша это модификаторы в порядке Keystroke и основа, один
+// графемный символ или имя из keyNames. Заглавная буква сама по себе
+// приходит заглавной («B»), а с модификатором код строчный.
+func checkKey(key string) error {
+	base := key
+	var mods []string
+	for _, mod := range modifiers {
+		if rest, found := strings.CutPrefix(base, mod+"+"); found && rest != "" {
+			base = rest
+			mods = append(mods, mod)
+		}
+	}
+
+	if !keyName(base) && !symbol(base) {
+		return i18n.New("keymap.unknownKey", i18n.Args{"key": key})
+	}
+
+	letter, size := utf8.DecodeRuneInString(base)
+	if len(mods) == 0 || size != len(base) || !unicode.IsLetter(letter) {
+		return nil
+	}
+
+	args := i18n.Args{"key": key, "capital": strings.ToUpper(base)}
+	switch {
+	case slices.Equal(mods, []string{"shift"}):
+		return i18n.New("keymap.shiftLetter", args)
+	case base != strings.ToLower(base):
+		return i18n.New("keymap.lowercase", args)
+	}
+
+	return nil
+}
+
+func keyName(base string) bool {
+	if slices.Contains(strings.Fields(keyNames), base) {
+		return true
+	}
+
+	digits := strings.TrimPrefix(base, "f")
+	number, err := strconv.Atoi(digits)
+	return digits != base && err == nil && strconv.Itoa(number) == digits && number >= 1 && number <= 63
+}
+
+// symbol: основа это один видимый графемный символ. Пробел сюда не входит,
+// Bubble Tea называет его space.
+func symbol(base string) bool {
+	cluster, _ := ansi.FirstGraphemeCluster(base, ansi.GraphemeWidth)
+	first, _ := utf8.DecodeRuneInString(base)
+
+	return cluster == base && unicode.IsGraphic(first) && !unicode.IsSpace(first)
 }
 
 // checkConflicts ищет клавишу, назначенную двум действиям, которые действуют
