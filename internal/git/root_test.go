@@ -32,13 +32,13 @@ func TestGitErrorKeepsExitCode(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	err := git.Commit(repo, "пусто")
+	_, err := git.Diff(repo, []string{"main..nope"})
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
-		t.Fatalf("Commit(пустой индекс) = %v, want *exec.ExitError в цепочке", err)
+		t.Fatalf("Diff(неизвестная ревизия) = %v, want *exec.ExitError в цепочке", err)
 	}
-	if exitErr.ExitCode() != 1 {
-		t.Errorf("Commit(пустой индекс) код выхода = %d, want 1", exitErr.ExitCode())
+	if exitErr.ExitCode() != 128 {
+		t.Errorf("Diff(неизвестная ревизия) код выхода = %d, want 128", exitErr.ExitCode())
 	}
 }

@@ -58,6 +58,7 @@
   "files.none": "No files",
   "files.title": "Files",
   "git.noPaths": "no files to change",
+  "git.nothingToCommit": "nothing to commit",
   "git.nothingToStash": "no changes to save in stash",
   "git.stashChanged": "stash changed, reopen the list",
   "git.submoduleDiscard": "submodule \"{path}\" cannot be discarded",

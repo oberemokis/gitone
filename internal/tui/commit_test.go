@@ -48,6 +48,23 @@ func commitFooter(model tea.Model) string {
 	return screen[footerRow(screen)]
 }
 
+// Без застейдженных правок подвал называет причину текстом из словаря. Отчёт
+// git commit («On branch main») причины первой строкой не даёт.
+func TestCommitWithNothingStagedExplainsInFooter(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	opts := options(repo, layout.Default())
+	opts.Text = pseudo()
+
+	footer := commitFooter(resize(open(t, opts), 100, 20))
+
+	if !strings.Contains(footer, "commit: ⟦nothing to commit⟧") {
+		t.Fatalf("подвал = %q, ожидалось «commit: ⟦nothing to commit⟧»", footer)
+	}
+}
+
 // Хук без вывода отказывает, и подвал называет код выхода: «commit: » с пустым
 // текстом ничего не говорил.
 func TestCommitSilentHookShowsExitStatus(t *testing.T) {
