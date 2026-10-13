@@ -3,6 +3,7 @@ package git_test
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -243,6 +244,41 @@ func TestUnstageTreatsPathAsLiteral(t *testing.T) {
 	if staged := mustStaged(t, repo); !slices.Equal(staged, []string{"pages/i.vue"}) {
 		t.Fatalf("в индексе %q, ожидался только pages/i.vue", staged)
 	}
+}
+
+// Файл с конфликтом слияния числится в индексе неслитым, это не «застейджено».
+// Иначе пробел звал бы Unstage, и restore --staged стирал стадии конфликта.
+func TestStagedPathsSkipUnmergedFile(t *testing.T) {
+	repo := conflictedRepo(t)
+	write(t, repo, "b.txt", "staged\n")
+	runGit(t, repo, "add", "b.txt")
+
+	if staged := mustStaged(t, repo); !slices.Equal(staged, []string{"b.txt"}) {
+		t.Fatalf("в индексе %q, ожидался только b.txt без неслитого a.txt", staged)
+	}
+}
+
+// conflictedRepo возвращает репозиторий посреди слияния с конфликтом в a.txt.
+func conflictedRepo(t *testing.T) string {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "base\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "topic")
+	write(t, repo, "a.txt", "topic\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+	write(t, repo, "a.txt", "main\n")
+	commitAll(t, repo)
+
+	merge := exec.Command("git", "merge", "topic")
+	merge.Dir = repo
+	if out, err := merge.CombinedOutput(); err == nil {
+		t.Fatalf("слияние прошло без конфликта:\n%s", out)
+	}
+
+	return repo
 }
 
 func mustStaged(t *testing.T, repo string) []string {

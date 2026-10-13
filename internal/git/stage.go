@@ -105,9 +105,11 @@ func treeMode(root, base, path string) (string, error) {
 	return mode, err
 }
 
-// StagedPaths возвращает пути, у которых индекс отличается от HEAD.
+// StagedPaths возвращает пути, у которых индекс отличается от HEAD. Неслитые
+// пути (конфликт слияния) не в счёте: их ещё нужно пометить разрешёнными, то
+// есть поставить, а не убрать из индекса.
 func StagedPaths(dir string) ([]string, error) {
-	out, err := inRoot(dir, "diff", "--cached", "--name-only", "-z")
+	out, err := inRoot(dir, "diff", "--cached", "--name-only", "-z", "--diff-filter=u")
 	if err != nil {
 		return nil, failed("diff", err)
 	}
