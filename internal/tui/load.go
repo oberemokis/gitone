@@ -20,8 +20,8 @@ func Load(dir string, args []string) ([]diff.File, error) {
 	return diff.Parse(text), nil
 }
 
-// Staged возвращает пути, у которых индекс отличается от HEAD. Отметка в панели
-// файлов берётся отсюда.
+// Staged возвращает пути, у которых индекс отличается от HEAD. По ним space
+// решает, ставить файл в индекс или убирать.
 func Staged(dir string) (map[string]bool, error) {
 	paths, err := git.StagedPaths(dir)
 	if err != nil {

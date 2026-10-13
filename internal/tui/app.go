@@ -43,7 +43,8 @@ type Model struct {
 	// polling: идёт тихий опрос из live.go; ticks таймер опроса, nil без автообновления
 	polling bool
 	ticks   <-chan time.Time
-	// staged: пути с отличием индекса от HEAD, по ним отметка в панели файлов
+	// staged: пути с отличием индекса от HEAD, по ним space решает, ставить
+	// файл в индекс или убирать
 	staged map[string]bool
 	// location ветка и worktree для левого края подвала
 	location git.Location
