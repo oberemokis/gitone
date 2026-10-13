@@ -15,6 +15,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"gitone/internal/i18n"
 )
 
 // release это релиз на локальном сервере: последняя версия и файлы по
@@ -216,6 +218,21 @@ func TestUpdateTransportErrorNamesRequestedURL(t *testing.T) {
 	}
 	if err != nil && strings.Contains(err.Error(), "sig=secret") {
 		t.Errorf("run() error = %v, want без подписи адреса хранилища", err)
+	}
+}
+
+// Ошибка про переадресации идёт через словарь: на втором языке она переводится.
+func TestUpdateRedirectLoopIsTranslated(t *testing.T) {
+	server := httptest.NewServer(http.RedirectHandler("/loop", http.StatusFound))
+	t.Cleanup(server.Close)
+	base := server.URL + "/releases"
+	text := i18n.Custom("xx", map[string]string{"update.tooManyRedirects": "XX {count}"})
+
+	_, err := newUpdater(base, "0.3.0", installed(t)).run(t.Context())
+
+	want := `Get "` + base + `/latest/download/checksums.txt": XX 10`
+	if err == nil || text.Error(err) != want {
+		t.Errorf("text.Error(%v) = %q, want %q", err, text.Error(err), want)
 	}
 }
 

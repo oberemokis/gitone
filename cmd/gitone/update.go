@@ -203,7 +203,7 @@ func (u updater) fetch(ctx context.Context, url string) ([]byte, []*neturl.URL, 
 	client := *u.client
 	client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
 		if len(via) >= maxRedirects {
-			return errors.New("stopped after 10 redirects")
+			return i18n.New("update.tooManyRedirects", i18n.Args{"count": maxRedirects})
 		}
 		chain = append(chain, next.URL)
 		return nil
