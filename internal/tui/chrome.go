@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,7 +54,7 @@ func header(width int, files []diff.File, current int, colors theme.Theme, text 
 		if index < 0 || index >= len(files) {
 			return muted.Render(symbol)
 		}
-		return zone.Mark(zone.Row(index), symbol)
+		return zone.Mark(fileTarget+strconv.Itoa(index), symbol)
 	}
 
 	padding := strings.Repeat(" ", footerPadding)

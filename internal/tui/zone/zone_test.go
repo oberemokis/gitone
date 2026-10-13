@@ -49,13 +49,42 @@ func TestAtPrefersFirstZone(t *testing.T) {
 		{Target: "below", Area: image.Rect(0, 1, 10, 2)},
 	}
 
-	if got := zone.At(zones, 3, 1); got != "window" {
+	if got := zone.At(zones, 3, 1, nil); got != "window" {
 		t.Fatalf("под (3,1) %q, want window", got)
 	}
-	if got := zone.At(zones, 8, 1); got != "below" {
+	if got := zone.At(zones, 8, 1, nil); got != "below" {
 		t.Fatalf("под (8,1) %q, want below", got)
 	}
-	if got := zone.At(zones, 8, 0); got != "" {
+	if got := zone.At(zones, 8, 0, nil); got != "" {
 		t.Fatalf("под (8,0) %q, want пусто", got)
+	}
+}
+
+// Просторное место ловит клик на клетку вокруг себя, но точное попадание в
+// другое место сильнее, а место с пустой целью закрывает то, что после него
+// (#134).
+func TestAtWidensRoomyZones(t *testing.T) {
+	roomy := func(target string) bool { return target == "button" || target == "outside" }
+	zones := []zone.Zone{
+		{Target: "button", Area: image.Rect(4, 4, 6, 5)},
+		{Target: "row", Area: image.Rect(0, 5, 10, 6)},
+		{Area: image.Rect(0, 0, 10, 8)},
+		{Target: "outside", Area: image.Rect(0, 8, 4, 9)},
+	}
+
+	for _, tc := range []struct {
+		x, y int
+		want string
+	}{
+		{x: 3, y: 3, want: "button"},
+		{x: 6, y: 4, want: "button"},
+		{x: 5, y: 5, want: "row"},
+		{x: 8, y: 2, want: ""},
+		{x: 2, y: 7, want: ""},
+		{x: 4, y: 9, want: "outside"},
+	} {
+		if got := zone.At(zones, tc.x, tc.y, roomy); got != tc.want {
+			t.Errorf("под (%d,%d) %q, want %q", tc.x, tc.y, got, tc.want)
+		}
 	}
 }
