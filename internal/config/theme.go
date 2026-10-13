@@ -12,7 +12,6 @@ import (
 // ThemeFile это themes/<имя>.json как он записан: цвета строками, без проверки
 // значений. Проверяет их пакет theme, потому что он знает роли.
 type ThemeFile struct {
-	Schema string           `json:"$schema"`
 	Defs   map[string]Color `json:"defs"`
 	Colors map[string]Color `json:"colors"`
 }
@@ -42,7 +41,8 @@ func ReadTheme(dir, name string) (ThemeFile, bool, error) {
 }
 
 // themeJSON держит цвета сырыми: ошибку значения нужно назвать по ключу, а
-// json.Unmarshaler такого ключа не знает.
+// json.Unmarshaler такого ключа не знает. Schema только принимает $schema, чтобы
+// DisallowUnknownFields не счёл его опечаткой, и нигде не читается.
 type themeJSON struct {
 	Schema string                     `json:"$schema"`
 	Defs   map[string]json.RawMessage `json:"defs"`
@@ -64,7 +64,7 @@ func decodeTheme(data []byte) (ThemeFile, error) {
 		return ThemeFile{}, err
 	}
 
-	return ThemeFile{Schema: raw.Schema, Defs: defs, Colors: colors}, nil
+	return ThemeFile{Defs: defs, Colors: colors}, nil
 }
 
 func colorsOf(section string, raw map[string]json.RawMessage) (map[string]Color, error) {

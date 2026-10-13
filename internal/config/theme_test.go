@@ -48,6 +48,12 @@ func TestReadTheme(t *testing.T) {
 			},
 		},
 		{
+			name:    "$schema допустим",
+			file:    "midnight",
+			content: `{"$schema":"./schemas/theme.schema.json","colors":{"accent":"#9d7cd8"}}`,
+			wantOK:  true,
+		},
+		{
 			name:    "логическое значение вместо цвета",
 			file:    "midnight",
 			content: `{"colors":{"accent":true}}`,
