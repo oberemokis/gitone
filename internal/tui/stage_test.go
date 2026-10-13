@@ -32,6 +32,27 @@ func TestSpaceStagesCurrentFile(t *testing.T) {
 	}
 }
 
+// Файл, уже лежащий в индексе при запуске, пробел убирает из индекса: решение
+// идёт по индексу, который хелпер open читает так же, как cmd/gitone.
+func TestSpaceUnstagesFileStagedBeforeStart(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	runGit(t, repo, "add", "a.txt")
+
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+	model, cmd := model.Update(space)
+	settle(model, cmd, 4)
+
+	if got := runGit(t, repo, "diff", "--cached", "--name-only"); got != "" {
+		t.Fatalf("в индексе %q, want пусто: пробел должен убрать файл из индекса", got)
+	}
+	if got := readText(t, filepath.Join(repo, "a.txt")); got != "two\n" {
+		t.Fatalf("a.txt = %q, want правка в рабочем дереве осталась", got)
+	}
+}
+
 // x спрашивает, и только y отменяет правку. Любая другая клавиша отменяет
 // вопрос и не выполняет действие.
 func TestDiscardNeedsYes(t *testing.T) {

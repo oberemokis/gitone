@@ -121,14 +121,17 @@ func options(repo string, root layout.Node) tui.Options {
 	return tui.Options{Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root}
 }
 
-// open загружает дифф каталога opts.Dir с аргументами opts.Args так же, как
-// cmd/gitone при запуске.
+// open загружает дифф каталога opts.Dir с аргументами opts.Args, индекс и
+// место подвала так же, как cmd/gitone при запуске: space решает по индексу.
 func open(t *testing.T, opts tui.Options) tea.Model {
 	t.Helper()
 
 	files, err := tui.Load(opts.Dir, opts.Args)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
+	}
+	if opts.Staged, err = tui.Staged(opts.Dir); err != nil {
+		t.Fatalf("Staged: %v", err)
 	}
 	if opts.Location, err = tui.Locate(opts.Dir); err != nil {
 		t.Fatalf("Locate: %v", err)
