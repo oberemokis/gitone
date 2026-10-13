@@ -9,8 +9,9 @@ import (
 	"gitone/internal/layout"
 )
 
-// searchLog открывает лог из коммитов с темами subjects (последний наверху).
-func searchLog(t *testing.T, subjects ...string) tea.Model {
+// commitSubjects делает репозиторий из коммитов с темами subjects, в a.txt
+// каждого стоит его тема.
+func commitSubjects(t *testing.T, subjects ...string) string {
 	t.Helper()
 
 	repo := newRepo(t)
@@ -19,8 +20,14 @@ func searchLog(t *testing.T, subjects ...string) tea.Model {
 		runGit(t, repo, "add", "-A")
 		runGit(t, repo, "commit", "-q", "-m", subject)
 	}
+	return repo
+}
 
-	model := resize(open(t, options(repo, layout.Focus())), 120, 30)
+// searchLog открывает лог из коммитов с темами subjects (последний наверху).
+func searchLog(t *testing.T, subjects ...string) tea.Model {
+	t.Helper()
+
+	model := resize(open(t, options(commitSubjects(t, subjects...), layout.Focus())), 120, 30)
 	return openAsync(model, key('l'))
 }
 

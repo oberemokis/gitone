@@ -20,8 +20,14 @@ const (
 )
 
 // click делает то, что лежит под мышью (#119). Место ищется по тому же
-// рисунку, что выводит View, поэтому клик не расходится с экраном.
+// рисунку, что выводит View, поэтому клик не расходится с экраном. Вопрос
+// discard клики не принимает: справка под ним видна, но из неё нельзя
+// безопасно выполнить действие, а ответ на вопрос идёт клавишей (#150).
 func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
+	if m.active == discardWindow {
+		return m, nil
+	}
+
 	_, zones := m.screen()
 	target := zone.At(zones, x, y, button)
 
@@ -39,8 +45,7 @@ func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
 		return m.press(keymap.Action(action))
 	}
 	if action, found := strings.CutPrefix(target, helpTarget); found {
-		m.helpOpen = false
-		return m.press(keymap.Action(action))
+		return m.clickHelp(keymap.Action(action))
 	}
 	if target == filesEdgeTarget || target == splitEdgeTarget {
 		return m.startDrag(target, x), nil
@@ -56,15 +61,34 @@ func button(target string) bool {
 	return strings.HasPrefix(target, pressTarget) || strings.HasPrefix(target, fileTarget)
 }
 
+// clickHelp закрывает справку и делает действие строки. Действие идёт
+// напрямую, без клавиши: справка лежит только на экране без окон (вопрос
+// discard клики не принимает), и клавиша ушла бы в чужой контекст. Строка
+// app.help только закрывает справку, иначе действие открыло бы её снова.
+func (m Model) clickHelp(action keymap.Action) (tea.Model, tea.Cmd) {
+	m.helpOpen = false
+	if action == keymap.AppHelp {
+		return m, nil
+	}
+
+	m.notice = ""
+	return m.handleAction(action)
+}
+
 // press нажимает первую клавишу действия: клик идёт тем же путём, что
 // клавиатура, и попадает в то окно, которое открыто. Событие несёт клавишу
-// текстом, его String() совпадает с привязкой из keymap.
+// текстом, его String() совпадает с привязкой из keymap. Пока в окне набирается
+// поиск, клавиша ушла бы в запрос, поэтому набор сначала заканчивается; свои
+// подсказки поля (listSearch.done и listSearch.cancel) набор не прерывают.
 func (m Model) press(action keymap.Action) (tea.Model, tea.Cmd) {
 	keys := m.keys.KeysFor(action)
 	if len(keys) == 0 {
 		return m, nil
 	}
 
+	if action != keymap.ListSearchDone && action != keymap.ListSearchCancel {
+		m.searching = false
+	}
 	return m.keyPress(tea.KeyPressMsg{Text: keys[0]})
 }
 
