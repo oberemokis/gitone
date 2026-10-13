@@ -151,6 +151,11 @@ func (l Lexer) paint(source []byte) []Kind {
 	}
 
 	tree, err := parse(l.entry, language, source)
+	if tree != nil {
+		// арена дерева без Release остаётся занятой: на узел кода внутри
+		// разметки это сотни килобайт (#161)
+		defer tree.Release()
+	}
 	if err != nil || tree == nil {
 		return nil
 	}
@@ -193,12 +198,23 @@ func (l Lexer) paint(source []byte) []Kind {
 	return kinds
 }
 
+// pools хранит пул парсеров по имени языка. Парсер стоит 0,8 мс и 444 КБ, а код
+// внутри разметки разбирается на каждый её узел (#161).
+var pools sync.Map
+
 func parse(entry *grammars.LangEntry, language *ts.Language, source []byte) (*ts.Tree, error) {
-	parser := ts.NewParser(language)
-	if entry.TokenSourceFactory != nil {
-		return parser.ParseWithTokenSource(source, entry.TokenSourceFactory(source, language))
+	var pool *ts.ParserPool
+	if cached, found := pools.Load(entry.Name); found {
+		pool = cached.(*ts.ParserPool)
+	} else {
+		pool = ts.NewParserPool(language)
+		pools.Store(entry.Name, pool)
 	}
-	return parser.Parse(source)
+
+	if entry.TokenSourceFactory != nil {
+		return pool.ParseWithTokenSource(source, entry.TokenSourceFactory(source, language))
+	}
+	return pool.Parse(source)
 }
 
 // queries хранит собранные запросы по имени языка: сборка запроса стоит

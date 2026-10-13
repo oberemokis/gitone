@@ -1,6 +1,8 @@
 package syntax_test
 
 import (
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -331,6 +333,33 @@ func TestEmbeddedCode(t *testing.T) {
 				t.Errorf("%q в строке %d: вид %q, want %q (%+v)", tc.text, tc.line, got, tc.want, spans[tc.line])
 			}
 		})
+	}
+}
+
+// Каждый узел кода внутри разметки разбирается заново, поэтому разбор файла
+// не должен стоить парсера и арены на узел (#161). Меряются выделенные байты,
+// а не время: тест не плавает. Без пула и Release файл в 300 строк и 600
+// привязок берёт 2,2 ГБ, с ними 11 МБ. В сборке с -race sync.Pool выбрасывает
+// каждый четвёртый парсер, там остаются около 700 МБ против 2,7 ГБ без пула,
+// и порог стоит между ними.
+func TestEmbeddedParseCost(t *testing.T) {
+	row := `  <p :title="label(item)">{{ format(title) }}</p>`
+	lines := slices.Concat(
+		[]string{"<template>"},
+		slices.Repeat([]string{row}, 300),
+		[]string{"</template>"},
+	)
+	lexer := syntax.Detect("App.vue")
+	lexer.Lines(lines) // первый разбор заводит парсеры и таблицы, их цена не повторяется
+
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	lexer.Lines(lines)
+	runtime.ReadMemStats(&after)
+
+	got := (after.TotalAlloc - before.TotalAlloc) >> 20
+	if got > 1500 {
+		t.Errorf("разбор файла аллоцировал %d МБ, want не больше 1500", got)
 	}
 }
 
