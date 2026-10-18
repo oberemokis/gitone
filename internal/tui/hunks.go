@@ -73,10 +73,11 @@ func (m Model) unstagedArrived(msg unstagedMsg) Model {
 	default:
 		m.view = m.view.Select(msg.file)
 		m = m.putNotice(m.text.Text("select.started", i18n.Args{
-			"move":   firstKey(m.keys, keymap.DiffScrollDown) + "/" + firstKey(m.keys, keymap.DiffScrollUp),
-			"stage":  firstKey(m.keys, keymap.FilesStage),
-			"select": firstKey(m.keys, keymap.DiffSelect),
-			"close":  firstKey(m.keys, keymap.HelpClose),
+			"move":    firstKey(m.keys, keymap.DiffScrollDown) + "/" + firstKey(m.keys, keymap.DiffScrollUp),
+			"stage":   firstKey(m.keys, keymap.FilesStage),
+			"discard": firstKey(m.keys, keymap.FilesDiscard),
+			"select":  firstKey(m.keys, keymap.DiffSelect),
+			"close":   firstKey(m.keys, keymap.HelpClose),
 		}), false)
 	}
 	return m
@@ -100,8 +101,8 @@ func (m Model) refreshSelection() (Model, tea.Cmd) {
 
 // selectionAction разбирает действия, которые при выделении работают иначе:
 // diff.scrollDown и diff.scrollUp ведут курсор, files.stage ставит
-// выделенное, help.close снимает выделение, если справка закрыта. handled
-// false значит обычное действие.
+// выделенное, files.discard отменяет его, help.close снимает выделение, если
+// справка закрыта. handled false значит обычное действие.
 func (m Model) selectionAction(action keymap.Action) (next tea.Model, cmd tea.Cmd, handled bool) {
 	if !m.view.Selecting() {
 		return m, nil, false
@@ -114,6 +115,9 @@ func (m Model) selectionAction(action keymap.Action) (next tea.Model, cmd tea.Cm
 		m.view = m.view.MoveCursor(-1)
 	case action == keymap.FilesStage:
 		next, cmd = m.stageSelection()
+		return next, cmd, true
+	case action == keymap.FilesDiscard:
+		next, cmd = m.askDiscardSelection()
 		return next, cmd, true
 	case action == keymap.HelpClose && !m.helpOpen:
 		return m.stopSelect(), nil, true
@@ -131,29 +135,57 @@ func (m Model) stopSelect() Model {
 	return m
 }
 
-// stageSelection ставит выделенные строки в индекс. Патч собирается из
-// свежего диффа без флагов вида: строки ищутся по номерам, и патч с полным
-// контекстом git применяет надёжнее.
+// stageSelection ставит выделенные строки в индекс.
 func (m Model) stageSelection() (tea.Model, tea.Cmd) {
-	selected := make(map[diff.LineRef]bool)
-	for _, ref := range m.view.Selected() {
-		selected[ref] = true
-	}
+	selected := m.selectedSet()
 	if len(selected) == 0 {
 		return m, nil
 	}
 
-	dir, path := m.dir, stagedKey(m.files[m.current])
-	note := m.text.Text("select.staged", nil)
-	return m, func() tea.Msg {
+	return m, applySelection(m.dir, stagedKey(m.files[m.current]), selected, false, m.text.Text("select.staged", nil))
+}
+
+// askDiscardSelection спрашивает, прежде чем вернуть выделенные строки
+// рабочего дерева к индексу (#213): отмена необратима, и вопрос тот же, что у
+// файла целиком, хоть выделена одна строка.
+func (m Model) askDiscardSelection() (tea.Model, tea.Cmd) {
+	selected := m.selectedSet()
+	if len(selected) == 0 {
+		return m, nil
+	}
+
+	file := m.files[m.current]
+	dir, path := m.dir, stagedKey(file)
+	args := questionArgs(m.keys)
+	args["file"] = fileTitle(file, m.text)
+	note := m.text.Text("select.discarded", nil)
+	return m.ask(m.text.Text("select.discardQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
+		return m, applySelection(dir, path, selected, true, note)
+	}), nil
+}
+
+func (m Model) selectedSet() map[diff.LineRef]bool {
+	selected := make(map[diff.LineRef]bool)
+	for _, ref := range m.view.Selected() {
+		selected[ref] = true
+	}
+	return selected
+}
+
+// applySelection ставит выделенные строки в индекс, а discard возвращает их в
+// рабочем дереве к индексу обратным патчем. Патч собирается из свежего диффа
+// без флагов вида: строки ищутся по номерам, и патч с полным контекстом git
+// применяет надёжнее.
+func applySelection(dir, path string, selected map[diff.LineRef]bool, discard bool, note string) tea.Cmd {
+	return func() tea.Msg {
 		text, err := git.UnstagedDiff(dir, path)
 		if err != nil {
 			return actionDoneMsg{err: err}
 		}
-		patch := diff.Patch(text, selected, false)
+		patch := diff.Patch(text, selected, discard)
 		if patch == "" {
 			return actionDoneMsg{err: i18n.New("select.gone", nil)}
 		}
-		return actionDoneMsg{err: git.ApplyPatch(dir, patch, true, false), note: note}
+		return actionDoneMsg{err: git.ApplyPatch(dir, patch, !discard, discard), note: note}
 	}
 }

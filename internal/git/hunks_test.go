@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -83,5 +84,32 @@ func TestApplyPatchStagesLines(t *testing.T) {
 
 	if got := runGit(t, repo, "show", ":a.txt"); got != "one\nfirst\nsecond\n" {
 		t.Fatalf("индекс %q после обеих строк", got)
+	}
+}
+
+// Обратный патч хунка возвращает его в рабочем дереве к индексу, второй хунк
+// остаётся (#213, случай 1); обратный патч строки трогает только её (случай 2).
+func TestApplyPatchDiscards(t *testing.T) {
+	repo := hunkRepo(t)
+
+	text, _ := git.UnstagedDiff(repo, "a.txt")
+	patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineRemoved, Number: 1}, diff.LineRef{Kind: diff.LineAdded, Number: 1}), true)
+	if err := git.ApplyPatch(repo, patch, false, true); err != nil {
+		t.Fatalf("ApplyPatch: %v", err)
+	}
+	if got := readFile(t, filepath.Join(repo, "a.txt")); !strings.HasPrefix(got, "one\n") || !strings.Contains(got, "NINE\n") {
+		t.Fatalf("a.txt = %q, ожидался откат только первого хунка", got)
+	}
+
+	write(t, repo, "a.txt", "one\nfirst\nsecond\n")
+	runGit(t, repo, "add", "a.txt")
+	write(t, repo, "a.txt", "one\nfirst\nextra\nsecond\nmore\n")
+	text, _ = git.UnstagedDiff(repo, "a.txt")
+	patch = diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineAdded, Number: 3}), true)
+	if err := git.ApplyPatch(repo, patch, false, true); err != nil {
+		t.Fatalf("ApplyPatch строки: %v", err)
+	}
+	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\nfirst\nsecond\nmore\n" {
+		t.Fatalf("a.txt = %q, ожидался откат одной строки", got)
 	}
 }
