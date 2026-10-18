@@ -96,7 +96,7 @@ func (m Model) toggleStage() (tea.Model, tea.Cmd) {
 		return m.putNotice(note, true), nil
 	}
 
-	return m, stageCmd(m.dir, paths, m.staged[stagedKey(m.files[m.current])])
+	return m, stageCmd(m.dir, paths, m.index.Staged[stagedKey(m.files[m.current])])
 }
 
 // ignoreFile дописывает текущий файл в корневой .gitignore (#214), как i в

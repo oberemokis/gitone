@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"maps"
 	"reflect"
 	"time"
 
@@ -68,11 +67,11 @@ func (m Model) polled(msg polledMsg) (Model, tea.Cmd) {
 	}
 
 	m.location = msg.location
-	if reflect.DeepEqual(msg.files, m.files) && maps.Equal(msg.staged, m.staged) && maps.Equal(msg.partial, m.partial) {
+	if reflect.DeepEqual(msg.files, m.files) && reflect.DeepEqual(msg.index, m.index) {
 		return m, nil
 	}
 
 	m = m.applyReload(msg.files)
-	m.staged, m.partial = msg.staged, msg.partial
+	m.index = msg.index
 	return m.refreshSelection()
 }

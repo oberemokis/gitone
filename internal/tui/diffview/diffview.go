@@ -208,7 +208,8 @@ func (m Model) View() string {
 	rendered := make([]string, 0, m.height)
 	for index := m.scroll; index < end; index++ {
 		line := m.lines[index]
-		marked := index >= from && index <= to && len(refs(line)) > 0
+		// конфликт отмечен целиком: наша сторона в нём бывает контекстом
+		marked := index >= from && index <= to && (m.selection.conflict || len(refs(line)) > 0)
 		rendered = append(rendered, m.render(line, marked))
 	}
 

@@ -45,11 +45,8 @@ type Model struct {
 	// polling: идёт тихий опрос из live.go; ticks таймер опроса, nil без автообновления
 	polling bool
 	ticks   <-chan time.Time
-	// staged: пути с отличием индекса от HEAD, по ним space решает, ставить
-	// файл в индекс или убирать
-	staged map[string]bool
-	// partial: пути, поставленные в индекс частично (#212), панель их помечает
-	partial map[string]bool
+	// index: поставленные, частично поставленные и конфликтные пути (load.go)
+	index Index
 	// location ветка и worktree для левого края подвала
 	location git.Location
 	// baseArgs аргументы запуска: b возвращает к ним дифф рабочего дерева
@@ -146,10 +143,8 @@ type Options struct {
 	Notice string
 	// Ticks таймер опроса для автообновления, nil значит без него
 	Ticks <-chan time.Time
-	// Staged пути, уже лежащие в индексе при запуске
-	Staged map[string]bool
-	// Partial пути, поставленные в индекс частично
-	Partial map[string]bool
+	// Index состояние индекса при запуске
+	Index Index
 	// Location ветка и worktree при запуске, дальше их обновляет перечитывание
 	Location git.Location
 	// Text тексты интерфейса на выбранном языке, нулевое значение английское
@@ -178,6 +173,7 @@ func New(opts Options, files []diff.File) Model {
 		WithoutNumbers(!opts.Config.UI.LineNumbers).
 		WithText(opts.Text).
 		WithWrap(opts.Config.Diff.Wrap)
+	files = withConflicts(files, opts.Args, opts.Index.Conflicted)
 	if len(files) > 0 {
 		view = view.SetFile(files[0])
 	}
@@ -200,8 +196,7 @@ func New(opts Options, files []diff.File) Model {
 		baseArgs: opts.Args,
 		context:  -1,
 		ticks:    opts.Ticks,
-		staged:   opts.Staged,
-		partial:  opts.Partial,
+		index:    opts.Index,
 		location: opts.Location,
 		notice:   opts.Notice,
 		keys:     opts.Keys,
@@ -271,6 +266,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.polled(msg)
 	case unstagedMsg:
 		m = m.unstagedArrived(msg)
+	case conflictLabelsMsg:
+		m = m.sidesArrived(msg)
 	case spinMsg:
 		if m.loading && msg.load == m.load {
 			m.spin++
@@ -888,8 +885,11 @@ func (m Model) labels() []string {
 			labels[index] += " " + status
 		}
 		// частичный индекс отмечен словом (#212): space на таком файле уберёт
-		// из индекса и поставленную часть
-		if m.partial[stagedKey(file)] {
+		// из индекса и поставленную часть; конфликт тоже словом (#242)
+		switch key := stagedKey(file); {
+		case m.index.Conflicted[key]:
+			labels[index] += " " + m.text.Text("status.conflict", nil)
+		case m.index.Partial[key]:
 			labels[index] += " " + m.text.Text("status.partlyStaged", nil)
 		}
 	}
