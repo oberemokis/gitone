@@ -48,6 +48,7 @@ const (
 	AppWorktrees     Action = "app.worktrees"
 	AppTags          Action = "app.tags"
 	AppRemotes       Action = "app.remotes"
+	AppReflog        Action = "app.reflog"
 	GitPull          Action = "git.pull"
 	GitPush          Action = "git.push"
 	GitFetch         Action = "git.fetch"
@@ -218,6 +219,7 @@ func windows() [][]Action {
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
 		append([]Action{TagsDiff, TagsNew, TagsDelete, TagsPush, ListSearch}, list...),
 		append([]Action{RemotesNew, RemotesDelete}, list...),
+		append([]Action{LogOpen, LogCheckout, LogNewBranch, ListSearch}, list...),
 		append([]Action{MenuChoose}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
@@ -562,6 +564,7 @@ func defaults() []Binding {
 		{Action: AppWorktrees, Category: CategoryGeneral, Keys: []string{"W"}, Help: true},
 		{Action: AppTags, Category: CategoryGeneral, Keys: []string{"t"}, Help: true},
 		{Action: AppRemotes, Category: CategoryGeneral, Keys: []string{"R"}, Help: true},
+		{Action: AppReflog, Category: CategoryGeneral, Keys: []string{"L"}, Help: true},
 		{Action: GitPull, Category: CategoryGeneral, Keys: []string{"p"}, Help: true},
 		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
 		// f у lazygit, здесь f открывает панель файлов
