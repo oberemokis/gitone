@@ -76,6 +76,31 @@ func RenameBranch(dir, from, to string) error {
 	return failed("branch", err)
 }
 
+// RemoteBranches возвращает удалённые ветки из локальных ссылок, `origin/main`,
+// по имени (#230). Символическая `origin/HEAD` не ветка, её нет.
+func RemoteBranches(dir string) ([]string, error) {
+	out, err := inRoot(dir, "for-each-ref", "--format=%(refname:lstrip=2)%1f%(symref)", "refs/remotes")
+	if err != nil {
+		return nil, failed("branch", err)
+	}
+
+	var names []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		name, symref, _ := strings.Cut(line, "\x1f")
+		if name != "" && symref == "" {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
+// SetUpstream привязывает ветку к удалённой upstream (#230), заменяя прежнюю.
+// Удалённой ветки нет в локальных ссылках, и git отказывает своим текстом.
+func SetUpstream(dir, branch, upstream string) error {
+	_, err := inRoot(dir, "branch", "--set-upstream-to="+upstream, branch)
+	return failed("branch", err)
+}
+
 // Merge сливает ветку name в текущую (#229): перемоткой, если можно, иначе
 // merge-коммитом с сообщением по умолчанию, редактор не открывается. Конфликт
 // останавливает слияние, ошибка тогда git.stoppedOnConflict.

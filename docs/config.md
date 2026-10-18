@@ -129,6 +129,7 @@ git получает тот же язык через переменную `LANGU
 | `branches.switch` | `enter` | ветки |
 | `branches.new`, `branches.rename`, `branches.delete` | `n`, `R`, `d` | ветки: новая ветка на выбранной, переименование выбранной только локально, удаление выбранной после `y` |
 | `branches.merge`, `branches.rebase` | `M`, `r` | ветки: слить выбранную в текущую, перестроить текущую поверх выбранной |
+| `branches.upstream` | `u` | ветки: привязать выбранную ветку к удалённой, выбор из меню удалённых веток |
 | `branches.reset` | `g` | ветки: reset текущей ветки к выбранной, а на текущей к её upstream; меню soft, mixed, hard, hard после `y` |
 | `worktrees.switch` | `enter` | worktree |
 | `stash.diff`, `stash.apply`, `stash.pop`, `stash.drop` | `enter`, `a`, `g`, `d` | stash: дифф, применить, применить и удалить, удалить после `y` |

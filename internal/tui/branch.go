@@ -14,10 +14,12 @@ import (
 	"gitone/internal/tui/theme"
 )
 
-// branchesMsg несёт список локальных веток или ошибку git.
+// branchesMsg несёт список локальных веток или ошибку git. note это итог
+// правки, после которой список пришёл в открытое окно.
 type branchesMsg struct {
 	branches []git.Branch
 	err      error
+	note     string
 }
 
 func branchesCmd(dir string) tea.Cmd {
@@ -86,7 +88,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.keys.Is(keymap.CherryPickPaste, pressed) {
 		return m.pasteCommit()
 	}
-	acts := []keymap.Action{keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset}
+	acts := []keymap.Action{keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset, keymap.BranchesUpstream}
 	if !slices.ContainsFunc(acts, func(action keymap.Action) bool { return m.keys.Is(action, pressed) }) || len(shown) == 0 {
 		return m, nil
 	}
@@ -108,6 +110,8 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.ontoCurrent(branch, git.Rebase, "branches.rebased")
 	case m.keys.Is(keymap.BranchesReset, pressed):
 		return m, resetTargetCmd(m.dir, branch)
+	case m.keys.Is(keymap.BranchesUpstream, pressed):
+		return m, remoteBranchesCmd(m.dir, branch.Name)
 	}
 
 	m.active = noWindow
@@ -189,7 +193,7 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 		width:    90,
 		cursor:   cursor,
 		empty:    []string{text.Text("branches.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset, keymap.CherryPickPaste, keymap.ListSearch),
+		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset, keymap.BranchesUpstream, keymap.CherryPickPaste, keymap.ListSearch),
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
 

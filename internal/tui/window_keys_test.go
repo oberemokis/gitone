@@ -223,7 +223,7 @@ func TestRemappedWindowActions(t *testing.T) {
 		{name: "worktrees.switch", action: "worktrees.switch", newKey: key('o'), steps: typed("Wj"), oldKey: enter, shows: "W side-tree", hides: "Worktrees"},
 		{name: "stash.diff", action: "stash.diff", newKey: key('o'), steps: typed("Z"), oldKey: enter, shows: "+ stash-edit", hides: "Stash"},
 		{name: "stash.drop", action: "stash.drop", newKey: key('x'), steps: typed("Z"), oldKey: key('d'), shows: "Drop stash@{0}?", hides: "apply"},
-		{name: "list.up", action: "list.up", newKey: key('u'), steps: typed("Bj"), oldKey: key('k'), shows: "› main", hides: "› other"},
+		{name: "list.up", action: "list.up", newKey: key('K'), steps: typed("Bj"), oldKey: key('k'), shows: "› main", hides: "› other"},
 		{name: "listSearch.done", action: "listSearch.done", newKey: ctrl('g'), steps: typed("l/ze"), oldKey: enter, shows: "/ ze", hides: "done"},
 		{name: "listSearch.cancel", action: "listSearch.cancel", newKey: ctrl('g'), steps: typed("l/ze"), oldKey: escape, shows: "base", hides: "/ ze"},
 		{name: "commit.close", action: "commit.close", newKey: ctrl('g'), steps: typed("cdraft"), oldKey: escape, shows: "b.txt", hides: "> draft"},

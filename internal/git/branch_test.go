@@ -12,6 +12,34 @@ import (
 	"gitone/internal/i18n"
 )
 
+// Ветка без upstream получает выбранную удалённую, уже привязанная её
+// меняет, отсутствующую удалённую git отвергает (#230, случаи 1-3). Список
+// удалённых веток без origin/HEAD.
+func TestSetUpstream(t *testing.T) {
+	_, local := remotePair(t)
+	runGit(t, local, "push", "-q", "origin", "main:other")
+	runGit(t, local, "remote", "set-head", "origin", "main")
+	runGit(t, local, "switch", "-q", "-c", "topic")
+	upstream := func() string {
+		return strings.TrimSpace(runGit(t, local, "rev-parse", "--abbrev-ref", "topic@{upstream}"))
+	}
+
+	remotes, err := git.RemoteBranches(local)
+	if want := []string{"origin/main", "origin/other"}; err != nil || !slices.Equal(remotes, want) {
+		t.Fatalf("RemoteBranches = %q, %v; ожидались %q", remotes, err, want)
+	}
+
+	if err := git.SetUpstream(local, "topic", "origin/other"); err != nil || upstream() != "origin/other" {
+		t.Fatalf("SetUpstream = %v, upstream %q", err, upstream())
+	}
+	if err := git.SetUpstream(local, "topic", "origin/main"); err != nil || upstream() != "origin/main" {
+		t.Fatalf("замена upstream = %v, upstream %q", err, upstream())
+	}
+	if err := git.SetUpstream(local, "topic", "origin/missing"); err == nil || !strings.HasPrefix(err.Error(), "branch: ") {
+		t.Fatalf("SetUpstream к отсутствующей = %v, ожидался отказ git", err)
+	}
+}
+
 // divergedRepo это main и feature, разошедшиеся от общего коммита: у каждой
 // свой файл. Текущая main.
 func divergedRepo(t *testing.T) string {
