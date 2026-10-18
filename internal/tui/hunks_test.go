@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -88,5 +89,50 @@ func TestSelectUntrackedFile(t *testing.T) {
 	model = pressAndSettle(model, key('v'))
 	if footer := footerOf(model); !strings.Contains(footer, "space stages this file whole") {
 		t.Fatalf("подвал %q, ожидался совет", footer)
+	}
+}
+
+// x на выделенном хунке спрашивает про файл, любая клавиша кроме y ничего не
+// меняет, y откатывает только этот хунк (#213, случаи 1 и 3).
+func TestDiscardHunk(t *testing.T) {
+	repo, model := stagingRepo(t)
+	path := filepath.Join(repo, "a.txt")
+	before := readText(t, path)
+
+	model = pressAndSettle(model, key('v'))
+	model, _ = model.Update(key('x'))
+	if footer := footerOf(model); !strings.Contains(footer, `Discard the selected changes in "a.txt"? y yes`) {
+		t.Fatalf("подвал %q, ожидался вопрос", footer)
+	}
+	model, _ = model.Update(key('n'))
+	if readText(t, path) != before {
+		t.Fatal("хунк откачен без y")
+	}
+
+	model, _ = model.Update(key('x'))
+	model = answerYes(model)
+	if got := readText(t, path); !strings.HasPrefix(got, "one\n") || !strings.Contains(got, "NINE\n") {
+		t.Fatalf("a.txt = %q, ожидался откат только первого хунка", got)
+	}
+	if body := screenText(model); strings.Contains(body, "ONE") || !strings.Contains(body, "NINE") {
+		t.Fatalf("на экране выделения остался откаченный хунк:\n%s", body)
+	}
+}
+
+// x на выделенной строке откатывает только её (случай 2).
+func TestDiscardLine(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "one\nfirst\nsecond\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 30)
+
+	model = pressAndSettle(model, key('v'))
+	model, _ = model.Update(key('v'))
+	model, _ = model.Update(key('x'))
+	answerYes(model)
+
+	if got := readText(t, filepath.Join(repo, "a.txt")); got != "one\nsecond\n" {
+		t.Fatalf("a.txt = %q, ожидался откат одной строки", got)
 	}
 }
