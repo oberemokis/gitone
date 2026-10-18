@@ -97,7 +97,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	branch := shown[m.cursor]
 	switch {
 	case m.keys.Is(keymap.BranchesNew, pressed):
-		return m.askBranchName(branch.Name), nil
+		return m.askBranchName(branch.Name, branch.Name), nil
 	case m.keys.Is(keymap.BranchesRename, pressed):
 		return m.askRename(branch.Name), nil
 	case m.keys.Is(keymap.BranchesDelete, pressed):
@@ -131,10 +131,12 @@ func (m Model) ontoCurrent(branch git.Branch, run func(dir, name string) error, 
 	}
 }
 
-// askBranchName спрашивает имя новой ветки на base, как n в lazygit: базой
-// служит выбранная ветка, а курсор при открытии окна стоит на текущей.
-func (m Model) askBranchName(base string) Model {
-	title := m.text.Text("branches.newTitle", i18n.Args{"base": visible(base)})
+// askBranchName спрашивает имя новой ветки на base, как n в lazygit: в окне
+// веток базой служит выбранная ветка, а курсор при открытии окна стоит на
+// текущей; в логе выбранный коммит (#223). label это база в заголовке поля:
+// имя ветки или короткий хэш.
+func (m Model) askBranchName(label, base string) Model {
+	title := m.text.Text("branches.newTitle", i18n.Args{"base": visible(label)})
 	return m.openPrompt(title, "", func(m Model, name string) (tea.Model, tea.Cmd) {
 		m.active = noWindow
 		return m, createBranchCmd(m.dir, name, base)

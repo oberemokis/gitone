@@ -61,6 +61,15 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)}), true), nil
 	case m.keys.Is(keymap.CherryPickPaste, pressed):
 		return m.pasteCommit()
+	case m.keys.Is(keymap.LogNewBranch, pressed):
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
+		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
+	case m.keys.Is(keymap.LogCheckout, pressed):
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
+			return git.CheckoutCommit(dir, entry.Hash)
+		})
 	}
 
 	return m, nil
@@ -167,7 +176,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:  closeHint(colors, keys, text, keymap.ListClose),
 		cursor: cursor,
 		empty:  []string{text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogRevert, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.ListSearch),
+		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.ListSearch),
 		fill:   true,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
 

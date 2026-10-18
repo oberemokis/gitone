@@ -54,6 +54,13 @@ func CreateBranch(dir, name, base string) error {
 	return failed("switch", err)
 }
 
+// CheckoutCommit переводит HEAD на коммит без ветки, `git switch --detach`
+// (#223). Правки, которым переход мешает, git отвергает сам, и HEAD остаётся.
+func CheckoutCommit(dir, hash string) error {
+	_, err := inRoot(dir, "switch", "--detach", hash)
+	return failed("switch", headline(err))
+}
+
 // DeleteBranch удаляет ветку через `git branch -d`: неслитую git отвергает, а
 // принудительного удаления нет, как и удаления на remote (#227).
 func DeleteBranch(dir, name string) error {

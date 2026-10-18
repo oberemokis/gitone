@@ -122,6 +122,7 @@ git получает тот же язык через переменную `LANGU
 | `listSearch.done`, `listSearch.cancel` | `enter`, `esc` | поле поиска в списке: оставить фильтр, снять его |
 | `log.open` | `enter` | лог: диф коммита |
 | `log.revert` | `t` | лог: отменить коммит новым коммитом с обратным диффом |
+| `log.newBranch`, `log.checkout` | `n`, `space` | лог: новая ветка на коммите и переход на неё; переход на коммит без ветки (detached HEAD) |
 | `cherryPick.copy`, `cherryPick.paste` | `C`, `V` | лог: скопировать коммит для cherry-pick; лог и ветки: перенести скопированный коммит в текущую ветку |
 | `branches.switch` | `enter` | ветки |
 | `branches.new`, `branches.rename`, `branches.delete` | `n`, `R`, `d` | ветки: новая ветка на выбранной, переименование выбранной только локально, удаление выбранной после `y` |

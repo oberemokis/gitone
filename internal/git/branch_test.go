@@ -167,6 +167,33 @@ func TestBranchesListsLocalWithCurrent(t *testing.T) {
 
 // Тег с именем ветки делает короткое имя неоднозначным: git отдаёт heads/v1.
 // В списке имя целое, и Switch по нему работает.
+// Checkout коммита отсоединяет HEAD на нём, правка, которой переход мешает,
+// его останавливает (#223, случаи 2 и 3).
+func TestCheckoutCommit(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	first := revision(t, repo, "HEAD")
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+
+	write(t, repo, "a.txt", "dirty\n")
+	if err := git.CheckoutCommit(repo, first); err == nil || !strings.HasPrefix(err.Error(), "switch: error:") {
+		t.Fatalf("CheckoutCommit на грязном дереве = %v, ожидался отказ git", err)
+	}
+	runGit(t, repo, "checkout", "--", "a.txt")
+
+	if err := git.CheckoutCommit(repo, first); err != nil {
+		t.Fatalf("CheckoutCommit: %v", err)
+	}
+	if got := revision(t, repo, "HEAD"); got != first {
+		t.Fatalf("HEAD %s, ожидался %s", got, first)
+	}
+	if branch := strings.TrimSpace(runGit(t, repo, "branch", "--show-current")); branch != "" {
+		t.Fatalf("HEAD на ветке %q, ожидался отсоединённый", branch)
+	}
+}
+
 func TestBranchesKeepNameWhenTagSharesIt(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
