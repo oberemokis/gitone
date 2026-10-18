@@ -29,6 +29,7 @@ const (
 	stashWindow
 	tagWindow
 	remoteWindow
+	reflogWindow
 	// поле ввода и меню поверх окна или главного экрана (prompt.go, menu.go)
 	promptWindow
 	menuWindow
@@ -66,6 +67,8 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.tagKey(key)
 	case remoteWindow:
 		return m.remoteKey(key)
+	case reflogWindow:
+		return m.reflogKey(key)
 	}
 
 	// окна выше подвал не гасят: сообщение, пришедшее при открытом окне,
@@ -113,6 +116,8 @@ func (m Model) windowBox() string {
 		return tagBox(m.colors, m.text, m.keys, m.tagsShown(), m.cursor, m.query, m.searching, question, width, height)
 	case remoteWindow:
 		return remoteBox(m.colors, m.text, m.keys, m.remotes, m.cursor, question, width, height)
+	case reflogWindow:
+		return reflogBox(m.colors, m.text, m.keys, m.reflogShown(), m.cursor, m.query, m.searching, width, height)
 	}
 
 	if m.helpOpen {
@@ -184,6 +189,8 @@ func (m Model) wheelList(button tea.MouseButton) Model {
 		m = m.moveCursor(delta*wheelStep, len(m.tagsShown()))
 	case remoteWindow:
 		m = m.moveCursor(delta*wheelStep, len(m.remotes))
+	case reflogWindow:
+		m = m.moveCursor(delta*wheelStep, len(m.reflogShown()))
 	case menuWindow:
 		m.menu = m.menu.move(delta * wheelStep)
 	}
@@ -250,7 +257,7 @@ func (m Model) paste(content string) Model {
 		m.picker = m.picker.Type(line)
 	case m.active == promptWindow:
 		m.prompt.text += line
-	case m.searching && (m.active == logWindow || m.active == branchWindow || m.active == worktreeWindow || m.active == tagWindow):
+	case m.searching && (m.active == logWindow || m.active == branchWindow || m.active == worktreeWindow || m.active == tagWindow || m.active == reflogWindow):
 		m.query += line
 		m.cursor = 0
 	}

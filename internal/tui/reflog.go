@@ -1,0 +1,117 @@
+package tui
+
+import (
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"gitone/internal/git"
+	"gitone/internal/i18n"
+	"gitone/internal/keymap"
+	"gitone/internal/tui/theme"
+)
+
+// reflogMsg несёт reflog HEAD или ошибку git.
+type reflogMsg struct {
+	entries []git.ReflogEntry
+	err     error
+}
+
+func reflogCmd(dir string) tea.Cmd {
+	return func() tea.Msg {
+		entries, err := git.Reflog(dir)
+		return reflogMsg{entries: entries, err: err}
+	}
+}
+
+// reflogArrived открывает окно reflog с курсором на последней записи.
+func (m Model) reflogArrived(msg reflogMsg) Model {
+	if msg.err != nil {
+		return m.say(m.text.Error(msg.err))
+	}
+	if m.active != noWindow {
+		return m
+	}
+
+	m.reflog, m.cursor, m.active = msg.entries, 0, reflogWindow
+	m.query, m.searching = "", false
+	return m
+}
+
+// reflogKey отдаёт клавиши окну reflog (#240). Клавиши те же, что у лога:
+// log.open показывает дифф коммита записи, log.checkout переходит на него без
+// ветки, log.newBranch ставит на него ветку. Так потерянный коммит
+// возвращается в историю.
+func (m Model) reflogKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.searchKey(key); handled {
+		return next, cmd
+	}
+
+	shown := m.reflogShown()
+	if next, cmd, handled := m.navigate(key, len(shown)); handled {
+		return next, cmd
+	}
+	if len(shown) == 0 {
+		return m, nil
+	}
+
+	entry, pressed := shown[m.cursor], key.String()
+	short := entry.Hash[:7]
+	switch {
+	case m.keys.Is(keymap.LogOpen, pressed):
+		return m.showCommit(git.LogEntry{Hash: entry.Hash, Root: entry.Root})
+	case m.keys.Is(keymap.LogCheckout, pressed):
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": short}), func(dir string) error {
+			return git.CheckoutCommit(dir, entry.Hash)
+		})
+	case m.keys.Is(keymap.LogNewBranch, pressed):
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
+		return m.askBranchName(short, entry.Hash), nil
+	}
+
+	return m, nil
+}
+
+// reflogShown это записи под фильтром поиска по хэшу, действию и описанию.
+func (m Model) reflogShown() []git.ReflogEntry {
+	return matching(m.reflog, m.query, func(entry git.ReflogEntry) string {
+		return entry.Hash + "\x00" + entry.Action + "\x00" + entry.Subject
+	})
+}
+
+// reflogBox рисует reflog таблицей, как лог: хэш цветом accent, действие,
+// описание и время записи приглушённое.
+func reflogBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.ReflogEntry, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
+	box := list{
+		title:  text.Text("reflog.title", nil),
+		close:  closeHint(colors, keys, text, keymap.ListClose),
+		cursor: cursor,
+		empty:  []string{text.Text("reflog.empty", nil)},
+		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.ListSearch),
+		fill:   true,
+	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	muted := panel.Foreground(colors.TextMuted)
+
+	titles := []string{text.Text("log.column.commit", nil), text.Text("reflog.column.action", nil), text.Text("log.column.message", nil), text.Text("log.column.date", nil)}
+	actionWidth, dateWidth := ansi.StringWidth(titles[1]), ansi.StringWidth(titles[3])
+	for _, entry := range entries {
+		actionWidth = max(actionWidth, ansi.StringWidth(visible(entry.Action)))
+		dateWidth = max(dateWidth, ansi.StringWidth(visible(entry.When)))
+	}
+	widths := []int{hashColumn, min(actionWidth, maxNameColumn), 0, min(dateWidth, maxDateColumn)}
+	widths[2] = max(box.rowWidth(screenWidth)-widths[0]-widths[1]-widths[3]-3*columnGap, 1)
+
+	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
+
+	styles := []lipgloss.Style{panel.Foreground(colors.Accent), muted, panel, muted}
+	box.rows = make([]string, len(entries))
+	for index, entry := range entries {
+		box.rows[index] = tableRow(panel, widths, styles, entry.Hash[:7], entry.Action, entry.Subject, entry.When)
+	}
+
+	return box.view(colors, screenWidth, screenHeight)
+}
