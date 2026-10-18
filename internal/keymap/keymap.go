@@ -179,14 +179,35 @@ type Binding struct {
 	Help bool
 }
 
-// Keymap это список действий с клавишами. Нулевое значение пустое: клавиш
-// нет, поэтому корень получает его из Default или Load.
+// Keymap это список действий с клавишами и свои команды пользователя.
+// Нулевое значение пустое: клавиш нет, поэтому корень получает его из
+// Default или Load.
 type Keymap struct {
 	bindings []Binding
+	commands []Command
+}
+
+// Command это своя команда из раздела commands в keybinds.json (#246), как
+// customCommands в lazygit: клавиша на главном экране, команда shell и имя
+// для подвала. {path} в команде заменяется путём открытого файла.
+type Command struct {
+	Key  string `json:"key"`
+	Run  string `json:"command"`
+	Name string `json:"name"`
 }
 
 func (k Keymap) Bindings() []Binding {
 	return k.bindings
+}
+
+// CommandFor ищет свою команду клавиши.
+func (k Keymap) CommandFor(key string) (Command, bool) {
+	for _, command := range k.commands {
+		if command.Key == key {
+			return command, true
+		}
+	}
+	return Command{}, false
 }
 
 func (k Keymap) KeysFor(action Action) []string {
@@ -304,6 +325,7 @@ func dangling(path string) bool {
 type file struct {
 	Schema   string                     `json:"$schema"`
 	Keybinds map[string]json.RawMessage `json:"keybinds"`
+	Commands []Command                  `json:"commands"`
 }
 
 // decode читает keybinds.json. Строгий разбор JSON (неизвестное поле и текст
@@ -346,8 +368,46 @@ func decode(data []byte) (Keymap, error) {
 	if err := checkConflicts(bindings); err != nil {
 		return Keymap{}, err
 	}
+	if err := checkCommands(f.Commands, bindings); err != nil {
+		return Keymap{}, err
+	}
 
-	return Keymap{bindings: bindings}, nil
+	return Keymap{bindings: bindings, commands: f.Commands}, nil
+}
+
+// checkCommands отвергает команду без текста, клавишу с неверным именем и
+// клавишу, занятую глобальным действием или другой командой: команда
+// работает на главном экране, где клавиша значит одно. ctrl+c зашит.
+func checkCommands(commands []Command, bindings []Binding) error {
+	owner := make(map[string]string)
+	for _, binding := range bindings {
+		if !inWindow(binding.Action) {
+			for _, key := range binding.Keys {
+				owner[key] = string(binding.Action)
+			}
+		}
+	}
+
+	for index, command := range commands {
+		name := command.Name
+		if name == "" {
+			name = fmt.Sprintf("commands[%d]", index)
+		}
+		if strings.TrimSpace(command.Run) == "" {
+			return i18n.New("keymap.emptyCommand", i18n.Args{"name": name})
+		}
+		if _, err := checkKeys([]string{command.Key}); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		if command.Key == "ctrl+c" {
+			return i18n.New("keymap.reservedQuit", i18n.Args{"action": name, "key": command.Key})
+		}
+		if other, taken := owner[command.Key]; taken {
+			return i18n.New("keymap.conflict", i18n.Args{"key": command.Key, "first": other, "second": name})
+		}
+		owner[command.Key] = name
+	}
+	return nil
 }
 
 // editorKeys это клавиши правки описания коммита: стрелки, home, end, delete и

@@ -68,6 +68,39 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+// Свои команды (#246): команда находится по клавише; клавиша, занятая
+// встроенным действием или другой командой, пустая команда и неверное имя
+// клавиши отвергают файл (случай 5).
+func TestLoadCommands(t *testing.T) {
+	tests := []struct {
+		name, content, wantErr string
+	}{
+		{name: "команда", content: `{"commands":[{"key":"ctrl+g","command":"git log -1","name":"last"}]}`},
+		{name: "клавиша встроенного действия", content: `{"commands":[{"key":"c","command":"true","name":"mine"}]}`, wantErr: `"c" is bound to both files.commit and mine`},
+		{name: "переназначенная клавиша свободна", content: `{"keybinds":{"files.commit":"C"},"commands":[{"key":"c","command":"true","name":"mine"}]}`},
+		{name: "две команды", content: `{"commands":[{"key":"o","command":"a","name":"one"},{"key":"o","command":"b","name":"two"}]}`, wantErr: "one and two"},
+		{name: "пустая команда", content: `{"commands":[{"key":"o","command":" ","name":"blank"}]}`, wantErr: "blank: the command is empty"},
+		{name: "неверная клавиша", content: `{"commands":[{"key":"shift+o","command":"true"}]}`, wantErr: "commands[0]"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := keymap.Load(writeKeybinds(t, tc.content))
+			switch {
+			case tc.wantErr == "" && err != nil:
+				t.Fatalf("Load: %v", err)
+			case tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)):
+				t.Fatalf("Load = %v, ожидалась ошибка с %q", err, tc.wantErr)
+			}
+		})
+	}
+
+	km, _ := keymap.Load(writeKeybinds(t, `{"commands":[{"key":"ctrl+g","command":"git log -1","name":"last"}]}`))
+	if command, found := km.CommandFor("ctrl+g"); !found || command.Run != "git log -1" || command.Name != "last" {
+		t.Fatalf("CommandFor(ctrl+g) = %+v, %v", command, found)
+	}
+}
+
 // Ссылка на keybinds.json или на каталог настроек, которая существует и ведёт в
 // никуда, не то же, что отсутствие файла: клавиши пользователя есть и не
 // читаются, молча подменять их встроенными нельзя.

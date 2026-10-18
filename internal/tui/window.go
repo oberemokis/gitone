@@ -88,6 +88,10 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, handled := m.helpKey(key.String()); handled {
 		return next, nil
 	}
+	// своя команда стоит на клавише, свободной от действий (#246)
+	if command, found := m.keys.CommandFor(key.String()); found {
+		return m.runCommand(command)
+	}
 	return m.handleAction(m.keys.ActionFor(key.String()))
 }
 
