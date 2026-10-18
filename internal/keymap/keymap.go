@@ -81,30 +81,31 @@ const (
 	LogCopy      Action = "log.copy"
 	LogReset     Action = "log.reset"
 	// cherry-pick (#222): copy в логе, paste в логе и в окне веток
-	CherryPickCopy  Action = "cherryPick.copy"
-	CherryPickPaste Action = "cherryPick.paste"
-	BranchesSwitch  Action = "branches.switch"
-	BranchesNew     Action = "branches.new"
-	BranchesRename  Action = "branches.rename"
-	BranchesDelete  Action = "branches.delete"
-	BranchesMerge   Action = "branches.merge"
-	BranchesRebase  Action = "branches.rebase"
-	BranchesReset   Action = "branches.reset"
-	WorktreesSwitch Action = "worktrees.switch"
-	StashDiff       Action = "stash.diff"
-	StashApply      Action = "stash.apply"
-	StashPop        Action = "stash.pop"
-	StashDrop       Action = "stash.drop"
-	StashNew        Action = "stash.new"
-	StashRename     Action = "stash.rename"
-	QuestionYes     Action = "question.yes"
-	SearchChoose    Action = "search.choose"
-	SearchClose     Action = "search.close"
-	SearchUp        Action = "search.up"
-	SearchDown      Action = "search.down"
-	CommitSubmit    Action = "commit.submit"
-	CommitField     Action = "commit.field"
-	CommitClose     Action = "commit.close"
+	CherryPickCopy   Action = "cherryPick.copy"
+	CherryPickPaste  Action = "cherryPick.paste"
+	BranchesSwitch   Action = "branches.switch"
+	BranchesNew      Action = "branches.new"
+	BranchesRename   Action = "branches.rename"
+	BranchesDelete   Action = "branches.delete"
+	BranchesMerge    Action = "branches.merge"
+	BranchesRebase   Action = "branches.rebase"
+	BranchesReset    Action = "branches.reset"
+	BranchesUpstream Action = "branches.upstream"
+	WorktreesSwitch  Action = "worktrees.switch"
+	StashDiff        Action = "stash.diff"
+	StashApply       Action = "stash.apply"
+	StashPop         Action = "stash.pop"
+	StashDrop        Action = "stash.drop"
+	StashNew         Action = "stash.new"
+	StashRename      Action = "stash.rename"
+	QuestionYes      Action = "question.yes"
+	SearchChoose     Action = "search.choose"
+	SearchClose      Action = "search.close"
+	SearchUp         Action = "search.up"
+	SearchDown       Action = "search.down"
+	CommitSubmit     Action = "commit.submit"
+	CommitField      Action = "commit.field"
+	CommitClose      Action = "commit.close"
 	// поиск в логе, ветках и worktree: / открывает поле, done оставляет
 	// фильтр, cancel снимает
 	ListSearch       Action = "list.search"
@@ -186,7 +187,7 @@ func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
 		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, CherryPickCopy, CherryPickPaste, ListSearch}, list...),
-		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, CherryPickPaste, ListSearch}, list...),
+		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, BranchesUpstream, CherryPickPaste, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
 		append([]Action{MenuChoose}, list...),
@@ -575,6 +576,7 @@ func defaults() []Binding {
 		{Action: BranchesMerge, Keys: []string{"M"}},
 		{Action: BranchesRebase, Keys: []string{"r"}},
 		{Action: BranchesReset, Keys: []string{"g"}},
+		{Action: BranchesUpstream, Keys: []string{"u"}},
 		{Action: WorktreesSwitch, Keys: []string{"enter"}},
 		{Action: StashDiff, Keys: []string{"enter"}},
 		{Action: StashApply, Keys: []string{"a"}},

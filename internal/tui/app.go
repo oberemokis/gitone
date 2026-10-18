@@ -277,6 +277,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.patchSaved(msg)
 	case resetTargetMsg:
 		m = m.resetTargetFound(msg)
+	case remoteBranchesMsg:
+		m = m.chooseUpstream(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список
@@ -309,6 +311,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case m.active == branchWindow:
 			m.branches = msg.branches
 			m = m.moveCursor(0, len(m.branchesShown()))
+			if msg.note != "" {
+				m = m.sayCalm(msg.note)
+			}
 			return m.startReload()
 		}
 	case worktreesMsg:
