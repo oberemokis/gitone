@@ -352,13 +352,29 @@ func TestLongHintStaysOnNarrowScreen(t *testing.T) {
 		}
 	}
 
-	// перенос подсказки или строки списка выдаёт себя продолжением на
-	// следующей строке окна: экран при этом не растёт, лишнее срезает наложение.
-	// Смотрится только внутри окна: по краям виден ряд клавиш пустого экрана
+	// перенос строки списка выдаёт себя продолжением на следующей строке окна:
+	// экран при этом не растёт, лишнее срезает наложение. Смотрится только внутри
+	// окна: по краям виден ряд клавиш пустого экрана. Подсказка переносится по
+	// парам (#229): клавиша остаётся на одной строке со своей подписью
 	for index, line := range screen[:len(screen)-1] {
-		wrapped := windowText(screen, index+1, "St…") != ""
-		if (strings.Contains(line, "enter diff") || strings.Contains(line, "stash@{0}")) && wrapped {
-			t.Fatalf("строка окна перенеслась:\n%s", strings.Join(screen, "\n"))
+		if strings.Contains(line, "stash@{0}") && windowText(screen, index+1, "St…") != "" {
+			t.Fatalf("строка списка перенеслась:\n%s", strings.Join(screen, "\n"))
+		}
+		if strings.Contains(line, "f11") && !strings.Contains(line, "f11 apply") {
+			t.Fatalf("клавиша оторвалась от подписи:\n%s", strings.Join(screen, "\n"))
+		}
+	}
+}
+
+// Подсказка, которая не помещается в строку окна, переносится по парам
+// «клавиша подпись» (#229): видны все действия окна веток.
+func TestWindowHintWrapsByPairs(t *testing.T) {
+	_, model := branchRepo(t)
+	screen := strings.Join(screenOf(resize(model, 60, 24)), "\n")
+
+	for _, pair := range []string{"enter switch", "n new", "R rename", "d delete", "M merge", "r rebase", "/ search"} {
+		if !strings.Contains(screen, pair) {
+			t.Errorf("подсказки %q нет на экране:\n%s", pair, screen)
 		}
 	}
 }

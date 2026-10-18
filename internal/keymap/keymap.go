@@ -72,6 +72,8 @@ const (
 	BranchesNew     Action = "branches.new"
 	BranchesRename  Action = "branches.rename"
 	BranchesDelete  Action = "branches.delete"
+	BranchesMerge   Action = "branches.merge"
+	BranchesRebase  Action = "branches.rebase"
 	WorktreesSwitch Action = "worktrees.switch"
 	StashDiff       Action = "stash.diff"
 	StashApply      Action = "stash.apply"
@@ -163,7 +165,7 @@ func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
 		append([]Action{LogOpen, ListSearch}, list...),
-		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, ListSearch}, list...),
+		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashDrop}, list...),
 		{QuestionYes},
@@ -535,6 +537,8 @@ func defaults() []Binding {
 		{Action: BranchesNew, Keys: []string{"n"}},
 		{Action: BranchesRename, Keys: []string{"R"}},
 		{Action: BranchesDelete, Keys: []string{"d"}},
+		{Action: BranchesMerge, Keys: []string{"M"}},
+		{Action: BranchesRebase, Keys: []string{"r"}},
 		{Action: WorktreesSwitch, Keys: []string{"enter"}},
 		{Action: StashDiff, Keys: []string{"enter"}},
 		{Action: StashApply, Keys: []string{"a"}},

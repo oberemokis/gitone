@@ -1,12 +1,112 @@
 package git_test
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"gitone/internal/git"
+	"gitone/internal/i18n"
 )
+
+// divergedRepo это main и feature, разошедшиеся от общего коммита: у каждой
+// свой файл. Текущая main.
+func divergedRepo(t *testing.T) string {
+	t.Helper()
+
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "feature")
+	write(t, repo, "f.txt", "feature\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+	write(t, repo, "m.txt", "main\n")
+	commitAll(t, repo)
+	return repo
+}
+
+// Отставшая ветка сливается перемоткой, без merge-коммита (#229, случай 1).
+func TestMergeFastForwards(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "feature")
+	write(t, repo, "f.txt", "feature\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+
+	if err := git.Merge(repo, "feature"); err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if got, want := revision(t, repo, "main"), revision(t, repo, "feature"); got != want {
+		t.Fatalf("main %s, ожидалась перемотка на feature %s", got, want)
+	}
+}
+
+// Разошедшиеся ветки дают merge-коммит с сообщением по умолчанию (случай 2).
+func TestMergeCreatesMergeCommit(t *testing.T) {
+	repo := divergedRepo(t)
+
+	if err := git.Merge(repo, "feature"); err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if parents := strings.Fields(runGit(t, repo, "log", "-1", "--format=%P")); len(parents) != 2 {
+		t.Fatalf("у HEAD родителей %d, ожидался merge-коммит", len(parents))
+	}
+	if got := lastSubject(t, repo); got != "Merge branch 'feature'" {
+		t.Fatalf("сообщение %q, ожидалось по умолчанию", got)
+	}
+}
+
+// Rebase ставит коммиты main поверх feature, история линейна (случай 3).
+func TestRebaseMakesLinearHistory(t *testing.T) {
+	repo := divergedRepo(t)
+
+	if err := git.Rebase(repo, "feature"); err != nil {
+		t.Fatalf("Rebase: %v", err)
+	}
+	if got, want := revision(t, repo, "HEAD~1"), revision(t, repo, "feature"); got != want {
+		t.Fatalf("родитель HEAD %s, ожидалась вершина feature %s", got, want)
+	}
+	if merges := strings.TrimSpace(runGit(t, repo, "rev-list", "--merges", "HEAD")); merges != "" {
+		t.Fatalf("в истории merge-коммиты: %s", merges)
+	}
+}
+
+// Правка, которую затронет операция, останавливает её до начала одной строкой
+// git (случай 4), а конфликт останавливает её посредине: ошибка говорит, что
+// операция не закончена (случай 5).
+func TestMergeAndRebaseRefusals(t *testing.T) {
+	repo := divergedRepo(t)
+	write(t, repo, "a.txt", "dirty\n")
+	err := git.Rebase(repo, "feature")
+	if err == nil || !strings.HasPrefix(err.Error(), "rebase: error:") || strings.ContainsAny(err.Error(), "\r\n") {
+		t.Fatalf("Rebase на грязном дереве = %q, ожидалась одна строка error:", err)
+	}
+	runGit(t, repo, "checkout", "--", "a.txt")
+
+	runGit(t, repo, "switch", "-q", "feature")
+	write(t, repo, "m.txt", "feature side\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+
+	var stopped *i18n.Error
+	if err := git.Merge(repo, "feature"); !errors.As(err, &stopped) || stopped.Key != "git.stoppedOnConflict" {
+		t.Fatalf("Merge с конфликтом = %v, ожидалась git.stoppedOnConflict", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, ".git", "MERGE_HEAD")); statErr != nil {
+		t.Fatalf("слияние не осталось незавершённым: %v", statErr)
+	}
+
+	runGit(t, repo, "merge", "--abort")
+	if err := git.Rebase(repo, "feature"); !errors.As(err, &stopped) || stopped.Key != "git.stoppedOnConflict" {
+		t.Fatalf("Rebase с конфликтом = %v, ожидалась git.stoppedOnConflict", err)
+	}
+}
 
 // Текущая ветка переименовывается и остаётся текущей, связь с upstream
 // сохраняется, занятое имя git отвергает (#228).

@@ -1,6 +1,7 @@
 package git
 
 import (
+	"os"
 	"strings"
 
 	"gitone/internal/i18n"
@@ -52,4 +53,48 @@ func inProgress(root string) bool {
 	}
 
 	return false
+}
+
+// rebasing говорит, что rebase остановился и ждёт продолжения: git держит его
+// состояние в каталоге rebase-merge (или rebase-apply у старого движка).
+func rebasing(root string) bool {
+	for _, name := range []string{"rebase-merge", "rebase-apply"} {
+		path, err := run(call{dir: root}, "rev-parse", "--path-format=absolute", "--git-path", name)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(strings.TrimSpace(path)); err == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// unfinished говорит, что операция git остановилась посредине: слияние,
+// cherry-pick, revert или rebase.
+func unfinished(root string) bool {
+	return inProgress(root) || rebasing(root)
+}
+
+// stopping запускает операцию, которая может остановиться на конфликте, из
+// корня репозитория. Остановку она сводит к ошибке из словаря: строка git
+// называет один файл, а знать нужно, что операция не закончена. Отказ до
+// начала (грязное дерево, незавершённая прежняя операция) сводится к одной
+// строке (headline).
+func stopping(dir, operation string, args ...string) error {
+	root, err := topLevel(dir)
+	if err != nil {
+		return err
+	}
+	if unfinished(root) {
+		_, err = run(call{dir: root}, args...)
+		return headline(err)
+	}
+
+	_, err = run(call{dir: root}, args...)
+	if err != nil && unfinished(root) {
+		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": operation})
+	}
+	return headline(err)
 }

@@ -82,7 +82,9 @@ func headline(err error) error {
 		return err
 	}
 
-	lines := strings.Split(refusal.message, "\n")
+	// строка прогресса («Rebasing (1/1)») затирается возвратом каретки, а не
+	// переводом строки: \r тоже граница строки
+	lines := strings.FieldsFunc(refusal.message, func(r rune) bool { return r == '\n' || r == '\r' })
 	reason := slices.IndexFunc(lines, func(line string) bool {
 		return strings.HasPrefix(line, "CONFLICT") || strings.HasPrefix(line, "fatal:") || strings.HasPrefix(line, "error:")
 	})
