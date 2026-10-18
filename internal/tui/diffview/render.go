@@ -20,14 +20,18 @@ import (
 // текст по колонкам.
 const tabSpaces = "    "
 
-func (m Model) render(line line) string {
+// selectedMark стоит в первой колонке строки, выделенной для индекса (#212).
+const selectedMark = "▌"
+
+// render рисует строку экрана, marked ставит у неё отметку выделения.
+func (m Model) render(line line, marked bool) string {
 	switch {
 	case line.notice != nil:
 		return m.renderNotice(*line.notice, line.chunk)
 	case line.split != nil:
-		return m.renderSplit(*line.split, line.chunk)
+		return m.renderSplit(*line.split, line.chunk, marked)
 	default:
-		return m.renderUnified(*line.unified, line.chunk)
+		return m.renderUnified(*line.unified, line.chunk, marked)
 	}
 }
 
@@ -41,7 +45,7 @@ func (m Model) renderNotice(note notice, at chunk) string {
 	return lipgloss.NewStyle().Foreground(m.colors.TextMuted).Render(fill(m.width, note.text))
 }
 
-func (m Model) renderUnified(row diff.UnifiedRow, at chunk) string {
+func (m Model) renderUnified(row diff.UnifiedRow, at chunk, marked bool) string {
 	switch row.Kind {
 	case diff.RowGap:
 		return ""
@@ -58,31 +62,34 @@ func (m Model) renderUnified(row diff.UnifiedRow, at chunk) string {
 	// Один столбец номеров: у строки контекста старый и новый номер
 	// дублировали бы друг друга. Удалённая строка с её старым номером, а
 	// от добавленной с тем же номером её отличают знак и цвет.
-	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.CR, row.Changed, spans, at, 0)
+	return m.cell(m.width, row.Line, cmp.Or(row.NewNumber, row.OldNumber), row.Text, row.CR, row.Changed, spans, at, 0, marked)
 }
 
 // renderSplit делит ширину на половины по стыку (split.go). Половина без
 // строки остаётся пустой и без фона, чтобы было видно, с какой стороны строки
 // нет.
-func (m Model) renderSplit(row diff.SplitRow, at chunk) string {
+func (m Model) renderSplit(row diff.SplitRow, at chunk, marked bool) string {
 	if row.Kind == diff.RowGap {
 		return ""
 	}
 
 	leftWidth := m.splitLeft()
-	return m.half(leftWidth, row.Kind, row.Left, m.oldCode, at, 0) + m.half(m.width-leftWidth, row.Kind, row.Right, m.newCode, at, 1)
+	return m.half(leftWidth, row.Kind, row.Left, m.oldCode, at, 0, marked) + m.half(m.width-leftWidth, row.Kind, row.Right, m.newCode, at, 1, false)
 }
 
-// half рисует половину split: index 0 у левой, 1 у правой.
-func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code, at chunk, index int) string {
+// half рисует половину split: index 0 у левой, 1 у правой. Отметка
+// выделения стоит и на пустой левой половине: строка выделена целиком.
+func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code, at chunk, index int, marked bool) string {
 	switch {
+	case side.Kind == "" && marked && width > 0:
+		return lipgloss.NewStyle().Foreground(m.colors.Accent).Render(selectedMark) + strings.Repeat(" ", width-1)
 	case side.Kind == "":
 		return strings.Repeat(" ", width)
 	case kind == diff.RowNoNewline:
 		return m.noNewline(width)
 	}
 
-	return m.cell(width, side.Kind, side.Number, side.Text, side.CR, side.Changed, sideCode[side.Number], at, index)
+	return m.cell(width, side.Kind, side.Number, side.Text, side.CR, side.Changed, sideCode[side.Number], at, index, marked)
 }
 
 // cell рисует строку файла шириной ровно width: отступ, номер, знак и текст,
@@ -92,8 +99,9 @@ func (m Model) half(width int, kind diff.RowKind, side diff.Cell, sideCode code,
 // по краю, даже когда код длинный. Продолжение перенесённой строки (part
 // больше нуля) идёт без номера и знака, с тем же фоном. spans это подсветка
 // синтаксиса строки, cr значок ␍ после текста. index 0 у левой стороны, 1 у
-// правой: колонки начала куска у них свои.
-func (m Model) cell(width int, kind diff.LineKind, number int, text string, cr bool, changed []diff.Span, spans []syntax.Span, at chunk, index int) string {
+// правой: колонки начала куска у них свои. marked ставит вместо первого
+// пробела отметку выделения.
+func (m Model) cell(width int, kind diff.LineKind, number int, text string, cr bool, changed []diff.Span, spans []syntax.Span, at chunk, index int, marked bool) string {
 	base := lipgloss.NewStyle()
 	gutter := base.Foreground(m.colors.TextMuted)
 	wordBg := m.colors.DiffAddedWordBg
@@ -119,7 +127,11 @@ func (m Model) cell(width int, kind diff.LineKind, number int, text string, cr b
 		prefix = strings.Repeat(" ", ansi.StringWidth(prefix))
 	}
 
-	return gutter.Render(prefix) + m.textCells(width-ansi.StringWidth(prefix), m.skip(at, index), base, wordBg, text, cr, changed, spans)
+	text = m.textCells(width-ansi.StringWidth(prefix), m.skip(at, index), base, wordBg, text, cr, changed, spans)
+	if marked {
+		return gutter.Foreground(m.colors.Accent).Render(selectedMark) + gutter.Render(prefix[1:]) + text
+	}
+	return gutter.Render(prefix) + text
 }
 
 // crMark это значок «␍» после текста строки, чей перевод CRLF отличает её от

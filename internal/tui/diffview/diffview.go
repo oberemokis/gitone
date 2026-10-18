@@ -57,6 +57,8 @@ type Model struct {
 	// (versions.go)
 	versionKey string
 	versions   map[string]sides
+	// выделение строк для индекса (select.go)
+	selection selection
 }
 
 func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
@@ -75,13 +77,15 @@ func (m Model) WithoutNumbers(hide bool) Model {
 	return m
 }
 
+// SetFile открывает другой файл: прокрутка и выделение сбрасываются.
 func (m Model) SetFile(file diff.File) Model {
 	m.scroll, m.shift = 0, 0
+	m.selection = selection{}
 	return m.withFile(file).rebuild()
 }
 
-// Reload ставит на место файла его новую версию. Прокрутка остаётся той же,
-// обрезанной по новой длине, а SetFile её сбросил бы.
+// Reload ставит на место файла его новую версию. Прокрутка и выделение
+// остаются, прокрутка обрезана по новой длине, а SetFile их сбросил бы.
 func (m Model) Reload(file diff.File) Model {
 	return m.withFile(file).rebuild()
 }
@@ -199,10 +203,13 @@ func (m Model) rows() int {
 
 func (m Model) View() string {
 	end := min(m.scroll+m.rows(), len(m.lines))
+	from, to := m.bounds()
 
 	rendered := make([]string, 0, m.height)
-	for _, line := range m.lines[m.scroll:end] {
-		rendered = append(rendered, m.render(line))
+	for index := m.scroll; index < end; index++ {
+		line := m.lines[index]
+		marked := index >= from && index <= to && len(refs(line)) > 0
+		rendered = append(rendered, m.render(line, marked))
 	}
 
 	if m.hasBar() {

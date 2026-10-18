@@ -61,18 +61,18 @@ func (m Model) poll() (Model, tea.Cmd) {
 // две секунды. Опрос со старым каталогом или аргументами (пока он шёл,
 // переключили worktree или открыли коммит из лога) и одинаковый дифф экран не
 // трогают, подсветка не пересчитывается впустую.
-func (m Model) polled(msg polledMsg) Model {
+func (m Model) polled(msg polledMsg) (Model, tea.Cmd) {
 	m.polling = false
 	if msg.err != nil || m.loading || !msg.fits(m) {
-		return m
+		return m, nil
 	}
 
 	m.location = msg.location
-	if reflect.DeepEqual(msg.files, m.files) && maps.Equal(msg.staged, m.staged) {
-		return m
+	if reflect.DeepEqual(msg.files, m.files) && maps.Equal(msg.staged, m.staged) && maps.Equal(msg.partial, m.partial) {
+		return m, nil
 	}
 
 	m = m.applyReload(msg.files)
-	m.staged = msg.staged
-	return m
+	m.staged, m.partial = msg.staged, msg.partial
+	return m.refreshSelection()
 }

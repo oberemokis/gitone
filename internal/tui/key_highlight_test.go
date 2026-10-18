@@ -91,7 +91,7 @@ func TestKeysStandOutInTitles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// высокий экран: справка ниже тела прокручивается, а строка «Wrap
 			// long lines» стоит в её нижней половине
-			model, _ := resize(mutedTheme(t), 100, 50).Update(tc.press)
+			model, _ := resize(mutedTheme(t), 100, 70).Update(tc.press)
 			line := rawLine(t, model.View().Content, tc.marker)
 			// клавиша стоит справа: ищется последнее вхождение
 			at := strings.LastIndex(line, tc.key)

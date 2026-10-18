@@ -59,6 +59,7 @@ const (
 	HelpClose        Action = "help.close"
 	DiffToggleMode   Action = "diff.toggleMode"
 	DiffReload       Action = "diff.reload"
+	DiffSelect       Action = "diff.select"
 	DiffScrollDown   Action = "diff.scrollDown"
 	DiffScrollUp     Action = "diff.scrollUp"
 	DiffHalfPageDown Action = "diff.halfPageDown"
@@ -591,6 +592,8 @@ func defaults() []Binding {
 		{Action: DiffScrollLeft, Category: CategoryDiff, Keys: []string{"left"}, Help: true},
 		{Action: DiffScrollRight, Category: CategoryDiff, Keys: []string{"right"}, Help: true},
 		{Action: DiffReload, Category: CategoryDiff, Keys: []string{"r"}, Help: true},
+		// как v в lazygit, но первое нажатие выделяет хунк, второе строки
+		{Action: DiffSelect, Category: CategoryFiles, Keys: []string{"v"}, Help: true},
 		// в справке стоит в заголовке, как esc в окнах opencode
 		{Action: HelpClose, Keys: []string{"esc"}},
 
