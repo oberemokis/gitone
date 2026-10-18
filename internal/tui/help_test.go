@@ -105,7 +105,7 @@ func TestHelpScrollsByWheel(t *testing.T) {
 // сразу двигает её назад. Группа «Diff» при этом видна целиком, заголовок и
 // подвал на местях.
 func TestHelpStopsAtBottom(t *testing.T) {
-	model := typeText(helpOnSmallScreen(t), strings.Repeat("j", 30))
+	model := typeText(helpOnSmallScreen(t), strings.Repeat("j", 60))
 	screen := screenOf(model)
 
 	if row := rowOf(screen, "Reload diff"); row != helpLastRow {

@@ -290,6 +290,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resetTargetFound(msg)
 	case remoteBranchesMsg:
 		m = m.chooseUpstream(msg)
+	case undoStepMsg:
+		m = m.askUndo(msg)
 	case tagsMsg:
 		m = m.tagsArrived(msg)
 	case remotesMsg:
@@ -506,6 +508,10 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m.startRemote(fetching)
 	case keymap.GitPush:
 		return m.startRemote(pushing)
+	case keymap.GitUndo:
+		return m, undoStepCmd(m.dir, false)
+	case keymap.GitRedo:
+		return m, undoStepCmd(m.dir, true)
 	case keymap.FilesPick:
 		m = m.openPicker()
 	case keymap.FilesToggle:
