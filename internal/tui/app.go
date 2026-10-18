@@ -472,6 +472,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m = m.askDiscard()
 	case keymap.FilesCommit:
 		m = m.openCommit()
+	case keymap.FilesIgnore:
+		return m.ignoreFile()
 	case keymap.AppLog:
 		return m, logCmd(m.dir)
 	case keymap.AppBranches:

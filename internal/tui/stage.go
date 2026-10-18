@@ -96,6 +96,23 @@ func (m Model) toggleStage() (tea.Model, tea.Cmd) {
 	return m, stageCmd(m.dir, paths, m.staged[stagedKey(m.files[m.current])])
 }
 
+// ignoreFile дописывает текущий файл в корневой .gitignore (#214), как i в
+// lazygit. Отслеженный файл отвергает git-слой с причиной в подвале. После
+// записи файл пропадает из диффа при перечитывании, а подвал говорит, куда он
+// ушёл.
+func (m Model) ignoreFile() (tea.Model, tea.Cmd) {
+	paths, note := m.target()
+	if len(paths) == 0 {
+		return m.putNotice(note, true), nil
+	}
+
+	dir, path := m.dir, stagedKey(m.files[m.current])
+	done := m.text.Text("stage.ignored", i18n.Args{"path": visible(path)})
+	return m, func() tea.Msg {
+		return actionDoneMsg{err: git.Ignore(dir, path), note: done}
+	}
+}
+
 // askDiscard спрашивает в подвале, прежде чем отменять правки файла.
 func (m Model) askDiscard() Model {
 	paths, note := m.target()

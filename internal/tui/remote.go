@@ -172,7 +172,7 @@ func (m Model) remoteResult(msg remoteDoneMsg) string {
 // то же сами. Просмотр, окна и перечитывание диффа работают.
 func changesRepo(action keymap.Action) bool {
 	switch action {
-	case keymap.FilesStage, keymap.FilesDiscard, keymap.FilesCommit, keymap.StashPush, keymap.GitPull, keymap.GitPush, keymap.GitFetch:
+	case keymap.FilesStage, keymap.FilesDiscard, keymap.FilesCommit, keymap.FilesIgnore, keymap.StashPush, keymap.GitPull, keymap.GitPush, keymap.GitFetch:
 		return true
 	}
 
