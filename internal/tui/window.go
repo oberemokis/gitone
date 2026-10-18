@@ -28,6 +28,7 @@ const (
 	worktreeWindow
 	stashWindow
 	tagWindow
+	remoteWindow
 	// поле ввода и меню поверх окна или главного экрана (prompt.go, menu.go)
 	promptWindow
 	menuWindow
@@ -63,6 +64,8 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.stashKey(key)
 	case tagWindow:
 		return m.tagKey(key)
+	case remoteWindow:
+		return m.remoteKey(key)
 	}
 
 	// окна выше подвал не гасят: сообщение, пришедшее при открытом окне,
@@ -108,6 +111,8 @@ func (m Model) windowBox() string {
 		return stashBox(m.colors, m.text, m.keys, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
 	case tagWindow:
 		return tagBox(m.colors, m.text, m.keys, m.tagsShown(), m.cursor, m.query, m.searching, question, width, height)
+	case remoteWindow:
+		return remoteBox(m.colors, m.text, m.keys, m.remotes, m.cursor, question, width, height)
 	}
 
 	if m.helpOpen {
@@ -177,6 +182,8 @@ func (m Model) wheelList(button tea.MouseButton) Model {
 		m = m.moveCursor(delta*wheelStep, len(m.stashes))
 	case tagWindow:
 		m = m.moveCursor(delta*wheelStep, len(m.tagsShown()))
+	case remoteWindow:
+		m = m.moveCursor(delta*wheelStep, len(m.remotes))
 	case menuWindow:
 		m.menu = m.menu.move(delta * wheelStep)
 	}

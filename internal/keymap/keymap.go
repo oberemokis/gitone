@@ -47,6 +47,7 @@ const (
 	AppBranches      Action = "app.branches"
 	AppWorktrees     Action = "app.worktrees"
 	AppTags          Action = "app.tags"
+	AppRemotes       Action = "app.remotes"
 	GitPull          Action = "git.pull"
 	GitPush          Action = "git.push"
 	GitFetch         Action = "git.fetch"
@@ -116,18 +117,21 @@ const (
 	StashNew         Action = "stash.new"
 	StashRename      Action = "stash.rename"
 	// окно тегов (#238)
-	TagsDiff     Action = "tags.diff"
-	TagsNew      Action = "tags.new"
-	TagsDelete   Action = "tags.delete"
-	TagsPush     Action = "tags.push"
-	QuestionYes  Action = "question.yes"
-	SearchChoose Action = "search.choose"
-	SearchClose  Action = "search.close"
-	SearchUp     Action = "search.up"
-	SearchDown   Action = "search.down"
-	CommitSubmit Action = "commit.submit"
-	CommitField  Action = "commit.field"
-	CommitClose  Action = "commit.close"
+	TagsDiff   Action = "tags.diff"
+	TagsNew    Action = "tags.new"
+	TagsDelete Action = "tags.delete"
+	TagsPush   Action = "tags.push"
+	// окно remote (#233)
+	RemotesNew    Action = "remotes.new"
+	RemotesDelete Action = "remotes.delete"
+	QuestionYes   Action = "question.yes"
+	SearchChoose  Action = "search.choose"
+	SearchClose   Action = "search.close"
+	SearchUp      Action = "search.up"
+	SearchDown    Action = "search.down"
+	CommitSubmit  Action = "commit.submit"
+	CommitField   Action = "commit.field"
+	CommitClose   Action = "commit.close"
 	// поиск в логе, ветках и worktree: / открывает поле, done оставляет
 	// фильтр, cancel снимает
 	ListSearch       Action = "list.search"
@@ -213,6 +217,7 @@ func windows() [][]Action {
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
 		append([]Action{TagsDiff, TagsNew, TagsDelete, TagsPush, ListSearch}, list...),
+		append([]Action{RemotesNew, RemotesDelete}, list...),
 		append([]Action{MenuChoose}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
@@ -556,6 +561,7 @@ func defaults() []Binding {
 		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Help: true},
 		{Action: AppWorktrees, Category: CategoryGeneral, Keys: []string{"W"}, Help: true},
 		{Action: AppTags, Category: CategoryGeneral, Keys: []string{"t"}, Help: true},
+		{Action: AppRemotes, Category: CategoryGeneral, Keys: []string{"R"}, Help: true},
 		{Action: GitPull, Category: CategoryGeneral, Keys: []string{"p"}, Help: true},
 		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
 		// f у lazygit, здесь f открывает панель файлов
@@ -624,6 +630,8 @@ func defaults() []Binding {
 		{Action: TagsNew, Keys: []string{"n"}},
 		{Action: TagsDelete, Keys: []string{"d"}},
 		{Action: TagsPush, Keys: []string{"P"}},
+		{Action: RemotesNew, Keys: []string{"n"}},
+		{Action: RemotesDelete, Keys: []string{"d"}},
 		{Action: QuestionYes, Keys: []string{"y"}},
 		{Action: SearchChoose, Keys: []string{"enter"}},
 		{Action: SearchClose, Keys: []string{"esc"}},
