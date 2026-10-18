@@ -160,10 +160,10 @@ func TestClickEmptyPlaceDoesNothing(t *testing.T) {
 // Переназначенная клавиша: подсказка показывает её, и клик делает действие.
 func TestClickRemappedHint(t *testing.T) {
 	repo, _ := threeFileRepo(t)
-	model := openWithKeybinds(t, repo, `{"keybinds":{"app.help":"h"}}`, 100)
+	model := openWithKeybinds(t, repo, `{"keybinds":{"app.help":"H"}}`, 100)
 
-	if screen := screenText(clickOn(t, model, "h help")); !strings.Contains(screen, "Hotkeys") {
-		t.Fatalf("клик по h help не открыл справку:\n%s", screen)
+	if screen := screenText(clickOn(t, model, "H help")); !strings.Contains(screen, "Hotkeys") {
+		t.Fatalf("клик по H help не открыл справку:\n%s", screen)
 	}
 }
 

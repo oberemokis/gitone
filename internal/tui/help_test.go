@@ -137,13 +137,14 @@ func TestHelpWithoutScrollLeavesKeysToDiff(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "seed.txt", "seed\n")
 	commitAll(t, repo)
-	write(t, repo, "long.txt", numberedLines(60))
+	write(t, repo, "long.txt", numberedLines(100))
 
-	model, _ := resize(open(t, options(repo, layout.Focus())), 100, 50).Update(key('?'))
+	// справка растёт с каждым глобальным действием: экран взят с запасом
+	model, _ := resize(open(t, options(repo, layout.Focus())), 100, 80).Update(key('?'))
 	screen := screenOf(model)
 	last := rowOf(screen, "Reload diff")
-	if last < 0 || len(screen) != 50 {
-		t.Fatalf("справка на экране 100 на 50 обрезана, экран в %d строк:\n%s", len(screen), strings.Join(screen, "\n"))
+	if last < 0 || len(screen) != 80 {
+		t.Fatalf("справка на экране 100 на 80 обрезана, экран в %d строк:\n%s", len(screen), strings.Join(screen, "\n"))
 	}
 
 	steps := []struct {

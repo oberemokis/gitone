@@ -336,6 +336,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case msg.err != nil:
 			m = m.say(m.text.Error(msg.err))
+		// у нового файла истории нет: пустое окно сказало бы меньше подвала (#241)
+		case msg.filter.File && len(msg.entries) == 0:
+			m = m.putNotice(m.text.Text("history.empty", i18n.Args{"path": visible(msg.filter.Path)}), true)
 		case m.active == noWindow:
 			m.logEntries, m.logFilter, m.cursor, m.active = msg.entries, msg.filter, 0, logWindow
 			m.query, m.searching = "", false
@@ -521,6 +524,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m = m.openCommit()
 	case keymap.FilesAmend:
 		return m, lastMessageCmd(m.dir)
+	case keymap.FilesHistory:
+		return m.fileHistory()
 	case keymap.FilesEdit:
 		return m.editFile()
 	case keymap.FilesIgnore:
