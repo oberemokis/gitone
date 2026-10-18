@@ -36,6 +36,12 @@ func Locate(dir string) (Location, error) {
 	return Location{Branch: strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/"), Worktree: filepath.Base(root)}, nil
 }
 
+// Root это корень репозитория, в котором лежит dir: от него идут пути диффа.
+func Root(dir string) (string, error) {
+	root, err := topLevel(dir)
+	return root, failed("rev-parse", err)
+}
+
 // shortHash это 7 первых символов полного хэша: так хэш detached HEAD виден в
 // подвале и в окне worktree.
 func shortHash(full string) string {

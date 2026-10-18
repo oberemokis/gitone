@@ -2,6 +2,7 @@ package tui
 
 import (
 	"image"
+	"os/exec"
 	"slices"
 	"strings"
 	"time"
@@ -109,6 +110,8 @@ type Model struct {
 	// закрывший окно (click.go)
 	now     func() time.Time
 	closing closedClick
+	// exec отдаёт терминал внешней программе, редактору (edit.go)
+	exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd
 }
 
 // Options это всё, что корню нужно до запуска: каталог и аргументы для
@@ -136,6 +139,10 @@ type Options struct {
 	// KeepNotices отключает таймер заметок (#209): они висят до нажатия клавиши.
 	// Нужен тестам, которые доводят команды до конца и не ждут пять секунд.
 	KeepNotices bool
+	// Exec отдаёт терминал редактору (#215), nil значит tea.ExecProcess. Тест
+	// подставляет запуск без терминала: Bubble Tea выполняет ExecProcess сам,
+	// и команда без программы его не выполнит.
+	Exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -158,9 +165,14 @@ func New(opts Options, files []diff.File) Model {
 	if now == nil {
 		now = time.Now
 	}
+	run := opts.Exec
+	if run == nil {
+		run = tea.ExecProcess
+	}
 
 	return Model{
 		now:      now,
+		exec:     run,
 		noFade:   opts.KeepNotices,
 		dir:      opts.Dir,
 		args:     opts.Args,
@@ -252,6 +264,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.reloaded(msg)
 	case worktreeCheckedMsg:
 		return m.worktreeChecked(msg)
+	case editorMsg:
+		return m.startEditor(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список
@@ -472,6 +486,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m = m.askDiscard()
 	case keymap.FilesCommit:
 		m = m.openCommit()
+	case keymap.FilesEdit:
+		return m.editFile()
 	case keymap.FilesIgnore:
 		return m.ignoreFile()
 	case keymap.AppLog:

@@ -22,10 +22,10 @@ func TestLoad(t *testing.T) {
 		wantErr string
 	}{
 		{name: "нет файла", missing: true, want: defaultQuit},
-		{name: "переназначение", content: `{"keybinds":{"app.quit":"e"}}`, want: []string{"e"}},
-		{name: "массив", content: `{"keybinds":{"app.quit":["e","y"]}}`, want: []string{"e", "y"}},
+		{name: "переназначение", content: `{"keybinds":{"app.quit":"Q"}}`, want: []string{"Q"}},
+		{name: "массив", content: `{"keybinds":{"app.quit":["Q","y"]}}`, want: []string{"Q", "y"}},
 		{name: "повтор клавиши в действии", content: `{"keybinds":{"app.quit":["q","ctrl+c","q"]}}`, want: []string{"q", "ctrl+c"}},
-		{name: "ctrl+c другому глобальному действию", content: `{"keybinds":{"app.quit":"e","files.pick":"ctrl+c"}}`, want: defaultQuit, wantErr: "files.pick"},
+		{name: "ctrl+c другому глобальному действию", content: `{"keybinds":{"app.quit":"Q","files.pick":"ctrl+c"}}`, want: defaultQuit, wantErr: "files.pick"},
 		{name: "none отключает", content: `{"keybinds":{"app.quit":"none"}}`, want: nil},
 		{name: "false отключает", content: `{"keybinds":{"app.quit":false}}`, want: nil},
 		{name: "неизвестное действие", content: `{"keybinds":{"app.quitt":"w"}}`, want: defaultQuit, wantErr: "app.quitt"},
@@ -359,7 +359,7 @@ func TestActionForIgnoresWindowActions(t *testing.T) {
 // Клавиша из файла ведёт к своему действию, а не к встроенному.
 func TestActionForFollowsOverride(t *testing.T) {
 	dir := t.TempDir()
-	content := `{"keybinds":{"app.quit":"e"}}`
+	content := `{"keybinds":{"app.quit":"Q"}}`
 	if err := os.WriteFile(filepath.Join(dir, "keybinds.json"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -369,8 +369,8 @@ func TestActionForFollowsOverride(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if got := km.ActionFor("e"); got != keymap.AppQuit {
-		t.Errorf("e ведёт к %q, ожидался %q", got, keymap.AppQuit)
+	if got := km.ActionFor("Q"); got != keymap.AppQuit {
+		t.Errorf("Q ведёт к %q, ожидался %q", got, keymap.AppQuit)
 	}
 	if got := km.ActionFor("q"); got != "" {
 		t.Errorf("q ведёт к %q, ожидалось ничего", got)
