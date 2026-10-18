@@ -87,6 +87,58 @@ func TestStashApplyErrorNamesReason(t *testing.T) {
 	}
 }
 
+// Pop без конфликта возвращает правку и удаляет запись; с конфликтом говорит,
+// что запись осталась; правка в дереве, которой мешает pop, оставляет stash
+// нетронутым (#235).
+func TestStashPop(t *testing.T) {
+	cases := []struct {
+		name    string
+		prepare func(t *testing.T, repo string)
+		want    string
+		left    int
+	}{
+		{name: "без конфликта", prepare: func(*testing.T, string) {}, left: 0},
+		{name: "конфликт", want: "stash pop: conflict: fix the files, the stash entry is kept", left: 1, prepare: func(t *testing.T, repo string) {
+			write(t, repo, "a.txt", "three\n")
+			commitAll(t, repo)
+		}},
+		{name: "правка мешает", want: "stash pop: error: Your local changes to the following files would be overwritten by merge:", left: 1, prepare: func(t *testing.T, repo string) {
+			write(t, repo, "a.txt", "three\n")
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", "one\n")
+			commitAll(t, repo)
+			write(t, repo, "a.txt", "two\n")
+			if err := git.StashPush(repo); err != nil {
+				t.Fatalf("StashPush: %v", err)
+			}
+			tc.prepare(t, repo)
+			stashes, _ := git.Stashes(repo)
+
+			err := git.StashPop(repo, stashes[0])
+
+			if got := ""; err != nil {
+				got = err.Error()
+				if got != tc.want {
+					t.Fatalf("StashPop = %q, want %q", got, tc.want)
+				}
+			} else if tc.want != "" {
+				t.Fatalf("StashPop = nil, want %q", tc.want)
+			}
+			if after, _ := git.Stashes(repo); len(after) != tc.left {
+				t.Fatalf("stash осталось %d, ожидалось %d", len(after), tc.left)
+			}
+			if tc.left == 0 && readFile(t, filepath.Join(repo, "a.txt")) != "two\n" {
+				t.Fatal("pop не вернул правку")
+			}
+		})
+	}
+}
+
 func TestStashPushWithNothingFails(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")

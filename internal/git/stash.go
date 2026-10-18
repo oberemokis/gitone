@@ -69,6 +69,24 @@ func StashApply(dir string, stash Stash) error {
 	return failed("stash apply", headline(stashAt(dir, stash, "apply")))
 }
 
+// StashPop применяет stash и удаляет его одним действием, `git stash pop`
+// (#235). На конфликте git правки применяет с маркерами, а запись оставляет:
+// отказ тогда говорит именно это, строка CONFLICT называла бы один файл.
+// Правку, которой мешает дерево, git отвергает до начала, и stash остаётся.
+func StashPop(dir string, stash Stash) error {
+	err := headline(stashAt(dir, stash, "pop"))
+	if err != nil && conflicted(dir) {
+		err = i18n.New("git.stashKept", nil)
+	}
+	return failed("stash pop", err)
+}
+
+// conflicted говорит, что в индексе есть неслитые пути.
+func conflicted(dir string) bool {
+	out, err := inRoot(dir, "diff", "--name-only", "--diff-filter=U")
+	return err == nil && strings.TrimSpace(out) != ""
+}
+
 // headline оставляет в отказе git одну строку: первую с CONFLICT, fatal: или
 // error:, а без неё первую вообще. Причина стоит не в начале: git начинает
 // вывод со строки «Auto-merging» (stash apply), отчёта о fetch «From …»

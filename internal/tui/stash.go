@@ -40,8 +40,15 @@ func stashDropCmd(dir string, stash git.Stash) tea.Cmd {
 	}
 }
 
+func stashPopCmd(dir string, stash git.Stash) tea.Cmd {
+	return func() tea.Msg {
+		return actionDoneMsg{err: git.StashPop(dir, stash)}
+	}
+}
+
 // stashKey отдаёт клавиши окну stash. stash.diff показывает диф stash в
-// экране, stash.apply применяет его, stash.drop спрашивает удаление.
+// экране, stash.apply применяет его, stash.pop применяет и удаляет (#235),
+// stash.drop спрашивает удаление.
 func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.stashes)); handled {
 		return next, cmd
@@ -67,6 +74,12 @@ func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.active = noWindow
 		return m, stashApplyCmd(m.dir, stash)
+	case m.keys.Is(keymap.StashPop, pressed):
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
+		m.active = noWindow
+		return m, stashPopCmd(m.dir, stash)
 	case m.keys.Is(keymap.StashDrop, pressed):
 		if next, refused := m.refuseWhileRemote(); refused {
 			return next, nil
@@ -105,7 +118,7 @@ func stashBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, stas
 		rows:   rows,
 		cursor: cursor,
 		empty:  []string{text.Text("stash.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashDrop),
+		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop),
 	}
 	if asking {
 		args := questionArgs(keys)
