@@ -32,6 +32,51 @@ func commitCmd(dir, subject, description string) tea.Cmd {
 	}
 }
 
+// amendCmd переписывает последний коммит. Если прежний коммит уже лежал в
+// upstream, подвал держит предупреждение: обычный push ветку не отправит.
+func amendCmd(dir, subject, description, note, warning string) tea.Cmd {
+	return func() tea.Msg {
+		published, err := git.Amend(dir, subject, description)
+		if !published {
+			warning = ""
+		}
+		return actionDoneMsg{err: err, note: note, warning: warning}
+	}
+}
+
+// lastMessageMsg несёт тему и описание последнего коммита для amend или
+// ошибку: коммитов ещё нет.
+type lastMessageMsg struct {
+	subject     string
+	description string
+	err         error
+}
+
+func lastMessageCmd(dir string) tea.Cmd {
+	return func() tea.Msg {
+		subject, description, err := git.LastMessage(dir)
+		return lastMessageMsg{subject: subject, description: description, err: err}
+	}
+}
+
+// openAmend открывает окно коммита в режиме amend (#218) с сообщением
+// последнего коммита: его правят, а не набирают заново. Ответ, пришедший при
+// открытом окне, отбрасывается, как списки.
+func (m Model) openAmend(msg lastMessageMsg) Model {
+	switch {
+	case msg.err != nil:
+		return m.say(m.text.Error(msg.err))
+	case m.active != noWindow:
+		return m
+	}
+
+	m = m.openCommit()
+	m.amending = true
+	m.subject = msg.subject
+	m.description = m.description.Type(msg.description)
+	return m
+}
+
 // openCommit открывает окно коммита с пустой темой и описанием, курсор в теме.
 // Клавиши уходят в окно целиком, как в окно поиска.
 func (m Model) openCommit() Model {
@@ -40,11 +85,12 @@ func (m Model) openCommit() Model {
 	return m.clearCommit()
 }
 
-// clearCommit сбрасывает набранное в окне коммита.
+// clearCommit сбрасывает набранное в окне коммита и режим amend.
 func (m Model) clearCommit() Model {
 	m.subject = ""
 	m.description = editor.Model{}.Resize(commitFieldSize(m.width, m.bodyHeight()))
 	m.commitField = subjectField
+	m.amending = false
 	return m
 }
 
@@ -83,9 +129,13 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if subject == "" {
 			return m, nil
 		}
-		description := m.description.Text()
+		description, amending := m.description.Text(), m.amending
 		m.active = noWindow
 		m = m.clearCommit()
+		if amending {
+			note := m.text.Text("commit.amended", nil)
+			return m, amendCmd(m.dir, subject, description, note, m.text.Text("commit.amendPublished", nil))
+		}
 		return m, commitCmd(m.dir, subject, description)
 	case pressed == "backspace":
 		_, size := utf8.DecodeLastRuneInString(m.subject)
@@ -124,13 +174,18 @@ func commitFieldSize(screenWidth, bodyHeight int) (width, height int) {
 
 // commitBox рисует окно коммита: тему и описание, у каждого подпись, активное
 // поле с курсором и подписью accent. Подсказка внизу называет поле, куда ведёт
-// commit.field.
-func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, subject string, description editor.Model, field commitField, screenWidth int) string {
+// commit.field. В режиме amend (#218) заголовок говорит, что правится последний
+// коммит.
+func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, subject string, description editor.Model, field commitField, amending bool, screenWidth int) string {
 	width := commitWidth(screenWidth)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	content := width - 2*windowPaddingX
-	title := windowTitle(colors, content, text.Text("commit.title", nil), closeHint(colors, keys, text, keymap.CommitClose))
+	titleKey := "commit.title"
+	if amending {
+		titleKey = "commit.amendTitle"
+	}
+	title := windowTitle(colors, content, text.Text(titleKey, nil), closeHint(colors, keys, text, keymap.CommitClose))
 	label := func(key string, active bool) string {
 		color := colors.TextMuted
 		if active {

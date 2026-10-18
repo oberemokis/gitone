@@ -29,6 +29,59 @@ func stopsOnConflict(t *testing.T, repo string, args ...string) {
 	}
 }
 
+// Amend без новых правок меняет только сообщение, со застейдженными забирает
+// их в последний коммит; LastMessage отдаёт тему и описание (#218, случаи 1
+// и 2).
+func TestAmend(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "-A")
+	runGit(t, repo, "commit", "-q", "-m", "tpyo", "-m", "body")
+	parent := revision(t, repo, "HEAD")
+
+	subject, description, err := git.LastMessage(repo)
+	if err != nil || subject != "tpyo" || description != "body" {
+		t.Fatalf("LastMessage = %q, %q, %v", subject, description, err)
+	}
+
+	if published, err := git.Amend(repo, "typo", "body"); err != nil || published {
+		t.Fatalf("Amend = %v, %v", published, err)
+	}
+	if got := lastMessage(t, repo); got != "typo\n\nbody" {
+		t.Fatalf("сообщение %q, ожидалось исправленное", got)
+	}
+	if count := strings.TrimSpace(runGit(t, repo, "rev-list", "--count", "HEAD")); count != "1" {
+		t.Fatalf("коммитов %s, amend создал новый вместо замены (родитель был %s)", count, parent)
+	}
+
+	write(t, repo, "b.txt", "two\n")
+	runGit(t, repo, "add", "b.txt")
+	if _, err := git.Amend(repo, "typo", ""); err != nil {
+		t.Fatalf("Amend с индексом: %v", err)
+	}
+	if staged := runGit(t, repo, "diff", "--cached", "--name-only"); staged != "" {
+		t.Fatalf("в индексе осталось %q", staged)
+	}
+	if files := runGit(t, repo, "show", "--name-only", "--format=", "HEAD"); !strings.Contains(files, "b.txt") {
+		t.Fatalf("b.txt не вошёл в коммит: %q", files)
+	}
+}
+
+// Без коммитов amend нечего исправлять, а коммит, лежащий в upstream, после
+// amend даёт расхождение (случаи 3 и 4).
+func TestAmendRefusalsAndPublished(t *testing.T) {
+	repo := newRepo(t)
+	var refusal *i18n.Error
+	if _, _, err := git.LastMessage(repo); !errors.As(err, &refusal) || refusal.Key != "git.noCommits" {
+		t.Fatalf("LastMessage без коммитов = %v, ожидался отказ git.noCommits", err)
+	}
+
+	_, local := remotePair(t)
+	if published, err := git.Amend(local, "rewritten", ""); err != nil || !published {
+		t.Fatalf("Amend опубликованного = %v, %v; ожидалось расхождение", published, err)
+	}
+}
+
 func TestCommitRecordsSubject(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")

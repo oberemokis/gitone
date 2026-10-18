@@ -64,7 +64,9 @@ type Model struct {
 	subject     string
 	description editor.Model
 	commitField commitField
-	logEntries  []git.LogEntry
+	// amending: окно коммита переписывает последний коммит (#218)
+	amending   bool
+	logEntries []git.LogEntry
 	// copied коммит, скопированный для cherry-pick (#222), до выхода из gitone
 	copied git.LogEntry
 	// поиск в логе, ветках и worktree: запрос и открытое поле (window.go).
@@ -279,6 +281,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resetTargetFound(msg)
 	case remoteBranchesMsg:
 		m = m.chooseUpstream(msg)
+	case lastMessageMsg:
+		m = m.openAmend(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список
@@ -508,6 +512,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m = m.askDiscard()
 	case keymap.FilesCommit:
 		m = m.openCommit()
+	case keymap.FilesAmend:
+		return m, lastMessageCmd(m.dir)
 	case keymap.FilesEdit:
 		return m.editFile()
 	case keymap.FilesIgnore:
