@@ -68,6 +68,8 @@ const (
 	ListClose       Action = "list.close"
 	LogOpen         Action = "log.open"
 	BranchesSwitch  Action = "branches.switch"
+	BranchesNew     Action = "branches.new"
+	BranchesDelete  Action = "branches.delete"
 	WorktreesSwitch Action = "worktrees.switch"
 	StashDiff       Action = "stash.diff"
 	StashApply      Action = "stash.apply"
@@ -85,6 +87,9 @@ const (
 	ListSearch       Action = "list.search"
 	ListSearchDone   Action = "listSearch.done"
 	ListSearchCancel Action = "listSearch.cancel"
+	// однострочное поле ввода: имя ветки, тега, сообщение stash (#227)
+	PromptSubmit Action = "prompt.submit"
+	PromptClose  Action = "prompt.close"
 )
 
 // Category это группа в справке. Порядок групп задаёт первое появление
@@ -156,13 +161,14 @@ func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
 		append([]Action{LogOpen, ListSearch}, list...),
-		append([]Action{BranchesSwitch, ListSearch}, list...),
+		append([]Action{BranchesSwitch, BranchesNew, BranchesDelete, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashDrop}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
 		{CommitSubmit, CommitField, CommitClose},
 		{ListSearchDone, ListSearchCancel},
+		{PromptSubmit, PromptClose},
 	}
 }
 
@@ -175,7 +181,7 @@ func inWindow(action Action) bool {
 // inField: действие поля ввода, где остальные клавиши набирают текст.
 func inField(action Action) bool {
 	switch action {
-	case SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitField, CommitClose, ListSearchDone, ListSearchCancel:
+	case SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitField, CommitClose, ListSearchDone, ListSearchCancel, PromptSubmit, PromptClose:
 		return true
 	}
 	return false
@@ -185,7 +191,7 @@ func inField(action Action) bool {
 // закрыв приложение.
 func closes(action Action) bool {
 	switch action {
-	case ListClose, SearchClose, CommitClose, ListSearchCancel:
+	case ListClose, SearchClose, CommitClose, ListSearchCancel, PromptClose:
 		return true
 	}
 	return false
@@ -522,6 +528,8 @@ func defaults() []Binding {
 		{Action: LogOpen, Keys: []string{"enter"}},
 		{Action: ListSearch, Keys: []string{"/"}},
 		{Action: BranchesSwitch, Keys: []string{"enter"}},
+		{Action: BranchesNew, Keys: []string{"n"}},
+		{Action: BranchesDelete, Keys: []string{"d"}},
 		{Action: WorktreesSwitch, Keys: []string{"enter"}},
 		{Action: StashDiff, Keys: []string{"enter"}},
 		{Action: StashApply, Keys: []string{"a"}},
@@ -536,5 +544,7 @@ func defaults() []Binding {
 		{Action: CommitClose, Keys: []string{"esc"}},
 		{Action: ListSearchDone, Keys: []string{"enter"}},
 		{Action: ListSearchCancel, Keys: []string{"esc"}},
+		{Action: PromptSubmit, Keys: []string{"enter"}},
+		{Action: PromptClose, Keys: []string{"esc"}},
 	}
 }

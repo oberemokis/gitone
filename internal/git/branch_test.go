@@ -146,6 +146,71 @@ func TestSwitchChangesCurrentBranch(t *testing.T) {
 	}
 }
 
+// Новая ветка встаёт на базу и становится текущей (#227).
+func TestCreateBranchSwitchesToIt(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	base := revision(t, repo, "HEAD")
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+
+	if err := git.CreateBranch(repo, "feature", base); err != nil {
+		t.Fatalf("CreateBranch: %v", err)
+	}
+	if got := strings.TrimSpace(runGit(t, repo, "branch", "--show-current")); got != "feature" {
+		t.Fatalf("текущая %q, ожидалась feature", got)
+	}
+	if got := revision(t, repo, "HEAD"); got != base {
+		t.Fatalf("HEAD %s, ожидалась база %s", got, base)
+	}
+}
+
+// Недопустимое и занятое имя git отвергает своим текстом, ветка прежняя.
+func TestCreateBranchRefusesBadOrTakenName(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "branch", "taken")
+
+	for name, reason := range map[string]string{"a b": "not a valid branch name", "taken": "already exists"} {
+		err := git.CreateBranch(repo, name, "main")
+		if err == nil || !strings.Contains(err.Error(), reason) {
+			t.Errorf("CreateBranch(%q) = %v, ожидался отказ «%s»", name, err, reason)
+		}
+	}
+	if got := strings.TrimSpace(runGit(t, repo, "branch", "--show-current")); got != "main" {
+		t.Fatalf("текущая %q, ожидалась main", got)
+	}
+}
+
+// Слитая ветка удаляется, неслитую и текущую git не удаляет (#227).
+func TestDeleteBranch(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "branch", "merged")
+	runGit(t, repo, "switch", "-q", "-c", "unmerged")
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+
+	if err := git.DeleteBranch(repo, "merged"); err != nil {
+		t.Fatalf("DeleteBranch(merged): %v", err)
+	}
+	if err := git.DeleteBranch(repo, "unmerged"); err == nil || !strings.Contains(err.Error(), "not fully merged") {
+		t.Fatalf("DeleteBranch(unmerged) = %v, ожидался отказ «not fully merged»", err)
+	}
+	if err := git.DeleteBranch(repo, "main"); err == nil {
+		t.Fatal("DeleteBranch(main) удалил текущую ветку")
+	}
+
+	branches, _ := git.Branches(repo)
+	if want := []string{"main", "unmerged"}; !slices.Equal(branchNames(branches), want) {
+		t.Fatalf("ветки %q, ожидались %q", branchNames(branches), want)
+	}
+}
+
 // Правка, которой мешает переключению, остаётся: git отказывает, ветка прежняя.
 func TestSwitchRefusedKeepsBranch(t *testing.T) {
 	repo := newRepo(t)

@@ -57,6 +57,8 @@ type Model struct {
 	// данные окон: пути под вопросом discard, тема и описание коммита и поле, в
 	// которое они набираются, записи списков
 	confirm     []string
+	question    question
+	prompt      prompt
 	subject     string
 	description editor.Model
 	commitField commitField
@@ -268,6 +270,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case m.active == noWindow:
 			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
 			m.query, m.searching = "", false
+		// список после удаления ветки: окно остаётся, курсор не уходит за край
+		case m.active == branchWindow:
+			m.branches = msg.branches
+			m = m.moveCursor(0, len(m.branchesShown()))
 		}
 	case worktreesMsg:
 		switch {
@@ -307,9 +313,14 @@ func (m Model) sayCalm(text string) Model {
 	return m
 }
 
+// dropQuestion отменяет вопрос, который стоит в подвале. Вопрос в окне заметка
+// не затирает, он остаётся.
 func (m Model) dropQuestion() Model {
 	if m.active == discardWindow {
 		m.active = noWindow
+	}
+	if m.active == questionWindow && m.question.back == noWindow {
+		m.active, m.question = noWindow, question{}
 	}
 	m.confirm = nil
 	return m
@@ -686,6 +697,9 @@ func (m Model) screen() (string, []zone.Zone) {
 func (m Model) footerLine() string {
 	center := ""
 	switch {
+	// вопрос с главного экрана стоит в подвале, пока на него не ответили
+	case m.active == questionWindow && m.question.back == noWindow:
+		center = lipgloss.NewStyle().Foreground(m.colors.Error).Render(visible(m.question.text))
 	case m.remote.running() && m.notice == "":
 		center = spinner(m.remote.spin, m.colors, m.text.Text(m.remote.labelKey(), nil))
 	case m.loading && !m.remote.running():
