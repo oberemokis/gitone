@@ -83,6 +83,9 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	pressed := key.String()
+	if m.keys.Is(keymap.CherryPickPaste, pressed) {
+		return m.pasteCommit()
+	}
 	acts := []keymap.Action{keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase}
 	if !slices.ContainsFunc(acts, func(action keymap.Action) bool { return m.keys.Is(action, pressed) }) || len(shown) == 0 {
 		return m, nil
@@ -182,7 +185,7 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 		width:    90,
 		cursor:   cursor,
 		empty:    []string{text.Text("branches.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.ListSearch),
+		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.CherryPickPaste, keymap.ListSearch),
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
 

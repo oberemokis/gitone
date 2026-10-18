@@ -65,6 +65,8 @@ type Model struct {
 	description editor.Model
 	commitField commitField
 	logEntries  []git.LogEntry
+	// copied коммит, скопированный для cherry-pick (#222), до выхода из gitone
+	copied git.LogEntry
 	// поиск в логе, ветках и worktree: запрос и открытое поле (window.go).
 	// Окно открыто одно, поэтому поиск общий, открытие окна его сбрасывает.
 	query     string
