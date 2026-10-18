@@ -1,0 +1,64 @@
+package git_test
+
+import (
+	"errors"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gitone/internal/git"
+	"gitone/internal/i18n"
+)
+
+// refusedWith проверяет, что ошибка это отказ из словаря с ключом key.
+func refusedWith(t *testing.T, err error, key string) {
+	t.Helper()
+
+	var refusal *i18n.Error
+	if !errors.As(err, &refusal) || refusal.Key != key {
+		t.Fatalf("ошибка %v, ожидался отказ %s", err, key)
+	}
+}
+
+// Revert создаёт коммит с обратным диффом и сообщением по умолчанию, повторный
+// revert отказывает и коммит не создаёт (#221, случаи 1 и 4).
+func TestRevert(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+	target := revision(t, repo, "HEAD")
+
+	if err := git.Revert(repo, target); err != nil {
+		t.Fatalf("Revert: %v", err)
+	}
+	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\n" {
+		t.Fatalf("a.txt = %q, ожидался обратный дифф", got)
+	}
+	if got := lastSubject(t, repo); got != `Revert "commit"` {
+		t.Fatalf("сообщение %q, ожидалось по умолчанию", got)
+	}
+
+	head := revision(t, repo, "HEAD")
+	refusedWith(t, git.Revert(repo, target), "git.alreadyReverted")
+	if got := revision(t, repo, "HEAD"); got != head {
+		t.Fatal("повторный revert создал коммит")
+	}
+}
+
+// Merge-коммит не отменяется: номер родителя не спрашиваем (случай 2).
+// Конфликт останавливает revert незавершённым (случай 3).
+func TestRevertRefusals(t *testing.T) {
+	repo := divergedRepo(t)
+	runGit(t, repo, "merge", "-q", "--no-edit", "feature")
+	refusedWith(t, git.Revert(repo, revision(t, repo, "HEAD")), "git.revertMerge")
+
+	write(t, repo, "f.txt", "changed later\n")
+	commitAll(t, repo)
+	err := git.Revert(repo, revision(t, repo, "feature"))
+	refusedWith(t, err, "git.stoppedOnConflict")
+	if !strings.Contains(runGit(t, repo, "status"), "revert") {
+		t.Fatal("revert не остался незавершённым")
+	}
+}

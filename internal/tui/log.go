@@ -32,7 +32,8 @@ func logCmd(dir string) tea.Cmd {
 }
 
 // logKey отдаёт клавиши окну лога. log.open показывает диф коммита в этом же
-// экране, list.search открывает поле поиска, list.close закрывает окно.
+// экране, log.revert отменяет коммит новым коммитом, list.search открывает
+// поле поиска, list.close закрывает окно. Курсор стоит только на коммитах.
 func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -43,11 +44,26 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		next.cursor = commitRow(shown, m.cursor, next.cursor)
 		return next, cmd
 	}
-	if !m.keys.Is(keymap.LogOpen, key.String()) || len(shown) == 0 {
+	if len(shown) == 0 {
 		return m, nil
 	}
 
-	entry := shown[m.cursor]
+	entry, pressed := shown[m.cursor], key.String()
+	switch {
+	case m.keys.Is(keymap.LogOpen, pressed):
+		return m.showCommit(entry)
+	case m.keys.Is(keymap.LogRevert, pressed):
+		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
+			return git.Revert(dir, entry.Hash)
+		})
+	}
+
+	return m, nil
+}
+
+// showCommit показывает дифф коммита в этом же экране. У первого коммита
+// родителя нет, и <коммит>^! дифф не строит.
+func (m Model) showCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
 	m.active = noWindow
 	if entry.Root {
 		return m.putNotice(m.text.Text("log.firstCommitHidden", nil), true), nil
@@ -55,6 +71,20 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	m.args = []string{entry.Hash + "^!"}
 	return m.startReload()
+}
+
+// changeHistory закрывает лог и выполняет правку истории change, подвал говорит
+// итог note. Пока идёт pull или push, правка отказывает, окно остаётся.
+func (m Model) changeHistory(note string, change func(dir string) error) (tea.Model, tea.Cmd) {
+	if next, refused := m.refuseWhileRemote(); refused {
+		return next, nil
+	}
+
+	m.active = noWindow
+	dir := m.dir
+	return m, func() tea.Msg {
+		return actionDoneMsg{err: change(dir), note: note}
+	}
 }
 
 // commitRow уводит курсор, пришедший из from на строку соединения графа to,
@@ -118,7 +148,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:  closeHint(colors, keys, text, keymap.ListClose),
 		cursor: cursor,
 		empty:  []string{text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.ListSearch),
+		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogRevert, keymap.ListSearch),
 		fill:   true,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
 
