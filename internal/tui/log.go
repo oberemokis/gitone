@@ -2,6 +2,7 @@ package tui
 
 import (
 	"image/color"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,17 +19,78 @@ import (
 // секундами ради списка, который всё равно не листают до конца.
 const logLimit = 200
 
-// logMsg несёт список коммитов или ошибку git.
+// logMsg несёт список коммитов под фильтром или ошибку git.
 type logMsg struct {
 	entries []git.LogEntry
+	filter  git.LogFilter
 	err     error
 }
 
-func logCmd(dir string) tea.Cmd {
+func logCmd(dir string, filter git.LogFilter) tea.Cmd {
 	return func() tea.Msg {
-		entries, err := git.Log(dir, logLimit)
-		return logMsg{entries: entries, err: err}
+		entries, err := git.Log(dir, logLimit, filter)
+		return logMsg{entries: entries, filter: filter, err: err}
 	}
+}
+
+// refilterLog ставит в открытый лог список под новым фильтром (#226). Курсор
+// остаётся на том же коммите, если он есть в новом списке, иначе встаёт на
+// первый: так после сброса фильтра не теряется место.
+func (m Model) refilterLog(msg logMsg) Model {
+	hash := ""
+	if shown := m.logShown(); m.cursor < len(shown) {
+		hash = shown[m.cursor].Hash
+	}
+
+	m.logEntries, m.logFilter = msg.entries, msg.filter
+	m.cursor = max(slices.IndexFunc(m.logShown(), func(entry git.LogEntry) bool { return entry.Hash == hash && hash != "" }), 0)
+	return m
+}
+
+// askLogFilter открывает меню фильтров лога (#226), как ctrl+s в lazygit:
+// автор и путь задаются отдельно от поиска, поиск остаётся поиском по
+// загруженному. Пустое значение снимает свой фильтр.
+func (m Model) askLogFilter() Model {
+	filter := m.logFilter
+	reload := func(m Model, next git.LogFilter) (tea.Model, tea.Cmd) {
+		return m, logCmd(m.dir, next)
+	}
+	field := func(titleKey, value string, set func(text string) git.LogFilter) menuItem {
+		title := m.text.Text(titleKey, nil)
+		return menuItem{label: title, run: func(m Model) (tea.Model, tea.Cmd) {
+			m = m.openPrompt(title, value, func(m Model, text string) (tea.Model, tea.Cmd) {
+				return reload(m, set(text))
+			})
+			m.prompt.empty = true
+			return m, nil
+		}}
+	}
+
+	return m.openMenu(m.text.Text("logFilter.title", nil), []menuItem{
+		field("logFilter.author", filter.Author, func(text string) git.LogFilter {
+			filter.Author = text
+			return filter
+		}),
+		field("logFilter.path", filter.Path, func(text string) git.LogFilter {
+			filter.Path, filter.File = text, false
+			return filter
+		}),
+		{label: m.text.Text("logFilter.clear", nil), run: func(m Model) (tea.Model, tea.Cmd) {
+			return reload(m, git.LogFilter{})
+		}},
+	})
+}
+
+// logTitle это заголовок окна лога с фильтром, если он задан.
+func logTitle(text i18n.Dictionary, filter git.LogFilter) string {
+	parts := []string{text.Text("log.title", nil)}
+	if filter.Author != "" {
+		parts = append(parts, text.Text("logFilter.byAuthor", i18n.Args{"author": visible(filter.Author)}))
+	}
+	if filter.Path != "" {
+		parts = append(parts, text.Text("logFilter.byPath", i18n.Args{"path": visible(filter.Path)}))
+	}
+	return strings.Join(parts, " · ")
 }
 
 // logKey отдаёт клавиши окну лога. log.open показывает диф коммита в этом же
@@ -43,6 +105,10 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		next.cursor = commitRow(shown, m.cursor, next.cursor)
 		return next, cmd
+	}
+	// фильтр работает и на пустом списке: иначе его не снять
+	if m.keys.Is(keymap.LogFilter, key.String()) {
+		return m.askLogFilter(), nil
 	}
 	if len(shown) == 0 {
 		return m, nil
@@ -175,14 +241,15 @@ const (
 // автор и дата приглушённые. Каждый кусок строки несёт фон окна сам:
 // вложенный стиль со сбросом иначе погасил бы фон. Строка поиска стоит над
 // таблицей, пока поле открыто или фильтр не снят (#110). Под фильтром граф
-// скрыт: его линии соединяли бы несоседние коммиты (#111).
-func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
+// скрыт: его линии соединяли бы несоседние коммиты (#111). Фильтр по автору и
+// пути (#226) стоит в заголовке.
+func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, filter git.LogFilter, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
 	box := list{
-		title:    text.Text("log.title", nil),
+		title:    logTitle(text, filter),
 		close:    closeHint(colors, keys, text, keymap.ListClose),
 		cursor:   cursor,
 		empty:    []string{text.Text("log.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.ListSearch),
+		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.ListSearch, keymap.LogFilter),
 		fill:     true,
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))

@@ -67,6 +67,8 @@ type Model struct {
 	// amending: окно коммита переписывает последний коммит (#218)
 	amending   bool
 	logEntries []git.LogEntry
+	// logFilter фильтр открытого лога по автору и пути (#226)
+	logFilter git.LogFilter
 	// copied коммит, скопированный для cherry-pick (#222), до выхода из gitone
 	copied git.LogEntry
 	// поиск в логе, ветках и worktree: запрос и открытое поле (window.go).
@@ -335,8 +337,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.err != nil:
 			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
-			m.logEntries, m.cursor, m.active = msg.entries, 0, logWindow
+			m.logEntries, m.logFilter, m.cursor, m.active = msg.entries, msg.filter, 0, logWindow
 			m.query, m.searching = "", false
+		// список под новым фильтром в открытый лог (#226)
+		case m.active == logWindow:
+			m = m.refilterLog(msg)
 		}
 	}
 
@@ -521,7 +526,7 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 	case keymap.FilesIgnore:
 		return m.ignoreFile()
 	case keymap.AppLog:
-		return m, logCmd(m.dir)
+		return m, logCmd(m.dir, git.LogFilter{})
 	case keymap.AppBranches:
 		return m, branchesCmd(m.dir)
 	case keymap.AppWorktrees:
