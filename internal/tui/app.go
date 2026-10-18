@@ -263,10 +263,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.say(m.text.Error(msg.err))
 		case m.active == noWindow:
 			m.stashes, m.cursor, m.active = msg.stashes, 0, stashWindow
-		// список после нового stash: окно остаётся, курсор на новой записи, а
-		// дифф перечитывается, правки ушли из дерева
+		// список после нового stash или переименования: окно остаётся, курсор
+		// на новой или переименованной записи, а дифф перечитывается, правки
+		// могли уйти из дерева
 		case m.active == stashWindow:
-			m.stashes, m.cursor = msg.stashes, 0
+			m.stashes = msg.stashes
+			m.cursor = 0
+			m = m.moveCursor(msg.at, len(m.stashes))
 			return m.startReload()
 		}
 	case branchesMsg:

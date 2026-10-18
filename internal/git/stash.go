@@ -19,9 +19,14 @@ type Stash struct {
 
 // Stashes возвращает stash от новых к старым.
 func Stashes(dir string) ([]Stash, error) {
+	stashes, err := stashList(dir)
+	return stashes, failed("stash list", err)
+}
+
+func stashList(dir string) ([]Stash, error) {
 	out, err := inRoot(dir, "stash", "list", "--format=%gd%x1f%H%x1f%gs")
 	if err != nil {
-		return nil, failed("stash list", err)
+		return nil, err
 	}
 
 	var stashes []Stash
@@ -113,6 +118,55 @@ func StashPop(dir string, stash Stash) error {
 		err = i18n.New("git.stashKept", nil)
 	}
 	return failed("stash pop", err)
+}
+
+// StashRename меняет сообщение записи stash, порядок записей остаётся (#237).
+// Править запись на месте git не умеет: записи от верхней до этой снимаются и
+// кладутся обратно `git stash store` в прежнем порядке, эта с новым
+// сообщением. Коммиты stash остаются те же. Пустое сообщение отвергается,
+// запись, сдвинутая чужим git stash push, тоже.
+func StashRename(dir string, stash Stash, message string) error {
+	return failed("stash rename", stashRename(dir, stash, message))
+}
+
+func stashRename(dir string, stash Stash, message string) error {
+	if strings.TrimSpace(message) == "" {
+		return i18n.New("git.emptyStashMessage", nil)
+	}
+
+	root, err := topLevel(dir)
+	if err != nil {
+		return err
+	}
+	stashes, err := stashList(root)
+	if err != nil {
+		return err
+	}
+	index := slices.Index(stashes, stash)
+	if index < 0 {
+		return i18n.New("git.stashChanged", nil)
+	}
+
+	// ponytail: сбой посредине оставит снятые записи только в объектах git, их
+	// хэши тогда находит git fsck --unreachable. Откат не пишем: и drop, и store
+	// отказывают разве что при сломанном репозитории
+	above := stashes[:index+1]
+	for range above {
+		if _, err := run(call{dir: root}, "stash", "drop", "--quiet", "stash@{0}"); err != nil {
+			return err
+		}
+	}
+	for at := index; at >= 0; at-- {
+		subject := above[at].Subject
+		if at == index {
+			subject = message
+		}
+		if _, err := run(call{dir: root}, "stash", "store", "--message", subject, above[at].Hash); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // conflicted говорит, что в индексе есть неслитые пути.
