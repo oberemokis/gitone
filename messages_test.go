@@ -99,8 +99,8 @@ func TestMessageKeysExist(t *testing.T) {
 		}
 	}
 
-	// незавершённые операции из git.Location.Operation (#243)
-	for _, operation := range []string{"merge", "rebase", "cherry-pick", "revert"} {
+	// незавершённые операции из git.Location.Operation (#243, #245)
+	for _, operation := range []string{"merge", "rebase", "cherry-pick", "revert", "bisect"} {
 		if key := "operation." + operation; !known[key] {
 			t.Errorf("ключа %q нет в en.json", key)
 		}

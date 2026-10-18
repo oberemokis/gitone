@@ -4,7 +4,8 @@ import "gitone/internal/i18n"
 
 // operation это незавершённая операция git (#243): merge, rebase,
 // cherry-pick или revert, пустая строка без неё. Имя совпадает с командой
-// git: её --continue и --abort продолжают и прерывают операцию.
+// git: её --continue и --abort продолжают и прерывают операцию. bisect
+// (#245) идёт последним: конфликт посреди поиска важнее самого поиска.
 func operation(root string) string {
 	if rebasing(root) {
 		return "rebase"
@@ -17,6 +18,9 @@ func operation(root string) string {
 		if _, err := run(call{dir: root}, "rev-parse", "--quiet", "--verify", state.head); err == nil {
 			return state.name
 		}
+	}
+	if bisecting(root) {
+		return "bisect"
 	}
 	return ""
 }
