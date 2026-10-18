@@ -200,7 +200,9 @@ func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, wi
 // открывает окно, как её клавиша (#119). Ветка идёт цветом accent, worktree
 // цветом своей роли, клавиши цветом текста. Имена жирные (#208): рядом с
 // подсказками справа они иначе сливаются с ними, а клавиши остаются обычными.
-func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap) string {
+// Незавершённая операция (#243) стоит третьей парой цветом ошибки со своей
+// клавишей меню: иначе о ней узнают только по отказу git, как в lazygit.
+func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary) string {
 	if location.Branch == "" {
 		return ""
 	}
@@ -213,7 +215,11 @@ func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap
 		return styled
 	}
 
-	return pair(keymap.AppBranches, colors.Accent, visible(location.Branch)) + "   " + pair(keymap.AppWorktrees, colors.Worktree, visible(location.Worktree))
+	label := pair(keymap.AppBranches, colors.Accent, visible(location.Branch)) + "   " + pair(keymap.AppWorktrees, colors.Worktree, visible(location.Worktree))
+	if location.Operation != "" {
+		label += "   " + pair(keymap.GitOperation, colors.Error, text.Text("operation."+location.Operation, nil))
+	}
+	return label
 }
 
 // spinnerFrames это спиннер из точек Брайля, как у opencode и lazygit.

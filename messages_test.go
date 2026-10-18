@@ -98,6 +98,13 @@ func TestMessageKeysExist(t *testing.T) {
 			t.Errorf("ключа %q нет в en.json", key)
 		}
 	}
+
+	// незавершённые операции из git.Location.Operation (#243)
+	for _, operation := range []string{"merge", "rebase", "cherry-pick", "revert"} {
+		if key := "operation." + operation; !known[key] {
+			t.Errorf("ключа %q нет в en.json", key)
+		}
+	}
 }
 
 // Строка с кириллицей в коде это текст мимо словаря: так интерфейс и
