@@ -106,6 +106,8 @@ git получает тот же язык через переменную `LANGU
 | `diff.top`, `diff.bottom` | `g` и `G` | в начало и в конец |
 | `diff.toggleMode` | `m` | split или unified |
 | `diff.toggleWrap` | `w` | перенос длинных строк |
+| `diff.toggleWhitespace` | `ctrl+w` | спрятать и вернуть правки из одних пробелов (`--ignore-all-space`) |
+| `diff.moreContext`, `diff.lessContext` | `}` и `{` | на строку больше и меньше контекста вокруг хунков, от трёх строк git и до нуля |
 | `diff.scrollLeft`, `diff.scrollRight` | `left` и `right` | сдвинуть код вбок, когда перенос выключен |
 | `diff.reload` | `r` | перечитать текущий дифф |
 | `diff.workingTree` | `b` | вернуться к диффу, с которым запущен gitone |

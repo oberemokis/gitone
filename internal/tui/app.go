@@ -104,6 +104,10 @@ type Model struct {
 	files   []diff.File
 	current int
 	view    diffview.Model
+	// вид диффа (diffflags.go, #217): без пробелов и строки контекста, -1
+	// значит число git по умолчанию
+	ignoreSpace bool
+	context     int
 	// reading ключ версий файла, которые сейчас читаются (versions.go)
 	reading string
 	// now часы для отбрасывания двойного клика, closing последний клик,
@@ -177,6 +181,7 @@ func New(opts Options, files []diff.File) Model {
 		dir:      opts.Dir,
 		args:     opts.Args,
 		baseArgs: opts.Args,
+		context:  -1,
 		ticks:    opts.Ticks,
 		staged:   opts.Staged,
 		location: opts.Location,
@@ -368,7 +373,7 @@ func (m Model) startReload() (Model, tea.Cmd) {
 	m.stale = false
 	m.spin = 0
 	m = m.dropQuestion()
-	return m, tea.Batch(spinTick(m.load), reload(m.dir, m.args))
+	return m, tea.Batch(spinTick(m.load), reload(m.dir, m.args, m.diffFlags()))
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать
@@ -474,6 +479,12 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m.view = m.view.ToggleMode()
 	case keymap.DiffToggleWrap:
 		m.view = m.view.ToggleWrap()
+	case keymap.DiffToggleWhitespace:
+		return m.toggleWhitespace()
+	case keymap.DiffMoreContext:
+		return m.changeContext(1)
+	case keymap.DiffLessContext:
+		return m.changeContext(-1)
 	case keymap.DiffScrollLeft:
 		m.view = m.view.ScrollRight(-shiftStep)
 	case keymap.DiffScrollRight:
@@ -711,7 +722,7 @@ func (m Model) screen() (string, []zone.Zone) {
 	if m.ui.PaneTitles {
 		title := ""
 		if len(m.files) > 0 {
-			title = header(m.width, m.files, m.current, m.colors, m.keys, m.text)
+			title = header(m.width, m.files, m.current, m.flagsLabel(), m.colors, m.keys, m.text)
 		}
 		rows = append(rows, "", scan(title, 0, 1, free), "")
 	}

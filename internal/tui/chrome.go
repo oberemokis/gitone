@@ -38,8 +38,10 @@ const (
 // подсказки в подвале. Клавиша и стрелка одно место клика. Действие без
 // клавиш оставляет стрелку без подписи. Место отдаётся имени: клавиши
 // пропадают первыми, когда имя со счётчиками перестаёт помещаться. Потом
-// имя обрезается «…», стрелки и счётчики остаются видны.
-func header(width int, files []diff.File, current int, colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary) string {
+// имя обрезается «…», стрелки и счётчики остаются видны. За счётчиком
+// приглушённо стоит вид диффа flags (#217), пока он не по умолчанию: иначе
+// спрятанные пробелы легко принять за отсутствие правок.
+func header(width int, files []diff.File, current int, flags string, colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary) string {
 	file := files[current]
 	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
 
@@ -50,6 +52,9 @@ func header(width int, files []diff.File, current int, colors theme.Theme, keys 
 		tail += " " + added + " " + removed
 	}
 	tail += " " + muted.Render(fmt.Sprintf("(%d/%d)", current+1, len(files)))
+	if flags != "" {
+		tail += " " + muted.Render(flags)
+	}
 
 	// между стрелками: поля подвала и по пробелу у каждой стрелки
 	inner := max(width-2*footerPadding-4, 0)

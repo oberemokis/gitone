@@ -51,9 +51,9 @@ func (m Model) poll() (Model, tea.Cmd) {
 	}
 
 	m.polling = true
-	dir, args := m.dir, m.args
+	dir, args, flags := m.dir, m.args, m.diffFlags()
 	return m, func() tea.Msg {
-		return polledMsg{readDiff(dir, args)}
+		return polledMsg{readDiff(dir, args, flags)}
 	}
 }
 
