@@ -122,11 +122,13 @@ git получает тот же язык через переменную `LANGU
 | `branches.merge`, `branches.rebase` | `M`, `r` | ветки: слить выбранную в текущую, перестроить текущую поверх выбранной |
 | `worktrees.switch` | `enter` | worktree |
 | `stash.diff`, `stash.apply`, `stash.pop`, `stash.drop` | `enter`, `a`, `g`, `d` | stash: дифф, применить, применить и удалить, удалить после `y` |
+| `stash.new` | `n` | stash: новый stash, меню (отслеженные, с неотслеженными, с сохранением индекса), затем сообщение |
 | `question.yes` | `y` | вопросы: любая другая клавиша значит «нет» |
 | `search.choose`, `search.close` | `enter`, `esc` | поиск файлов |
 | `search.up`, `search.down` | `up`, `ctrl+p` и `down`, `ctrl+n` | поиск файлов |
 | `commit.submit`, `commit.field`, `commit.close` | `enter`, `tab`, `esc` | окно коммита: закоммитить из темы, переключить тему и описание, закрыть |
-| `prompt.submit`, `prompt.close` | `enter`, `esc` | поле ввода (имя ветки): принять, вернуться в прежнее окно |
+| `prompt.submit`, `prompt.close` | `enter`, `esc` | поле ввода (имя ветки, сообщение stash): принять, вернуться в прежнее окно |
+| `menu.choose` | `enter` | меню выбора: выбрать строку; `list.up`, `list.down` и `list.close` в меню те же, что в списках |
 
 Конфиг, который сделал бы окно ловушкой или отнял буквы у поля ввода, не загружается:
 

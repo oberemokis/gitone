@@ -79,6 +79,7 @@ const (
 	StashApply      Action = "stash.apply"
 	StashPop        Action = "stash.pop"
 	StashDrop       Action = "stash.drop"
+	StashNew        Action = "stash.new"
 	QuestionYes     Action = "question.yes"
 	SearchChoose    Action = "search.choose"
 	SearchClose     Action = "search.close"
@@ -95,6 +96,8 @@ const (
 	// однострочное поле ввода: имя ветки, тега, сообщение stash (#227)
 	PromptSubmit Action = "prompt.submit"
 	PromptClose  Action = "prompt.close"
+	// выбор строки в меню (#236), навигация и закрытие общие со списками
+	MenuChoose Action = "menu.choose"
 )
 
 // Category это группа в справке. Порядок групп задаёт первое появление
@@ -168,7 +171,8 @@ func windows() [][]Action {
 		append([]Action{LogOpen, ListSearch}, list...),
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
-		append([]Action{StashDiff, StashApply, StashPop, StashDrop}, list...),
+		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew}, list...),
+		append([]Action{MenuChoose}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
 		{CommitSubmit, CommitField, CommitClose},
@@ -544,6 +548,7 @@ func defaults() []Binding {
 		{Action: StashDiff, Keys: []string{"enter"}},
 		{Action: StashApply, Keys: []string{"a"}},
 		{Action: StashPop, Keys: []string{"g"}},
+		{Action: StashNew, Keys: []string{"n"}},
 		{Action: StashDrop, Keys: []string{"d"}},
 		{Action: QuestionYes, Keys: []string{"y"}},
 		{Action: SearchChoose, Keys: []string{"enter"}},
@@ -557,5 +562,6 @@ func defaults() []Binding {
 		{Action: ListSearchCancel, Keys: []string{"esc"}},
 		{Action: PromptSubmit, Keys: []string{"enter"}},
 		{Action: PromptClose, Keys: []string{"esc"}},
+		{Action: MenuChoose, Keys: []string{"enter"}},
 	}
 }

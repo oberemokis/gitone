@@ -2,7 +2,9 @@ package git_test
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gitone/internal/git"
@@ -17,7 +19,7 @@ func TestStashPushApplyDrop(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
 
-	if err := git.StashPush(repo); err != nil {
+	if err := git.StashPush(repo, git.StashOptions{}); err != nil {
 		t.Fatalf("StashPush: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\n" {
@@ -69,7 +71,7 @@ func TestStashApplyErrorNamesReason(t *testing.T) {
 			write(t, repo, "a.txt", "one\n")
 			commitAll(t, repo)
 			write(t, repo, "a.txt", "two\n")
-			if err := git.StashPush(repo); err != nil {
+			if err := git.StashPush(repo, git.StashOptions{}); err != nil {
 				t.Fatalf("StashPush: %v", err)
 			}
 			tc.prepare(t, repo)
@@ -113,7 +115,7 @@ func TestStashPop(t *testing.T) {
 			write(t, repo, "a.txt", "one\n")
 			commitAll(t, repo)
 			write(t, repo, "a.txt", "two\n")
-			if err := git.StashPush(repo); err != nil {
+			if err := git.StashPush(repo, git.StashOptions{}); err != nil {
 				t.Fatalf("StashPush: %v", err)
 			}
 			tc.prepare(t, repo)
@@ -139,12 +141,45 @@ func TestStashPop(t *testing.T) {
 	}
 }
 
+// Сообщение видно в списке, -u уносит новые файлы, --keep-index оставляет
+// индекс на месте, без сообщения git ставит своё (#236).
+func TestStashPushOptions(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+
+	write(t, repo, "new.txt", "new\n")
+	if err := git.StashPush(repo, git.StashOptions{}); err == nil {
+		t.Fatal("stash без отслеженных правок прошёл без Untracked")
+	}
+	if err := git.StashPush(repo, git.StashOptions{Message: "черновик", Untracked: true}); err != nil {
+		t.Fatalf("StashPush с untracked: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "new.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("new.txt остался в дереве: %v", err)
+	}
+
+	write(t, repo, "a.txt", "staged\n")
+	runGit(t, repo, "add", "a.txt")
+	if err := git.StashPush(repo, git.StashOptions{KeepIndex: true}); err != nil {
+		t.Fatalf("StashPush с keep-index: %v", err)
+	}
+	if staged := runGit(t, repo, "diff", "--cached", "--name-only"); staged != "a.txt\n" {
+		t.Fatalf("индекс %q, ожидался a.txt на месте", staged)
+	}
+
+	stashes, _ := git.Stashes(repo)
+	if len(stashes) != 2 || !strings.HasPrefix(stashes[0].Subject, "WIP on main") || stashes[1].Subject != "On main: черновик" {
+		t.Fatalf("stash %+v, ожидались WIP и «черновик»", stashes)
+	}
+}
+
 func TestStashPushWithNothingFails(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	if err := git.StashPush(repo); err == nil {
+	if err := git.StashPush(repo, git.StashOptions{}); err == nil {
 		t.Fatal("stash без правок прошёл")
 	}
 }
@@ -165,7 +200,7 @@ func TestStashPushIgnoresSubmodulePointer(t *testing.T) {
 	write(t, sub, "lib.txt", "two\n")
 	runGit(t, sub, "commit", "-q", "-a", "-m", "next")
 
-	err := git.StashPush(repo)
+	err := git.StashPush(repo, git.StashOptions{})
 
 	var refusal *i18n.Error
 	if !errors.As(err, &refusal) || refusal.Key != "git.nothingToStash" {

@@ -27,8 +27,9 @@ const (
 	branchWindow
 	worktreeWindow
 	stashWindow
-	// поле ввода поверх окна или главного экрана (prompt.go)
+	// поле ввода и меню поверх окна или главного экрана (prompt.go, menu.go)
 	promptWindow
+	menuWindow
 	// вопросы y/n: любая клавиша отвечает на них, ctrl c тоже это «нет».
 	// questionWindow общий вопрос (question.go), два других старше него
 	stashDropWindow
@@ -43,6 +44,8 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.answerQuestion(key)
 	case promptWindow:
 		return m.typePrompt(key)
+	case menuWindow:
+		return m.menuKey(key)
 	case discardWindow:
 		return m.answerDiscard(key)
 	case stashDropWindow:
@@ -86,6 +89,8 @@ func (m Model) windowBox() string {
 	switch shown {
 	case promptWindow:
 		return promptBox(m.colors, m.text, m.keys, m.prompt, width)
+	case menuWindow:
+		return menuBox(m.colors, m.text, m.keys, m.menu, width, height)
 	case pickerWindow:
 		return pickerBox(m.colors, m.text, m.keys, m.picker, len(m.files) == 0, width, height)
 	case commitWindow:
@@ -165,6 +170,8 @@ func (m Model) wheelList(button tea.MouseButton) Model {
 		m = m.moveCursor(delta*wheelStep, len(m.worktreesShown()))
 	case stashWindow:
 		m = m.moveCursor(delta*wheelStep, len(m.stashes))
+	case menuWindow:
+		m.menu = m.menu.move(delta * wheelStep)
 	}
 
 	return m

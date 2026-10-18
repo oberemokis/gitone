@@ -37,28 +37,62 @@ func Stashes(dir string) ([]Stash, error) {
 	return stashes, nil
 }
 
-// StashPush сохраняет отслеженные правки в stash. Неотслеженные файлы не
-// трогаются: их в stash не берём, см. решения в задаче. Без правок git
-// сообщает об успехе, поэтому проверяем сами: иначе пользователь думал бы, что
-// правки сохранены. Подмодули в проверке не считаются: git stash push их
-// игнорирует и на одном сдвинутом указателе отвечает «No local changes to save»
-// с кодом 0.
-func StashPush(dir string) error {
-	return failed("stash push", stashPush(dir))
+// StashOptions это параметры stash (#236). Нулевое значение сохраняет
+// отслеженные правки с сообщением git по умолчанию. Untracked берёт и
+// неотслеженные файлы (`-u`), KeepIndex оставляет индекс на месте
+// (`--keep-index`), пустое Message оставляет сообщение git.
+type StashOptions struct {
+	Message   string
+	Untracked bool
+	KeepIndex bool
 }
 
-func stashPush(dir string) error {
+// StashPush сохраняет правки в stash. Неотслеженные файлы без Untracked не
+// трогаются. Без правок git сообщает об успехе, поэтому проверяем сами: иначе
+// пользователь думал бы, что правки сохранены. Подмодули в проверке не
+// считаются: git stash push их игнорирует и на одном сдвинутом указателе
+// отвечает «No local changes to save» с кодом 0.
+func StashPush(dir string, opts StashOptions) error {
+	return failed("stash push", stashPush(dir, opts))
+}
+
+func stashPush(dir string, opts StashOptions) error {
 	root, err := topLevel(dir)
 	if err != nil {
 		return err
 	}
 
-	if _, err := run(call{dir: root}, "diff", "--quiet", "--ignore-submodules", "HEAD", "--"); err == nil {
+	if !hasChanges(root, opts.Untracked) {
 		return i18n.New("git.nothingToStash", nil)
 	}
 
-	_, err = run(call{dir: root}, "stash", "push")
+	args := []string{"stash", "push"}
+	if opts.Untracked {
+		args = append(args, "--include-untracked")
+	}
+	if opts.KeepIndex {
+		args = append(args, "--keep-index")
+	}
+	if opts.Message != "" {
+		args = append(args, "--message", opts.Message)
+	}
+
+	_, err = run(call{dir: root}, args...)
 	return err
+}
+
+// hasChanges говорит, есть ли что сохранить в stash: отслеженные правки, а с
+// untracked ещё и неотслеженные файлы.
+func hasChanges(root string, untracked bool) bool {
+	if _, err := run(call{dir: root}, "diff", "--quiet", "--ignore-submodules", "HEAD", "--"); err != nil {
+		return true
+	}
+	if !untracked {
+		return false
+	}
+
+	listed, err := run(call{dir: root}, "ls-files", "--others", "--exclude-standard")
+	return err == nil && strings.TrimSpace(listed) != ""
 }
 
 // StashApply применяет stash и оставляет его в списке. Если stash@{N} уже

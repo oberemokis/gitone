@@ -24,8 +24,41 @@ func stashListCmd(dir string) tea.Cmd {
 
 func stashPushCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.StashPush(dir)}
+		return actionDoneMsg{err: git.StashPush(dir, git.StashOptions{})}
 	}
+}
+
+// stashNewCmd сохраняет stash с параметрами и отвечает новым списком: окно
+// stash остаётся открытым, и новая запись видна сразу.
+func stashNewCmd(dir string, opts git.StashOptions) tea.Cmd {
+	return func() tea.Msg {
+		if err := git.StashPush(dir, opts); err != nil {
+			return stashesMsg{err: err}
+		}
+		return stashListCmd(dir)()
+	}
+}
+
+// askStashOptions спрашивает, что унести в stash, а потом его сообщение (#236),
+// как меню stash в lazygit. Пустое сообщение оставляет сообщение git.
+func (m Model) askStashOptions() Model {
+	option := func(labelKey string, opts git.StashOptions) menuItem {
+		label := m.text.Text(labelKey, nil)
+		return menuItem{label: label, run: func(m Model) (tea.Model, tea.Cmd) {
+			m = m.openPrompt(label, "", func(m Model, message string) (tea.Model, tea.Cmd) {
+				opts.Message = message
+				return m, stashNewCmd(m.dir, opts)
+			})
+			m.prompt.empty = true
+			return m, nil
+		}}
+	}
+
+	return m.openMenu(m.text.Text("stash.newTitle", nil), []menuItem{
+		option("stash.tracked", git.StashOptions{}),
+		option("stash.untracked", git.StashOptions{Untracked: true}),
+		option("stash.keepIndex", git.StashOptions{KeepIndex: true}),
+	})
 }
 
 func stashApplyCmd(dir string, stash git.Stash) tea.Cmd {
@@ -48,10 +81,17 @@ func stashPopCmd(dir string, stash git.Stash) tea.Cmd {
 
 // stashKey отдаёт клавиши окну stash. stash.diff показывает диф stash в
 // экране, stash.apply применяет его, stash.pop применяет и удаляет (#235),
-// stash.drop спрашивает удаление.
+// stash.drop спрашивает удаление, stash.new сохраняет новый с параметрами
+// (#236) и в пустом списке тоже.
 func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.stashes)); handled {
 		return next, cmd
+	}
+	if m.keys.Is(keymap.StashNew, key.String()) {
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
+		return m.askStashOptions(), nil
 	}
 	if len(m.stashes) == 0 {
 		return m, nil
@@ -118,7 +158,7 @@ func stashBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, stas
 		rows:   rows,
 		cursor: cursor,
 		empty:  []string{text.Text("stash.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop),
+		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop, keymap.StashNew),
 	}
 	if asking {
 		args := questionArgs(keys)
