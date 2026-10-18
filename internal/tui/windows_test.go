@@ -140,9 +140,10 @@ func TestListKeepsFooterMessage(t *testing.T) {
 }
 
 // Длинный список занимает всю высоту тела, без лишней пустой строки под окном
-// (#153). На экране 100 на 20 тело 14 строк: без отступов окна, заголовка,
-// подсказки, обоих с пустой строкой, и строки заголовков столбцов на 31 ветку
-// остаётся 7 строк, и текущая, последняя в списке, видна целиком.
+// (#153). На экране 100 на 20 тело 14 строк: без отступов окна, заголовка с
+// пустой строкой, подсказки в две строки с пустой над ней и строки заголовков
+// столбцов на 31 ветку остаётся 6 строк, и текущая, последняя в списке, видна
+// целиком.
 func TestBranchWindowUsesFullBodyHeight(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "a\n")
@@ -153,14 +154,15 @@ func TestBranchWindowUsesFullBodyHeight(t *testing.T) {
 
 	screen := screenOf(openAsync(resize(open(t, options(repo, layout.Focus())), 100, 20), key('B')))
 
-	if shown := strings.Count(strings.Join(screen, "\n"), " ago"); shown != 7 {
-		t.Errorf("строк списка %d, want 7:\n%s", shown, strings.Join(screen, "\n"))
+	// подсказка окна веток в две строки (#231): строк списка на одну меньше
+	if shown := strings.Count(strings.Join(screen, "\n"), " ago"); shown != 6 {
+		t.Errorf("строк списка %d, want 6:\n%s", shown, strings.Join(screen, "\n"))
 	}
 	if last := rowWith(t, screen, "main"); !strings.Contains(last, "main (current)") {
 		t.Errorf("последняя строка списка обрезана: %q", last)
 	}
-	// строки тела 3-16: подсказка на 15-й, под ней отступ окна
-	if hint := rowWith(t, screen, "enter switch"); hint != screen[15] {
+	// строки тела 3-16: последняя строка подсказки на 15-й, под ней отступ окна
+	if hint := rowWith(t, screen, "/ search"); hint != screen[15] {
 		t.Errorf("подсказка не в предпоследней строке тела:\n%s", strings.Join(screen, "\n"))
 	}
 }

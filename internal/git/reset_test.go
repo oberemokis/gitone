@@ -58,6 +58,28 @@ func TestResetModes(t *testing.T) {
 	}
 }
 
+// Цель текущей ветки это её upstream, другой ветки она сама; число снимаемых
+// коммитов считается от HEAD. Без upstream текущая ветка отвергается (#231,
+// случаи 1, 2 и 4).
+func TestResetTarget(t *testing.T) {
+	_, local := remotePair(t)
+	runGit(t, local, "branch", "other")
+	write(t, local, "b.txt", "local\n")
+	commitAll(t, local)
+
+	target, drops, err := git.ResetTarget(local, "main", true)
+	if err != nil || target != "origin/main" || drops != 1 {
+		t.Fatalf("ResetTarget(main) = %q, %d, %v; ожидались origin/main и 1", target, drops, err)
+	}
+	if target, drops, err = git.ResetTarget(local, "other", false); err != nil || target != "other" || drops != 1 {
+		t.Fatalf("ResetTarget(other) = %q, %d, %v; ожидались other и 1", target, drops, err)
+	}
+
+	runGit(t, local, "switch", "-q", "other")
+	_, _, err = git.ResetTarget(local, "other", true)
+	refusedWith(t, err, "git.noUpstream")
+}
+
 // Reset под опубликованный коммит говорит, что ветка разошлась с upstream;
 // reset неопубликованного коммита нет (случай 5).
 func TestResetReportsPublishedCommits(t *testing.T) {
