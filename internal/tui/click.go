@@ -152,6 +152,9 @@ func (m Model) clickRow(index int) (tea.Model, tea.Cmd) {
 		// у remote нет действия на enter, клик только ставит курсор
 		m.cursor = index
 		return m, nil
+	case submoduleWindow:
+		m.cursor = index
+		return m, nil
 	case reflogWindow:
 		m.cursor = index
 		return m.press(keymap.LogOpen)

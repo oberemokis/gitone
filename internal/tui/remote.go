@@ -24,6 +24,8 @@ const (
 	forcePushing
 	// отправка тега на origin (#238)
 	pushingTag
+	// клон и обновление подмодуля (#244)
+	updatingSubmodule
 )
 
 // remote это идущий pull или push. Он идёт командой в фоне, интерфейс при этом
@@ -45,7 +47,7 @@ func (r remote) labelKey() string {
 	switch r.kind {
 	case pushing, forcePushing, pushingTag:
 		return "screen.pushing"
-	case fetching:
+	case fetching, updatingSubmodule:
 		return "screen.fetching"
 	}
 	return "screen.pulling"
@@ -55,7 +57,7 @@ func (r remote) busyKey() string {
 	switch r.kind {
 	case pushing, forcePushing, pushingTag:
 		return "remote.pushRunning"
-	case fetching:
+	case fetching, updatingSubmodule:
 		return "remote.fetchRunning"
 	}
 	return "remote.pullRunning"
@@ -162,7 +164,12 @@ func (m Model) remoteDone(msg remoteDoneMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.stale = true
-	return m.startReload()
+	next, reload := m.startReload()
+	// открытое окно подмодулей показывает новое состояние
+	if msg.kind == updatingSubmodule && m.active == submoduleWindow {
+		return next, tea.Batch(reload, submodulesCmd(m.dir))
+	}
+	return next, reload
 }
 
 // askForcePush спрашивает в подвале, отправить ли разошедшуюся ветку с
@@ -187,6 +194,8 @@ func (m Model) remoteResult(msg remoteDoneMsg) string {
 		return m.text.Text("remote.pushed", i18n.Args{"target": msg.target})
 	case msg.kind == pushingTag:
 		return m.text.Text("tags.pushed", i18n.Args{"name": visible(msg.target)})
+	case msg.kind == updatingSubmodule:
+		return m.text.Text("submodules.updated", i18n.Args{"path": visible(msg.target)})
 	case msg.kind == fetching:
 		return m.text.Text("remote.fetched", nil)
 	case msg.updated:

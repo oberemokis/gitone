@@ -49,6 +49,7 @@ const (
 	AppTags          Action = "app.tags"
 	AppRemotes       Action = "app.remotes"
 	AppReflog        Action = "app.reflog"
+	AppSubmodules    Action = "app.submodules"
 	GitPull          Action = "git.pull"
 	GitPush          Action = "git.push"
 	GitFetch         Action = "git.fetch"
@@ -129,14 +130,16 @@ const (
 	// окно remote (#233)
 	RemotesNew    Action = "remotes.new"
 	RemotesDelete Action = "remotes.delete"
-	QuestionYes   Action = "question.yes"
-	SearchChoose  Action = "search.choose"
-	SearchClose   Action = "search.close"
-	SearchUp      Action = "search.up"
-	SearchDown    Action = "search.down"
-	CommitSubmit  Action = "commit.submit"
-	CommitField   Action = "commit.field"
-	CommitClose   Action = "commit.close"
+	// окно подмодулей (#244)
+	SubmodulesUpdate Action = "submodules.update"
+	QuestionYes      Action = "question.yes"
+	SearchChoose     Action = "search.choose"
+	SearchClose      Action = "search.close"
+	SearchUp         Action = "search.up"
+	SearchDown       Action = "search.down"
+	CommitSubmit     Action = "commit.submit"
+	CommitField      Action = "commit.field"
+	CommitClose      Action = "commit.close"
 	// поиск в логе, ветках и worktree: / открывает поле, done оставляет
 	// фильтр, cancel снимает
 	ListSearch       Action = "list.search"
@@ -224,6 +227,7 @@ func windows() [][]Action {
 		append([]Action{TagsDiff, TagsNew, TagsDelete, TagsPush, ListSearch}, list...),
 		append([]Action{RemotesNew, RemotesDelete}, list...),
 		append([]Action{LogOpen, LogCheckout, LogNewBranch, ListSearch}, list...),
+		append([]Action{SubmodulesUpdate}, list...),
 		append([]Action{MenuChoose}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
@@ -569,6 +573,7 @@ func defaults() []Binding {
 		{Action: AppTags, Category: CategoryGeneral, Keys: []string{"t"}, Help: true},
 		{Action: AppRemotes, Category: CategoryGeneral, Keys: []string{"R"}, Help: true},
 		{Action: AppReflog, Category: CategoryGeneral, Keys: []string{"L"}, Help: true},
+		{Action: AppSubmodules, Category: CategoryGeneral, Keys: []string{"S"}, Help: true},
 		{Action: GitPull, Category: CategoryGeneral, Keys: []string{"p"}, Help: true},
 		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
 		// f у lazygit, здесь f открывает панель файлов
@@ -646,6 +651,7 @@ func defaults() []Binding {
 		{Action: TagsPush, Keys: []string{"P"}},
 		{Action: RemotesNew, Keys: []string{"n"}},
 		{Action: RemotesDelete, Keys: []string{"d"}},
+		{Action: SubmodulesUpdate, Keys: []string{"u"}},
 		{Action: QuestionYes, Keys: []string{"y"}},
 		{Action: SearchChoose, Keys: []string{"enter"}},
 		{Action: SearchClose, Keys: []string{"esc"}},
