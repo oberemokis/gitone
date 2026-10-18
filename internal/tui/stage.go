@@ -14,10 +14,13 @@ import (
 
 // actionDoneMsg несёт итог правки индекса или дерева: ошибку git либо nil.
 // note это итог успеха для подвала на языке словаря, пустой без него: после
-// перемотки или rebase на экране может не измениться ничего.
+// перемотки или rebase на экране может не измениться ничего. warning это
+// предупреждение вместо итога: оно стоит до следующего нажатия, как ошибка,
+// потому что говорит о последствии, которое иначе всплывёт только при push.
 type actionDoneMsg struct {
-	err  error
-	note string
+	err     error
+	note    string
+	warning string
 }
 
 // stageCmd ставит пути в индекс или убирает их оттуда. Команда, а не Update:
@@ -148,6 +151,8 @@ func (m Model) actionDone(msg actionDoneMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.err != nil:
 		m = m.say(m.text.Error(msg.err))
+	case msg.warning != "":
+		m = m.say(msg.warning)
 	case msg.note != "":
 		m = m.sayCalm(msg.note)
 	}

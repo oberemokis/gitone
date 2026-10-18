@@ -96,7 +96,7 @@ func (m Model) windowBox() string {
 	case commitWindow:
 		return commitBox(m.colors, m.text, m.keys, m.subject, m.description, m.commitField, width)
 	case logWindow:
-		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.query, m.searching, width, height)
+		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.query, m.searching, question, width, height)
 	case branchWindow:
 		return branchBox(m.colors, m.text, m.keys, m.branchesShown(), m.cursor, m.query, m.searching, question, width, height)
 	case worktreeWindow:
