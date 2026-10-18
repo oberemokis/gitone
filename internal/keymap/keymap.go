@@ -80,6 +80,7 @@ const (
 	StashPop        Action = "stash.pop"
 	StashDrop       Action = "stash.drop"
 	StashNew        Action = "stash.new"
+	StashRename     Action = "stash.rename"
 	QuestionYes     Action = "question.yes"
 	SearchChoose    Action = "search.choose"
 	SearchClose     Action = "search.close"
@@ -171,7 +172,7 @@ func windows() [][]Action {
 		append([]Action{LogOpen, ListSearch}, list...),
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
-		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew}, list...),
+		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
 		append([]Action{MenuChoose}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
@@ -549,6 +550,7 @@ func defaults() []Binding {
 		{Action: StashApply, Keys: []string{"a"}},
 		{Action: StashPop, Keys: []string{"g"}},
 		{Action: StashNew, Keys: []string{"n"}},
+		{Action: StashRename, Keys: []string{"r"}},
 		{Action: StashDrop, Keys: []string{"d"}},
 		{Action: QuestionYes, Keys: []string{"y"}},
 		{Action: SearchChoose, Keys: []string{"enter"}},

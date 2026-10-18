@@ -141,6 +141,43 @@ func TestStashPop(t *testing.T) {
 	}
 }
 
+// Переименование средней записи меняет только её сообщение: коммит и порядок
+// записей прежние. Пустое сообщение отвергается (#237).
+func TestStashRenameKeepsOrder(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	for _, message := range []string{"first", "second", "third"} {
+		write(t, repo, "a.txt", message+"\n")
+		if err := git.StashPush(repo, git.StashOptions{Message: message}); err != nil {
+			t.Fatalf("StashPush(%s): %v", message, err)
+		}
+	}
+	before, _ := git.Stashes(repo)
+
+	if err := git.StashRename(repo, before[1], "renamed"); err != nil {
+		t.Fatalf("StashRename: %v", err)
+	}
+
+	after, _ := git.Stashes(repo)
+	if len(after) != 3 {
+		t.Fatalf("stash %+v, ожидалось три записи", after)
+	}
+	for index, want := range []string{"On main: third", "renamed", "On main: first"} {
+		if after[index].Subject != want || after[index].Hash != before[index].Hash {
+			t.Errorf("запись %d = %+v, ожидалось %q с хэшем %s", index, after[index], want, before[index].Hash)
+		}
+	}
+
+	var refusal *i18n.Error
+	if err := git.StashRename(repo, after[0], "  "); !errors.As(err, &refusal) || refusal.Key != "git.emptyStashMessage" {
+		t.Fatalf("StashRename с пустым сообщением = %v, ожидался отказ", err)
+	}
+	if err := git.StashRename(repo, before[1], "stale"); !errors.As(err, &refusal) || refusal.Key != "git.stashChanged" {
+		t.Fatalf("StashRename устаревшей записи = %v, ожидался отказ git.stashChanged", err)
+	}
+}
+
 // Сообщение видно в списке, -u уносит новые файлы, --keep-index оставляет
 // индекс на месте, без сообщения git ставит своё (#236).
 func TestStashPushOptions(t *testing.T) {

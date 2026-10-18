@@ -9,10 +9,12 @@ import (
 	"gitone/internal/tui/theme"
 )
 
-// stashesMsg несёт список stash или ошибку git.
+// stashesMsg несёт список stash или ошибку git. at это строка, на которую
+// встаёт курсор, когда список пришёл в открытое окно после правки.
 type stashesMsg struct {
 	stashes []git.Stash
 	err     error
+	at      int
 }
 
 func stashListCmd(dir string) tea.Cmd {
@@ -37,6 +39,32 @@ func stashNewCmd(dir string, opts git.StashOptions) tea.Cmd {
 		}
 		return stashListCmd(dir)()
 	}
+}
+
+// stashRenameCmd меняет сообщение записи и отвечает новым списком с курсором
+// на ней же: порядок записей переименование не меняет.
+func stashRenameCmd(dir string, stash git.Stash, at int, message string) tea.Cmd {
+	return func() tea.Msg {
+		if err := git.StashRename(dir, stash, message); err != nil {
+			return stashesMsg{err: err}
+		}
+		msg := stashListCmd(dir)().(stashesMsg)
+		msg.at = at
+		return msg
+	}
+}
+
+// askStashMessage спрашивает новое сообщение записи (#237), в поле стоит
+// прежнее. Пустое поле не закрывается молча: git.StashRename отвечает
+// причиной в подвале.
+func (m Model) askStashMessage(stash git.Stash) Model {
+	at := m.cursor
+	title := m.text.Text("stash.renameTitle", i18n.Args{"ref": visible(stash.Ref)})
+	m = m.openPrompt(title, stash.Subject, func(m Model, message string) (tea.Model, tea.Cmd) {
+		return m, stashRenameCmd(m.dir, stash, at, message)
+	})
+	m.prompt.empty = true
+	return m
 }
 
 // askStashOptions спрашивает, что унести в stash, а потом его сообщение (#236),
@@ -125,6 +153,11 @@ func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return next, nil
 		}
 		m.active = stashDropWindow
+	case m.keys.Is(keymap.StashRename, pressed):
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
+		return m.askStashMessage(stash), nil
 	}
 
 	return m, nil
@@ -158,7 +191,7 @@ func stashBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, stas
 		rows:   rows,
 		cursor: cursor,
 		empty:  []string{text.Text("stash.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop, keymap.StashNew),
+		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop, keymap.StashRename, keymap.StashNew),
 	}
 	if asking {
 		args := questionArgs(keys)

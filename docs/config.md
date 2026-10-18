@@ -123,6 +123,7 @@ git получает тот же язык через переменную `LANGU
 | `worktrees.switch` | `enter` | worktree |
 | `stash.diff`, `stash.apply`, `stash.pop`, `stash.drop` | `enter`, `a`, `g`, `d` | stash: дифф, применить, применить и удалить, удалить после `y` |
 | `stash.new` | `n` | stash: новый stash, меню (отслеженные, с неотслеженными, с сохранением индекса), затем сообщение |
+| `stash.rename` | `r` | stash: новое сообщение записи, порядок записей не меняется |
 | `question.yes` | `y` | вопросы: любая другая клавиша значит «нет» |
 | `search.choose`, `search.close` | `enter`, `esc` | поиск файлов |
 | `search.up`, `search.down` | `up`, `ctrl+p` и `down`, `ctrl+n` | поиск файлов |
