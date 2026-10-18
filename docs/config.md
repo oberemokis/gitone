@@ -117,7 +117,7 @@ git получает тот же язык через переменную `LANGU
 | `listSearch.done`, `listSearch.cancel` | `enter`, `esc` | поле поиска в списке: оставить фильтр, снять его |
 | `log.open` | `enter` | лог: диф коммита |
 | `branches.switch` | `enter` | ветки |
-| `branches.new`, `branches.delete` | `n`, `d` | ветки: новая ветка на выбранной, удаление выбранной после `y` |
+| `branches.new`, `branches.rename`, `branches.delete` | `n`, `R`, `d` | ветки: новая ветка на выбранной, переименование выбранной только локально, удаление выбранной после `y` |
 | `worktrees.switch` | `enter` | worktree |
 | `stash.diff`, `stash.apply`, `stash.drop` | `enter`, `a`, `d` | stash |
 | `question.yes` | `y` | вопросы: любая другая клавиша значит «нет» |

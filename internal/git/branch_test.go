@@ -8,6 +8,28 @@ import (
 	"gitone/internal/git"
 )
 
+// Текущая ветка переименовывается и остаётся текущей, связь с upstream
+// сохраняется, занятое имя git отвергает (#228).
+func TestRenameBranch(t *testing.T) {
+	_, local := remotePair(t)
+	runGit(t, local, "branch", "taken")
+
+	if err := git.RenameBranch(local, "main", "trunk"); err != nil {
+		t.Fatalf("RenameBranch: %v", err)
+	}
+	if got := strings.TrimSpace(runGit(t, local, "branch", "--show-current")); got != "trunk" {
+		t.Fatalf("текущая %q, ожидалась trunk", got)
+	}
+	if got := strings.TrimSpace(runGit(t, local, "rev-parse", "--abbrev-ref", "trunk@{upstream}")); got != "origin/main" {
+		t.Fatalf("upstream %q, ожидался origin/main", got)
+	}
+
+	err := git.RenameBranch(local, "trunk", "taken")
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("RenameBranch в занятое имя = %v, ожидался отказ «already exists»", err)
+	}
+}
+
 func branchNames(branches []git.Branch) []string {
 	var names []string
 	for _, branch := range branches {

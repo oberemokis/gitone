@@ -142,3 +142,49 @@ func TestDeleteCurrentBranchRefused(t *testing.T) {
 		t.Fatalf("вопрос задан о текущей ветке:\n%s", body)
 	}
 }
+
+// eraseText стирает поле ввода по одному символу, как backspace с клавиатуры.
+func eraseText(model tea.Model, count int) tea.Model {
+	for range count {
+		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	}
+	return model
+}
+
+// R открывает поле со старым именем, enter переименовывает текущую ветку: она
+// остаётся текущей, окно веток открыто со свежим списком, подвал называет новое
+// имя (#228, случай 1).
+func TestRenameCurrentBranch(t *testing.T) {
+	repo, model := branchRepo(t)
+
+	model, _ = model.Update(key('R'))
+	if body := screenText(model); !strings.Contains(body, "Rename branch main") || !strings.Contains(body, "> main_") {
+		t.Fatalf("R не открыл поле со старым именем:\n%s", body)
+	}
+	model = enterKey(typeText(eraseText(model, 4), "trunk"))
+
+	if got := runGit(t, repo, "branch", "--show-current"); got != "trunk" {
+		t.Fatalf("текущая %q, ожидалась trunk", got)
+	}
+	if body := screenText(model); !strings.Contains(body, "trunk (current)") {
+		t.Fatalf("окно веток без нового имени:\n%s", body)
+	}
+	if footer := footerOf(model); !strings.Contains(footer, "trunk") {
+		t.Fatalf("подвал %q, ожидалось новое имя", footer)
+	}
+}
+
+// Занятое имя git отвергает, подвал показывает причину (случай 2).
+func TestRenameBranchToTakenName(t *testing.T) {
+	repo, model := branchRepo(t)
+
+	model, _ = model.Update(key('R'))
+	model = enterKey(typeText(eraseText(model, 4), "merged"))
+
+	if footer := footerOf(model); !strings.Contains(footer, "already exists") {
+		t.Fatalf("подвал %q, ожидался отказ git", footer)
+	}
+	if got := runGit(t, repo, "branch", "--show-current"); got != "main" {
+		t.Fatalf("текущая %q, ожидалась main", got)
+	}
+}

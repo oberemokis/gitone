@@ -270,10 +270,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case m.active == noWindow:
 			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
 			m.query, m.searching = "", false
-		// список после удаления ветки: окно остаётся, курсор не уходит за край
+		// список после удаления или переименования: окно остаётся, курсор не
+		// уходит за край, а подвал перечитывается, ведь имя текущей могло смениться
 		case m.active == branchWindow:
 			m.branches = msg.branches
 			m = m.moveCursor(0, len(m.branchesShown()))
+			return m.startReload()
 		}
 	case worktreesMsg:
 		switch {

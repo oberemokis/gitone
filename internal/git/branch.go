@@ -60,3 +60,11 @@ func DeleteBranch(dir, name string) error {
 	_, err := inRoot(dir, "branch", "-d", "--", name)
 	return failed("branch", err)
 }
+
+// RenameBranch переименовывает ветку только локально, `git branch -m` (#228).
+// Связь с upstream git переносит сам, занятое имя отвергает: принудительного
+// переименования нет.
+func RenameBranch(dir, from, to string) error {
+	_, err := inRoot(dir, "branch", "-m", "--", from, to)
+	return failed("branch", err)
+}

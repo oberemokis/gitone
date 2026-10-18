@@ -48,10 +48,20 @@ func createBranchCmd(dir, name, base string) tea.Cmd {
 }
 
 // deleteBranchCmd удаляет ветку и отвечает новым списком: окно веток остаётся
-// открытым, а дифф удаление не меняет.
+// открытым.
 func deleteBranchCmd(dir, name string) tea.Cmd {
+	return thenBranches(dir, func() error { return git.DeleteBranch(dir, name) })
+}
+
+func renameBranchCmd(dir, from, to string) tea.Cmd {
+	return thenBranches(dir, func() error { return git.RenameBranch(dir, from, to) })
+}
+
+// thenBranches выполняет правку веток и отвечает новым списком, а отказ git
+// ошибкой: окно веток остаётся открытым, корень перечитывает подвал.
+func thenBranches(dir string, change func() error) tea.Cmd {
 	return func() tea.Msg {
-		if err := git.DeleteBranch(dir, name); err != nil {
+		if err := change(); err != nil {
 			return branchesMsg{err: err}
 		}
 		return branchesCmd(dir)()
@@ -73,8 +83,8 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	pressed := key.String()
-	acts := m.keys.Is(keymap.BranchesSwitch, pressed) || m.keys.Is(keymap.BranchesNew, pressed) || m.keys.Is(keymap.BranchesDelete, pressed)
-	if !acts || len(shown) == 0 {
+	acts := []keymap.Action{keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete}
+	if !slices.ContainsFunc(acts, func(action keymap.Action) bool { return m.keys.Is(action, pressed) }) || len(shown) == 0 {
 		return m, nil
 	}
 	if next, refused := m.refuseWhileRemote(); refused {
@@ -85,6 +95,8 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.keys.Is(keymap.BranchesNew, pressed):
 		return m.askBranchName(branch.Name), nil
+	case m.keys.Is(keymap.BranchesRename, pressed):
+		return m.askRename(branch.Name), nil
 	case m.keys.Is(keymap.BranchesDelete, pressed):
 		return m.askDeleteBranch(branch), nil
 	}
@@ -103,6 +115,18 @@ func (m Model) askBranchName(base string) Model {
 	return m.openPrompt(title, "", func(m Model, name string) (tea.Model, tea.Cmd) {
 		m.active = noWindow
 		return m, createBranchCmd(m.dir, name, base)
+	})
+}
+
+// askRename спрашивает новое имя ветки, в поле стоит старое, как R в lazygit.
+// То же имя ничего не делает. Окно веток остаётся открытым со свежим списком.
+func (m Model) askRename(from string) Model {
+	title := m.text.Text("branches.renameTitle", i18n.Args{"name": visible(from)})
+	return m.openPrompt(title, from, func(m Model, to string) (tea.Model, tea.Cmd) {
+		if to == from {
+			return m, nil
+		}
+		return m, renameBranchCmd(m.dir, from, to)
 	})
 }
 
@@ -138,7 +162,7 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 		width:    90,
 		cursor:   cursor,
 		empty:    []string{text.Text("branches.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesDelete, keymap.ListSearch),
+		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.ListSearch),
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
 
