@@ -68,7 +68,35 @@ func (m Model) rewriteKey(pressed string, entry git.LogEntry) (next tea.Model, c
 		return m, m.rewrite(entry.Hash, key.change, "", at), true
 	}
 
-	return m, nil, false
+	return m.fixupKey(pressed, entry)
+}
+
+// fixupKey разбирает fixup-коммиты (#225), как F и S в lazygit: F создаёт из
+// индекса коммит «fixup!» к коммиту под курсором, S сливает такие коммиты в их
+// цели от коммита под курсором. Курсор остаётся на том же коммите: после F он
+// сдвигается на строку вниз, ведь сверху появился новый коммит.
+func (m Model) fixupKey(pressed string, entry git.LogEntry) (next tea.Model, cmd tea.Cmd, handled bool) {
+	creates := m.keys.Is(keymap.LogFixupCommit, pressed)
+	if !creates && !m.keys.Is(keymap.LogAutosquash, pressed) {
+		return m, nil, false
+	}
+	if refused, stop := m.refuseWhileRemote(); stop {
+		return refused, nil, true
+	}
+
+	dir, short, at := m.dir, entry.Hash[:7], m.cursor
+	if creates {
+		note := m.text.Text("rewrite.fixupCreated", i18n.Args{"hash": short})
+		return m, func() tea.Msg {
+			return rewrittenMsg{err: git.Fixup(dir, entry.Hash), note: note, at: at + 1}
+		}, true
+	}
+
+	note := m.text.Text("rewrite.autosquashed", i18n.Args{"hash": short})
+	return m, func() tea.Msg {
+		published, err := git.Autosquash(dir, entry.Hash)
+		return rewrittenMsg{err: err, published: published, note: note, at: at}
+	}, true
 }
 
 // rewrite запускает правку истории в команде: итог придёт rewrittenMsg.
@@ -83,12 +111,14 @@ func (m Model) rewrite(hash string, change git.Rewrite, message string, at int) 
 
 // rewritten ставит итог в подвал и перечитывает дифф, а открытый лог
 // перечитывает с курсором на строке msg.at: перенос коммита подряд вверх или
-// вниз не требует искать его заново. Переписанные коммиты из upstream дают
+// вниз не требует искать его заново. После отказа история не менялась, и
+// курсор остаётся на своём коммите. Переписанные коммиты из upstream дают
 // предупреждение, как amend и reset.
 func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.err != nil:
 		m = m.say(m.text.Error(msg.err))
+		msg.at = -1
 	case msg.published:
 		m = m.say(m.text.Text("rewrite.published", nil))
 	default:

@@ -129,6 +129,8 @@ func baseOf(root, first string) (base string, published bool) {
 // rebaseWith запускает `git rebase -i` со своим списком действий и
 // сообщением reword. Оба файла лежат во временном каталоге и подставляются
 // командой cp вместо редактора: git зовёт редактор через sh с путём файла.
+// Без своего списка git строит его сам с --autosquash, и он принимается как
+// есть.
 func rebaseWith(root, base string, todo []string, message string) error {
 	temp, err := os.MkdirTemp("", "gitone-rebase-")
 	if err != nil {
@@ -136,31 +138,81 @@ func rebaseWith(root, base string, todo []string, message string) error {
 	}
 	defer os.RemoveAll(temp)
 
-	todoFile, messageFile := filepath.Join(temp, "todo"), filepath.Join(temp, "message")
-	if err := os.WriteFile(todoFile, []byte(strings.Join(todo, "\n")+"\n"), 0o600); err != nil {
-		return err
+	args := []string{"rebase", "-i", "--autostash"}
+	sequence := "true"
+	if todo == nil {
+		args = append(args, "--autosquash")
+	} else {
+		todoFile := filepath.Join(temp, "todo")
+		if err := os.WriteFile(todoFile, []byte(strings.Join(todo, "\n")+"\n"), 0o600); err != nil {
+			return err
+		}
+		sequence = "cp " + shellQuote(todoFile)
 	}
+
 	editor := "true"
 	if message != "" {
+		messageFile := filepath.Join(temp, "message")
 		if err := os.WriteFile(messageFile, []byte(message+"\n"), 0o600); err != nil {
 			return err
 		}
 		editor = "cp " + shellQuote(messageFile)
 	}
 
-	args := []string{"rebase", "-i", "--autostash"}
 	if base == "" {
 		args = append(args, "--root")
 	} else {
 		args = append(args, base)
 	}
 
-	env := []string{"GIT_SEQUENCE_EDITOR=cp " + shellQuote(todoFile), "GIT_EDITOR=" + editor}
+	env := []string{"GIT_SEQUENCE_EDITOR=" + sequence, "GIT_EDITOR=" + editor}
 	_, err = run(call{dir: root, env: env}, args...)
 	if err != nil && unfinished(root) {
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": "rebase"})
 	}
 	return headline(err)
+}
+
+// Fixup создаёт из индекса коммит `fixup! <тема hash>` (#225), как
+// `git commit --fixup`: Autosquash потом сольёт его в hash. Пустой индекс и
+// коммит не из текущей ветки отвергаются, git сам бы создал коммит и на чужой.
+func Fixup(dir, hash string) error {
+	return failed("commit", fixup(dir, hash))
+}
+
+func fixup(dir, hash string) error {
+	root, err := topLevel(dir)
+	if err != nil {
+		return err
+	}
+
+	if _, err := run(call{dir: root}, "merge-base", "--is-ancestor", hash, "HEAD"); err != nil {
+		return i18n.New("git.rewriteNotInBranch", nil)
+	}
+	if _, err := run(call{dir: root}, "diff", "--cached", "--quiet"); err == nil {
+		return i18n.New("git.nothingToCommit", nil)
+	}
+
+	_, err = run(call{dir: root}, "commit", "--fixup="+hash)
+	return err
+}
+
+// Autosquash сливает коммиты `fixup!` и `squash!` в их цели (#225), начиная с
+// hash: `git rebase -i --autosquash` от его родителя, список действий git
+// строит сам. published говорит, что переписаны коммиты из upstream.
+func Autosquash(dir, hash string) (published bool, err error) {
+	published, err = autosquash(dir, hash)
+	return published, failed("rebase", err)
+}
+
+func autosquash(dir, hash string) (bool, error) {
+	root, err := topLevel(dir)
+	if err != nil {
+		return false, err
+	}
+
+	base, published := baseOf(root, hash)
+	return published, rebaseWith(root, base, nil, "")
 }
 
 // shellQuote берёт путь в одинарные кавычки для sh: пробел в каталоге

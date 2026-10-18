@@ -275,7 +275,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:    closeHint(colors, keys, text, keymap.ListClose),
 		cursor:   cursor,
 		empty:    []string{text.Text("log.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.LogSquash, keymap.LogFixup, keymap.LogReword, keymap.LogDrop, keymap.LogMoveUp, keymap.LogMoveDown, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.ListSearch, keymap.LogFilter),
+		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.LogSquash, keymap.LogFixup, keymap.LogReword, keymap.LogDrop, keymap.LogMoveUp, keymap.LogMoveDown, keymap.LogFixupCommit, keymap.LogAutosquash, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.ListSearch, keymap.LogFilter),
 		fill:     true,
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
