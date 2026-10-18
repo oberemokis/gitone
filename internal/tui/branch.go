@@ -39,9 +39,29 @@ func currentIndex(branches []git.Branch) int {
 	return max(slices.IndexFunc(branches, func(b git.Branch) bool { return b.Current }), 0)
 }
 
+// createBranchCmd создаёт ветку name на base и переключается на неё: дифф и
+// подвал перечитываются, как после switch.
+func createBranchCmd(dir, name, base string) tea.Cmd {
+	return func() tea.Msg {
+		return actionDoneMsg{err: git.CreateBranch(dir, name, base)}
+	}
+}
+
+// deleteBranchCmd удаляет ветку и отвечает новым списком: окно веток остаётся
+// открытым, а дифф удаление не меняет.
+func deleteBranchCmd(dir, name string) tea.Cmd {
+	return func() tea.Msg {
+		if err := git.DeleteBranch(dir, name); err != nil {
+			return branchesMsg{err: err}
+		}
+		return branchesCmd(dir)()
+	}
+}
+
 // branchKey отдаёт клавиши окну веток: branches.switch переключает на
-// выбранную, list.search открывает поиск, list.close закрывает. Переключение
-// на текущую ничего не делает.
+// выбранную, branches.new создаёт ветку на выбранной, branches.delete удаляет
+// выбранную после вопроса, list.search открывает поиск, list.close закрывает.
+// Переключение на текущую ничего не делает.
 func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -51,7 +71,10 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd
 	}
-	if !m.keys.Is(keymap.BranchesSwitch, key.String()) || len(shown) == 0 {
+
+	pressed := key.String()
+	acts := m.keys.Is(keymap.BranchesSwitch, pressed) || m.keys.Is(keymap.BranchesNew, pressed) || m.keys.Is(keymap.BranchesDelete, pressed)
+	if !acts || len(shown) == 0 {
 		return m, nil
 	}
 	if next, refused := m.refuseWhileRemote(); refused {
@@ -59,11 +82,42 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	branch := shown[m.cursor]
+	switch {
+	case m.keys.Is(keymap.BranchesNew, pressed):
+		return m.askBranchName(branch.Name), nil
+	case m.keys.Is(keymap.BranchesDelete, pressed):
+		return m.askDeleteBranch(branch), nil
+	}
+
 	m.active = noWindow
 	if branch.Current {
 		return m, nil
 	}
 	return m, switchCmd(m.dir, branch.Name)
+}
+
+// askBranchName спрашивает имя новой ветки на base, как n в lazygit: базой
+// служит выбранная ветка, а курсор при открытии окна стоит на текущей.
+func (m Model) askBranchName(base string) Model {
+	title := m.text.Text("branches.newTitle", i18n.Args{"base": visible(base)})
+	return m.openPrompt(title, "", func(m Model, name string) (tea.Model, tea.Cmd) {
+		m.active = noWindow
+		return m, createBranchCmd(m.dir, name, base)
+	})
+}
+
+// askDeleteBranch спрашивает, удалять ли ветку. Текущую git не удалит, поэтому
+// вопрос не задаётся: подвал сразу говорит почему.
+func (m Model) askDeleteBranch(branch git.Branch) Model {
+	if branch.Current {
+		return m.putNotice(m.text.Text("branches.deleteCurrent", nil), false)
+	}
+
+	args := questionArgs(m.keys)
+	args["name"] = visible(branch.Name)
+	return m.ask(m.text.Text("branches.deleteQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
+		return m, deleteBranchCmd(m.dir, branch.Name)
+	})
 }
 
 // branchesShown это ветки под фильтром поиска по имени.
@@ -77,14 +131,15 @@ func (m Model) branchesShown() []git.Branch {
 // забирает остаток ширины, автор и время стоят у правого края, как в логе
 // (#131). Текущая помечена словом сразу за именем, а не цветом: так видно и
 // без цветов.
-func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, branches []git.Branch, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
+func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, branches []git.Branch, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
 	box := list{
-		title:  text.Text("branches.title", nil),
-		close:  closeHint(colors, keys, text, keymap.ListClose),
-		width:  90,
-		cursor: cursor,
-		empty:  []string{text.Text("branches.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.ListSearch),
+		title:    text.Text("branches.title", nil),
+		close:    closeHint(colors, keys, text, keymap.ListClose),
+		width:    90,
+		cursor:   cursor,
+		empty:    []string{text.Text("branches.empty", nil)},
+		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesDelete, keymap.ListSearch),
+		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)

@@ -27,14 +27,22 @@ const (
 	branchWindow
 	worktreeWindow
 	stashWindow
-	// вопросы y/n: любая клавиша отвечает на них, ctrl c тоже это «нет»
+	// поле ввода поверх окна или главного экрана (prompt.go)
+	promptWindow
+	// вопросы y/n: любая клавиша отвечает на них, ctrl c тоже это «нет».
+	// questionWindow общий вопрос (question.go), два других старше него
 	stashDropWindow
 	discardWindow
+	questionWindow
 )
 
 // keyPress отдаёт нажатие открытому окну, а без окна переводит его в действие.
 func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.active {
+	case questionWindow:
+		return m.answerQuestion(key)
+	case promptWindow:
+		return m.typePrompt(key)
 	case discardWindow:
 		return m.answerDiscard(key)
 	case stashDropWindow:
@@ -70,10 +78,14 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // windowBox это окно, которое лежит поверх диффа, или пустая строка. Вопрос
 // discard своего рисунка не имеет: он стоит в подвале, а справка остаётся видна.
+// Общий вопрос рисуется последней строкой окна, над которым задан (asking).
 func (m Model) windowBox() string {
 	width, height := m.width, m.bodyHeight()
 
-	switch m.active {
+	shown, question := m.asking()
+	switch shown {
+	case promptWindow:
+		return promptBox(m.colors, m.text, m.keys, m.prompt, width)
 	case pickerWindow:
 		return pickerBox(m.colors, m.text, m.keys, m.picker, len(m.files) == 0, width, height)
 	case commitWindow:
@@ -81,7 +93,7 @@ func (m Model) windowBox() string {
 	case logWindow:
 		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.query, m.searching, width, height)
 	case branchWindow:
-		return branchBox(m.colors, m.text, m.keys, m.branchesShown(), m.cursor, m.query, m.searching, width, height)
+		return branchBox(m.colors, m.text, m.keys, m.branchesShown(), m.cursor, m.query, m.searching, question, width, height)
 	case worktreeWindow:
 		return worktreeBox(m.colors, m.text, m.keys, m.worktreesShown(), m.cursor, m.query, m.searching, width, height)
 	case stashWindow, stashDropWindow:
@@ -215,6 +227,8 @@ func (m Model) paste(content string) Model {
 		m.subject += line
 	case m.active == pickerWindow:
 		m.picker = m.picker.Type(line)
+	case m.active == promptWindow:
+		m.prompt.text += line
 	case m.searching && (m.active == logWindow || m.active == branchWindow || m.active == worktreeWindow):
 		m.query += line
 		m.cursor = 0

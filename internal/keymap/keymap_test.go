@@ -216,8 +216,11 @@ func TestLoadWindowKeys(t *testing.T) {
 	}{
 		{name: "клавиши окон по умолчанию", content: `{}`},
 		{name: "окно с глобальной клавишей", content: `{"keybinds":{"list.down":"q"}}`},
-		{name: "переназначение навигации", content: `{"keybinds":{"list.down":"n"}}`},
-		{name: "конфликт внутри окна", content: `{"keybinds":{"list.down":"d"}}`, wantErr: []string{"bound to both", "list.down", "stash.drop"}},
+		{name: "переназначение навигации", content: `{"keybinds":{"list.down":"J"}}`},
+		{name: "конфликт внутри окна", content: `{"keybinds":{"list.down":"a"}}`, wantErr: []string{"bound to both", "list.down", "stash.apply"}},
+		{name: "конфликт в окне веток", content: `{"keybinds":{"branches.new":"/"}}`, wantErr: []string{"bound to both", "branches.new", "list.search"}},
+		{name: "печатаемая клавиша в поле ввода", content: `{"keybinds":{"prompt.submit":"y"}}`, wantErr: []string{"types text", "prompt.submit"}},
+		{name: "закрытие поля ввода не отключается", content: `{"keybinds":{"prompt.close":"none"}}`, wantErr: []string{"cannot be disabled", "prompt.close"}},
 		{name: "печатаемая клавиша в поиске", content: `{"keybinds":{"search.down":"j"}}`, wantErr: []string{"types text", "search.down"}},
 		{name: "переключение поля коммита", content: `{"keybinds":{"commit.field":"ctrl+t"}}`},
 		{name: "переключение поля отключено", content: `{"keybinds":{"commit.field":"none"}}`},

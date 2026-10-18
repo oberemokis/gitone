@@ -37,16 +37,16 @@ func markedRow(model tea.Model) string {
 func TestRemappedListNavigation(t *testing.T) {
 	repo, _ := threeFileRepo(t)
 	runGit(t, repo, "commit", "-q", "--allow-empty", "-m", "zeta")
-	model := openAsync(openWithKeybinds(t, repo, `{"keybinds":{"list.down":"n","list.close":"q"}}`, 100), key('l'))
+	model := openAsync(openWithKeybinds(t, repo, `{"keybinds":{"list.down":"J","list.close":"q"}}`, 100), key('l'))
 
 	// тема стоит между двумя пробелами: так её не спутать с датой коммита
 	model, _ = model.Update(key('j'))
 	if row := markedRow(model); !strings.Contains(row, "  zeta  ") {
 		t.Fatalf("после j курсор на %q, want на месте (zeta)", row)
 	}
-	model, _ = model.Update(key('n'))
+	model, _ = model.Update(key('J'))
 	if row := markedRow(model); !strings.Contains(row, "  commit  ") {
-		t.Fatalf("после n курсор на %q, want на commit", row)
+		t.Fatalf("после J курсор на %q, want на commit", row)
 	}
 
 	if !strings.Contains(screenText(model), "q close") {

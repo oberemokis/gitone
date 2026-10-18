@@ -210,13 +210,13 @@ func TestHelpFooterClicksFollowDrawing(t *testing.T) {
 // Прокрутка идёт по list.down и list.up из keybinds.json, а не по j и k.
 func TestHelpScrollFollowsRebinding(t *testing.T) {
 	repo, _ := threeFileRepo(t)
-	model := resize(openWithKeybinds(t, repo, `{"keybinds":{"list.down":"n"}}`, 80), 80, 24)
+	model := resize(openWithKeybinds(t, repo, `{"keybinds":{"list.down":"J"}}`, 80), 80, 24)
 	model, _ = model.Update(key('?'))
 
 	if row := rowOf(screenOf(typeText(model, "j")), "Quit"); row != 7 {
-		t.Fatalf("j сдвинул справку, хотя list.down это n: строка Quit %d", row)
+		t.Fatalf("j сдвинул справку, хотя list.down это J: строка Quit %d", row)
 	}
-	if row := rowOf(screenOf(typeText(model, "n")), "Quit"); row != 6 {
-		t.Fatalf("n не сдвинул справку: строка Quit %d, want 6", row)
+	if row := rowOf(screenOf(typeText(model, "J")), "Quit"); row != 6 {
+		t.Fatalf("J не сдвинул справку: строка Quit %d, want 6", row)
 	}
 }

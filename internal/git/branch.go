@@ -45,3 +45,18 @@ func Switch(dir string, name string) error {
 	_, err := inRoot(dir, "switch", "--", name)
 	return failed("switch", err)
 }
+
+// CreateBranch создаёт ветку name на base и переключается на неё, как
+// `git switch -c` (#227). Имя проверяет git: занятое или недопустимое он
+// отвергает своим текстом, и ветка остаётся прежней.
+func CreateBranch(dir, name, base string) error {
+	_, err := inRoot(dir, "switch", "-c", name, base)
+	return failed("switch", err)
+}
+
+// DeleteBranch удаляет ветку через `git branch -d`: неслитую git отвергает, а
+// принудительного удаления нет, как и удаления на remote (#227).
+func DeleteBranch(dir, name string) error {
+	_, err := inRoot(dir, "branch", "-d", "--", name)
+	return failed("branch", err)
+}
