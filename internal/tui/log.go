@@ -56,6 +56,11 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
 			return git.Revert(dir, entry.Hash)
 		})
+	case m.keys.Is(keymap.CherryPickCopy, pressed):
+		m.copied = entry
+		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)}), true), nil
+	case m.keys.Is(keymap.CherryPickPaste, pressed):
+		return m.pasteCommit()
 	}
 
 	return m, nil
@@ -71,6 +76,20 @@ func (m Model) showCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
 
 	m.args = []string{entry.Hash + "^!"}
 	return m.startReload()
+}
+
+// pasteCommit переносит скопированный коммит в текущую ветку (#222), как V в
+// lazygit. Буфер живёт в памяти до выхода, в git ничего не пишется. Без
+// скопированного коммита подвал говорит, как его скопировать.
+func (m Model) pasteCommit() (tea.Model, tea.Cmd) {
+	entry := m.copied
+	if entry.Hash == "" {
+		return m.putNotice(m.text.Text("log.nothingCopied", i18n.Args{"key": firstKey(m.keys, keymap.CherryPickCopy)}), false), nil
+	}
+
+	return m.changeHistory(m.text.Text("log.picked", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
+		return git.CherryPick(dir, entry.Hash)
+	})
 }
 
 // changeHistory закрывает лог и выполняет правку истории change, подвал говорит
@@ -148,7 +167,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:  closeHint(colors, keys, text, keymap.ListClose),
 		cursor: cursor,
 		empty:  []string{text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogRevert, keymap.ListSearch),
+		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogRevert, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.ListSearch),
 		fill:   true,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
 

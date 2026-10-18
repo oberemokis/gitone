@@ -47,6 +47,36 @@ func TestRevert(t *testing.T) {
 	}
 }
 
+// Коммит из другой ветки переносится с тем же сообщением, повтор отказывает и
+// коммит не создаёт, конфликт останавливает cherry-pick (#222, случаи 1, 3, 4).
+func TestCherryPick(t *testing.T) {
+	repo := divergedRepo(t)
+	feature := revision(t, repo, "feature")
+
+	if err := git.CherryPick(repo, feature); err != nil {
+		t.Fatalf("CherryPick: %v", err)
+	}
+	if got := readFile(t, filepath.Join(repo, "f.txt")); got != "feature\n" {
+		t.Fatalf("f.txt = %q, ожидалась правка feature", got)
+	}
+	if got := lastSubject(t, repo); got != "commit" {
+		t.Fatalf("сообщение %q, ожидалось сообщение коммита", got)
+	}
+
+	head := revision(t, repo, "HEAD")
+	refusedWith(t, git.CherryPick(repo, feature), "git.alreadyPicked")
+	if got := revision(t, repo, "HEAD"); got != head {
+		t.Fatal("повторный cherry-pick создал коммит")
+	}
+
+	runGit(t, repo, "switch", "-q", "feature")
+	write(t, repo, "m.txt", "feature side\n")
+	commitAll(t, repo)
+	conflicting := revision(t, repo, "HEAD")
+	runGit(t, repo, "switch", "-q", "main")
+	refusedWith(t, git.CherryPick(repo, conflicting), "git.stoppedOnConflict")
+}
+
 // Merge-коммит не отменяется: номер родителя не спрашиваем (случай 2).
 // Конфликт останавливает revert незавершённым (случай 3).
 func TestRevertRefusals(t *testing.T) {

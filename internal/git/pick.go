@@ -31,6 +31,30 @@ func revert(dir, hash string) error {
 	return stopping(root, "revert", "revert", "--no-edit", hash)
 }
 
+// CherryPick переносит коммит hash в текущую ветку (#222) с его сообщением.
+// Merge-коммит отвергается, как у Revert. Коммит, правка которого уже есть в
+// ветке, тоже: git остановился бы на пустом cherry-pick и ждал бы решения.
+// Конфликт останавливает cherry-pick, ошибка тогда git.stoppedOnConflict.
+func CherryPick(dir, hash string) error {
+	return failed("cherry-pick", cherryPick(dir, hash))
+}
+
+func cherryPick(dir, hash string) error {
+	root, err := topLevel(dir)
+	if err != nil {
+		return err
+	}
+
+	if isMerge(root, hash) {
+		return i18n.New("git.pickMerge", nil)
+	}
+	if changesNothing(root, hash+"^", hash) {
+		return i18n.New("git.alreadyPicked", nil)
+	}
+
+	return stopping(root, "cherry-pick", "cherry-pick", hash)
+}
+
 // isMerge говорит, что у коммита больше одного родителя.
 func isMerge(root, hash string) bool {
 	parents, err := run(call{dir: root}, "rev-list", "--parents", "-n", "1", hash)
