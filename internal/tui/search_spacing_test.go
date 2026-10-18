@@ -46,11 +46,12 @@ func TestBranchSearchHasSpaceBelow(t *testing.T) {
 	}
 }
 
-// Окно лога на весь экран с поиском той же высоты: подсказка внизу окна на
-// той же строке.
+// Окно лога на весь экран с поиском той же высоты: последняя строка подсказки
+// внизу окна на той же строке. Подсказка лога в две строки (#224), подсказка
+// поля поиска в одну.
 func TestLogSearchKeepsWindowHeight(t *testing.T) {
 	_, model := openLog(t, 40, 120, 40)
-	before := rowOf(screenOf(model), "commit diff")
+	before := rowOf(screenOf(model), "/ search")
 
 	searching := typeText(model, "/")
 	if after := rowOf(screenOf(searching), "esc clear"); after != before {

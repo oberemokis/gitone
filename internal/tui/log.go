@@ -70,6 +70,8 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
 			return git.CheckoutCommit(dir, entry.Hash)
 		})
+	case m.keys.Is(keymap.LogCopy, pressed):
+		return m.askCopy(entry), nil
 	}
 
 	return m, nil
@@ -176,7 +178,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:  closeHint(colors, keys, text, keymap.ListClose),
 		cursor: cursor,
 		empty:  []string{text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.ListSearch),
+		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.ListSearch),
 		fill:   true,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
 

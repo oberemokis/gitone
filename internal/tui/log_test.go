@@ -71,10 +71,11 @@ func TestLogWindowFillsScreenWithMargins(t *testing.T) {
 		t.Errorf("заголовок окна с колонки %d, want 14: %q", column, screen[title])
 	}
 
-	// высота окна 34-8: без отступов, заголовка и подсказки, обоих с пустой
-	// строкой, и строки заголовков столбцов 19 строк; в каждой дата «… ago»
-	if shown := strings.Count(strings.Join(screen, "\n"), " ago"); shown != 19 {
-		t.Errorf("строк лога %d, want 19", shown)
+	// высота окна 34-8: без отступов, заголовка с пустой строкой, подсказки в
+	// две строки (#224) с пустой над ней и строки заголовков столбцов 18 строк;
+	// в каждой дата «… ago»
+	if shown := strings.Count(strings.Join(screen, "\n"), " ago"); shown != 18 {
+		t.Errorf("строк лога %d, want 18", shown)
 	}
 }
 
@@ -88,9 +89,9 @@ func TestLogWindowMarginIsFiveRowsOnTallScreen(t *testing.T) {
 	if title, want := rowOf(screen, "Log"), bodyRow+5+1; title != want {
 		t.Errorf("заголовок окна в строке %d, want %d:\n%s", title, want, strings.Join(screen, "\n"))
 	}
-	// подсказка стоит над отступом окна в 1 строку и полем в 5 строк, последняя
-	// строка тела bodyRow+54-1
-	if hint, want := rowOf(screen, "enter commit diff"), bodyRow+54-1-1-5; hint != want {
+	// последняя строка подсказки стоит над отступом окна в 1 строку и полем в 5
+	// строк, последняя строка тела bodyRow+54-1
+	if hint, want := rowOf(screen, "/ search"), bodyRow+54-1-1-5; hint != want {
 		t.Errorf("подсказка окна в строке %d, want %d:\n%s", hint, want, strings.Join(screen, "\n"))
 	}
 }
