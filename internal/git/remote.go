@@ -54,15 +54,26 @@ func pull(ctx context.Context, dir string) (bool, error) {
 
 // Push отправляет текущую ветку и возвращает, куда она ушла («origin/main»).
 // Ветке без upstream создаётся копия на origin и привязывается к ней, как
-// `git push -u origin HEAD`. Принудительного push нет: ветка, которую origin
-// уже обогнал, отвергается. Отмена ctx убивает git, ошибка тогда
-// context.Canceled.
+// `git push -u origin HEAD`. Ветка, у upstream которой есть коммиты, которых
+// нет в ветке (после amend, reset, rebase или чужого push), обычным push не
+// отправляется: отказ git.pushDiverged идёт до сети, и решать, отправлять ли
+// принудительно, будет пользователь (PushForceLease, #234). Отмена ctx убивает
+// git, ошибка тогда context.Canceled.
 func Push(ctx context.Context, dir string) (target string, err error) {
-	target, err = push(ctx, dir)
+	target, err = push(ctx, dir, false)
 	return target, failed("push", headline(err))
 }
 
-func push(ctx context.Context, dir string) (string, error) {
+// PushForceLease отправляет текущую ветку поверх upstream с
+// `--force-with-lease` (#234): remote переписывается, только если он стоит
+// там же, где его видел последний fetch. Иначе git отказывает, и чужие коммиты
+// не теряются.
+func PushForceLease(ctx context.Context, dir string) (target string, err error) {
+	target, err = push(ctx, dir, true)
+	return target, failed("push", headline(err))
+}
+
+func push(ctx context.Context, dir string, force bool) (string, error) {
 	branch, err := currentBranch(dir)
 	if err != nil {
 		return "", err
@@ -72,8 +83,15 @@ func push(ctx context.Context, dir string) (string, error) {
 	if err != nil {
 		return "origin/" + branch, network(ctx, dir, "push", "--set-upstream", "origin", "HEAD")
 	}
+	upstream = strings.TrimSpace(upstream)
 
-	return strings.TrimSpace(upstream), network(ctx, dir, "push")
+	if force {
+		return upstream, network(ctx, dir, "push", "--force-with-lease")
+	}
+	if _, err := run(call{dir: dir}, "merge-base", "--is-ancestor", "@{upstream}", "HEAD"); err != nil {
+		return upstream, i18n.New("git.pushDiverged", i18n.Args{"upstream": upstream})
+	}
+	return upstream, network(ctx, dir, "push")
 }
 
 // currentBranch возвращает имя ветки. При detached HEAD отказывает ошибкой из
