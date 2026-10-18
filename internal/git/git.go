@@ -252,7 +252,24 @@ func failed(operation string, err error) error {
 }
 
 // run запускает git и возвращает его вывод. Отказ git приходит как *gitError.
+// Вызов пишется в журнал команд (journal.go).
 func run(options call, args ...string) (string, error) {
+	out, err := execute(options, args)
+
+	exit := 0
+	var refusal *gitError
+	switch {
+	case errors.As(err, &refusal):
+		exit = refusal.exit.ExitCode()
+	case err != nil:
+		exit = -1
+	}
+	remember(args, exit)
+	return out, err
+}
+
+// execute запускает git с флагами configFlags перед аргументами.
+func execute(options call, args []string) (string, error) {
 	args = append(append([]string{}, configFlags...), args...)
 	command := exec.Command("git", args...)
 	if options.ctx != nil {

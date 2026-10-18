@@ -50,6 +50,7 @@ const (
 	AppRemotes       Action = "app.remotes"
 	AppReflog        Action = "app.reflog"
 	AppSubmodules    Action = "app.submodules"
+	AppJournal       Action = "app.journal"
 	GitPull          Action = "git.pull"
 	GitPush          Action = "git.push"
 	GitFetch         Action = "git.fetch"
@@ -636,6 +637,8 @@ func defaults() []Binding {
 		{Action: AppRemotes, Category: CategoryGeneral, Keys: []string{"R"}, Help: true},
 		{Action: AppReflog, Category: CategoryGeneral, Keys: []string{"L"}, Help: true},
 		{Action: AppSubmodules, Category: CategoryGeneral, Keys: []string{"S"}, Help: true},
+		// @ как журнал команд в lazygit
+		{Action: AppJournal, Category: CategoryGeneral, Keys: []string{"@"}, Help: true},
 		{Action: GitPull, Category: CategoryGeneral, Keys: []string{"p"}, Help: true},
 		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
 		// f у lazygit, здесь f открывает панель файлов

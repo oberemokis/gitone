@@ -84,7 +84,9 @@ type Model struct {
 	reflog    []git.ReflogEntry
 	// подмодули для окна (#244)
 	submodules []git.Submodule
-	picker     picker.Model
+	// журнал команд git для окна (#247)
+	journal []git.JournalEntry
+	picker  picker.Model
 	// заметка подвала стоит до следующего нажатия, а гаснущая (fades) ещё и
 	// пропадает сама через noticeLifetime (notice.go); noticeID номер заметки, у
 	// таймера свой номер; noFade выключает таймер (Options.KeepNotices).
@@ -304,6 +306,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.remotesArrived(msg)
 	case reflogMsg:
 		m = m.reflogArrived(msg)
+	case journalMsg:
+		m = m.journalArrived(msg)
 	case submodulesMsg:
 		m = m.submodulesArrived(msg)
 	case lastMessageMsg:
@@ -578,6 +582,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m, remotesCmd(m.dir)
 	case keymap.AppReflog:
 		return m, reflogCmd(m.dir)
+	case keymap.AppJournal:
+		return m, journalCmd()
 	case keymap.AppSubmodules:
 		return m, submodulesCmd(m.dir)
 	case keymap.StashPush:
