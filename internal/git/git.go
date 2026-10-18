@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -29,15 +30,17 @@ var diffFlags = []string{
 
 // Diff возвращает текст `git diff` для каталога. С аргументами они уходят в
 // git как есть (`--staged`, `main..feature`, коммит, пути). Без аргументов
-// это всё незакоммиченное вместе с неотслеженными файлами.
-func Diff(dir string, args []string) (string, error) {
-	text, err := diffText(dir, args)
+// это всё незакоммиченное вместе с неотслеженными файлами. flags это флаги вида
+// (#217): `--ignore-all-space`, `--unified=N`. Они идут перед аргументами и не
+// переводят дифф рабочего дерева в дифф по аргументам.
+func Diff(dir string, args []string, flags ...string) (string, error) {
+	text, err := diffText(dir, args, flags)
 	return text, failed("diff", err)
 }
 
-func diffText(dir string, args []string) (string, error) {
+func diffText(dir string, args, flags []string) (string, error) {
 	if len(args) > 0 {
-		return run(call{dir: dir, diffExit: true}, diffCommand(args...)...)
+		return run(call{dir: dir, diffExit: true}, diffCommand(flags, args...)...)
 	}
 
 	root, err := topLevel(dir)
@@ -58,7 +61,7 @@ func diffText(dir string, args []string) (string, error) {
 
 	// `--` отделяет ревизию от путей: без него файл с именем HEAD в рабочем
 	// дереве делает вызов неоднозначным.
-	return run(call{dir: dir, env: []string{"GIT_INDEX_FILE=" + index}}, diffCommand(base, "--")...)
+	return run(call{dir: dir, env: []string{"GIT_INDEX_FILE=" + index}}, diffCommand(flags, base, "--")...)
 }
 
 // baseRevision это HEAD, а в репозитории без коммитов пустое дерево: тогда
@@ -79,8 +82,8 @@ func hasCommits(dir string) bool {
 	return err == nil
 }
 
-func diffCommand(args ...string) []string {
-	return append(append([]string{"diff"}, diffFlags...), args...)
+func diffCommand(flags []string, args ...string) []string {
+	return slices.Concat([]string{"diff"}, diffFlags, flags, args)
 }
 
 // indexWithUntracked копирует индекс во временный каталог и добавляет в копию

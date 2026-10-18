@@ -11,9 +11,9 @@ import (
 )
 
 // Load читает дифф каталога: cmd/gitone при запуске, а по r reload одним и тем
-// же путём.
-func Load(dir string, args []string) ([]diff.File, error) {
-	text, err := git.Diff(dir, args)
+// же путём. flags это флаги вида (#217), при запуске их нет.
+func Load(dir string, args []string, flags ...string) ([]diff.File, error) {
+	text, err := git.Diff(dir, args, flags...)
 	if err != nil {
 		return nil, err
 	}
@@ -56,11 +56,12 @@ func Printable(text string) string {
 	return strings.Join(lines, "\n")
 }
 
-// reloadMsg несёт итог перечитывания: каталог и аргументы, с которыми читали,
-// новый дифф, индекс, ветку или ошибку git.
+// reloadMsg несёт итог перечитывания: каталог, аргументы и флаги вида, с
+// которыми читали, новый дифф, индекс, ветку или ошибку git.
 type reloadMsg struct {
 	dir      string
 	args     []string
+	flags    []string
 	files    []diff.File
 	staged   map[string]bool
 	location git.Location
@@ -68,34 +69,36 @@ type reloadMsg struct {
 }
 
 // fits говорит, что ответ прочитан для диффа, который открыт сейчас: пока git
-// читал, W, лог, stash или b могли сменить каталог или аргументы.
+// читал, W, лог, stash или b могли сменить каталог или аргументы, а клавиши
+// вида флаги.
 func (msg reloadMsg) fits(m Model) bool {
-	return msg.dir == m.dir && slices.Equal(msg.args, m.args)
+	return msg.dir == m.dir && slices.Equal(msg.args, m.args) && slices.Equal(msg.flags, m.diffFlags())
 }
 
 // reload читает дифф и индекс в команде, а не в Update, чтобы модель оставалась
 // без ввода-вывода.
-func reload(dir string, args []string) tea.Cmd {
+func reload(dir string, args, flags []string) tea.Cmd {
 	return func() tea.Msg {
-		return readDiff(dir, args)
+		return readDiff(dir, args, flags)
 	}
 }
 
 // readDiff читает дифф, индекс и ветку: по r и при опросе одним путём. Ветку
 // могли переключить в другом терминале, поэтому она читается вместе с диффом.
-func readDiff(dir string, args []string) reloadMsg {
-	files, err := Load(dir, args)
-	if err != nil {
-		return reloadMsg{dir: dir, args: args, err: err}
+func readDiff(dir string, args, flags []string) reloadMsg {
+	msg := reloadMsg{dir: dir, args: args, flags: flags}
+
+	msg.files, msg.err = Load(dir, args, flags...)
+	if msg.err != nil {
+		return msg
+	}
+	msg.staged, msg.err = Staged(dir)
+	if msg.err != nil {
+		return msg
 	}
 
-	staged, err := Staged(dir)
-	if err != nil {
-		return reloadMsg{dir: dir, args: args, err: err}
-	}
-
-	location, err := Locate(dir)
-	return reloadMsg{dir: dir, args: args, files: files, staged: staged, location: location, err: err}
+	msg.location, msg.err = Locate(dir)
+	return msg
 }
 
 // reloaded ставит перечитанный дифф на экран, а ошибку git в подвал. Если за

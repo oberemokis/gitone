@@ -59,8 +59,12 @@ const (
 	DiffTop          Action = "diff.top"
 	DiffBottom       Action = "diff.bottom"
 	DiffToggleWrap   Action = "diff.toggleWrap"
-	DiffScrollLeft   Action = "diff.scrollLeft"
-	DiffScrollRight  Action = "diff.scrollRight"
+	// вид диффа (#217): пробелы и строки контекста
+	DiffToggleWhitespace Action = "diff.toggleWhitespace"
+	DiffMoreContext      Action = "diff.moreContext"
+	DiffLessContext      Action = "diff.lessContext"
+	DiffScrollLeft       Action = "diff.scrollLeft"
+	DiffScrollRight      Action = "diff.scrollRight"
 )
 
 // Действия окон. Окно забирает нажатия целиком, поэтому эти действия ищутся
@@ -529,6 +533,10 @@ func defaults() []Binding {
 		{Action: DiffBottom, Category: CategoryDiff, Keys: []string{"G"}, Help: true},
 		{Action: DiffToggleMode, Category: CategoryDiff, Keys: []string{"m"}, Help: true},
 		{Action: DiffToggleWrap, Category: CategoryDiff, Keys: []string{"w"}, Help: true},
+		// как в lazygit: ctrl+w пробелы, } и { контекст
+		{Action: DiffToggleWhitespace, Category: CategoryDiff, Keys: []string{"ctrl+w"}, Help: true},
+		{Action: DiffMoreContext, Category: CategoryDiff, Keys: []string{"}"}, Help: true},
+		{Action: DiffLessContext, Category: CategoryDiff, Keys: []string{"{"}, Help: true},
 		{Action: DiffScrollLeft, Category: CategoryDiff, Keys: []string{"left"}, Help: true},
 		{Action: DiffScrollRight, Category: CategoryDiff, Keys: []string{"right"}, Help: true},
 		{Action: DiffReload, Category: CategoryDiff, Keys: []string{"r"}, Help: true},
