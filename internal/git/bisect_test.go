@@ -1,0 +1,75 @@
+package git_test
+
+import (
+	"fmt"
+	"testing"
+
+	"gitone/internal/git"
+)
+
+// eightCommits это ветка main из коммитов c1…c8, правящих a.txt.
+func eightCommits(t *testing.T) string {
+	t.Helper()
+
+	repo := newRepo(t)
+	for number := 1; number <= 8; number++ {
+		write(t, repo, "a.txt", fmt.Sprintf("%d\n", number))
+		runGit(t, repo, "add", "-A")
+		runGit(t, repo, "commit", "-q", "-m", fmt.Sprintf("c%d", number))
+	}
+	return repo
+}
+
+// Плохой и хороший коммиты начинают поиск, git переходит на коммит для
+// проверки (#245, случай 1); отметки ведут к найденному коммиту (случаи 2 и
+// 3); сброс возвращает main (случай 4).
+func TestBisect(t *testing.T) {
+	repo := eightCommits(t)
+	c1, c4 := revision(t, repo, "HEAD~7"), revision(t, repo, "HEAD~4")
+
+	step, err := git.BisectMark(repo, "HEAD", false)
+	if err != nil || step.Commit != "" || step.Found {
+		t.Fatalf("первая отметка = %+v, %v, ожидалось ожидание второй", step, err)
+	}
+	if got := operationOf(t, repo); got != "bisect" {
+		t.Fatalf("Operation = %q, ожидался bisect", got)
+	}
+
+	step, err = git.BisectMark(repo, c1, true)
+	if err != nil || step.Commit != c4 || step.Subject != "c4" || step.Left != 3 {
+		t.Fatalf("вторая отметка = %+v, %v, ожидался переход на c4", step, err)
+	}
+
+	for _, good := range []bool{false, true} {
+		if step, err = git.BisectMark(repo, "HEAD", good); err != nil {
+			t.Fatalf("BisectMark: %v", err)
+		}
+	}
+	if !step.Found || step.Commit != c4 || step.Subject != "c4" {
+		t.Fatalf("итог = %+v, ожидался найденный c4", step)
+	}
+
+	if err := git.BisectReset(repo); err != nil {
+		t.Fatalf("BisectReset: %v", err)
+	}
+	if got := runGit(t, repo, "branch", "--show-current"); got != "main\n" {
+		t.Fatalf("после сброса ветка %q, ожидалась main", got)
+	}
+	if got := operationOf(t, repo); got != "" {
+		t.Fatalf("Operation = %q после сброса", got)
+	}
+}
+
+// Грязное дерево git не даёт перейти на коммит для проверки (случай 5).
+func TestBisectDirtyTree(t *testing.T) {
+	repo := eightCommits(t)
+	c1 := revision(t, repo, "HEAD~7")
+	write(t, repo, "a.txt", "dirty\n")
+
+	if _, err := git.BisectMark(repo, "HEAD", false); err != nil {
+		t.Fatalf("первая отметка: %v", err)
+	}
+	if _, err := git.BisectMark(repo, c1, true); err == nil {
+		t.Fatal("bisect перешёл на коммит поверх грязного дерева")
+	}
+}

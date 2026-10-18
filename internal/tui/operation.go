@@ -13,8 +13,12 @@ import (
 // операцией. Без операции подвал говорит, что продолжать нечего.
 func (m Model) askOperation() Model {
 	operation := m.location.Operation
-	if operation == "" {
+	switch operation {
+	case "":
 		return m.putNotice(m.text.Text("operation.none", nil), true)
+	// bisect не продолжается и не прерывается, а отмечает HEAD (#245)
+	case "bisect":
+		return m.askBisect("HEAD", "HEAD")
 	}
 
 	state := m.text.Text("operation."+operation, nil)

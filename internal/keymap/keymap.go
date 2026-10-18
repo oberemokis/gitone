@@ -90,6 +90,8 @@ const (
 	LogCheckout  Action = "log.checkout"
 	LogCopy      Action = "log.copy"
 	LogReset     Action = "log.reset"
+	// bisect по коммиту лога (#245)
+	LogBisect Action = "log.bisect"
 	// cherry-pick (#222): copy в логе, paste в логе и в окне веток
 	CherryPickCopy  Action = "cherryPick.copy"
 	CherryPickPaste Action = "cherryPick.paste"
@@ -220,7 +222,7 @@ func (k Keymap) Is(action Action, key string) bool {
 func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
-		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogFilter, LogSquash, LogFixup, LogReword, LogDrop, LogMoveUp, LogMoveDown, LogFixupCommit, LogAutosquash, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, list...),
+		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogBisect, LogFilter, LogSquash, LogFixup, LogReword, LogDrop, LogMoveUp, LogMoveDown, LogFixupCommit, LogAutosquash, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, list...),
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, BranchesUpstream, CherryPickPaste, CompareWith, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
@@ -629,6 +631,7 @@ func defaults() []Binding {
 		{Action: LogCheckout, Keys: []string{"space"}},
 		{Action: LogCopy, Keys: []string{"y"}},
 		{Action: LogReset, Keys: []string{"g"}},
+		{Action: LogBisect, Keys: []string{"b"}},
 		{Action: ListSearch, Keys: []string{"/"}},
 		{Action: BranchesSwitch, Keys: []string{"enter"}},
 		{Action: BranchesNew, Keys: []string{"n"}},
