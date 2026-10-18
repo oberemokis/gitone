@@ -132,7 +132,7 @@ func open(t *testing.T, opts tui.Options) tea.Model {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if opts.Staged, err = tui.Staged(opts.Dir); err != nil {
+	if opts.Staged, opts.Partial, err = tui.Staged(opts.Dir); err != nil {
 		t.Fatalf("Staged: %v", err)
 	}
 	if opts.Location, err = tui.Locate(opts.Dir); err != nil {

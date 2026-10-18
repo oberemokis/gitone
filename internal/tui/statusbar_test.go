@@ -43,9 +43,9 @@ func TestFooterShowsBranchAndWorktree(t *testing.T) {
 // Клавиши из keymap: переназначенная видна, отключённая не пишется.
 func TestFooterLocationKeysFollowKeymap(t *testing.T) {
 	repo, _ := threeFileRepo(t)
-	model := openWithKeybinds(t, repo, `{"keybinds":{"app.branches":"v","app.worktrees":"none"}}`, 100)
+	model := openWithKeybinds(t, repo, `{"keybinds":{"app.branches":"o","app.worktrees":"none"}}`, 100)
 
-	want := " v main   " + filepath.Base(repo)
+	want := " o main   " + filepath.Base(repo)
 	if footer := footerOf(model); !strings.HasPrefix(footer, want) {
 		t.Fatalf("подвал %q, want начало %q", footer, want)
 	}

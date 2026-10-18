@@ -48,6 +48,8 @@ type Model struct {
 	// staged: пути с отличием индекса от HEAD, по ним space решает, ставить
 	// файл в индекс или убирать
 	staged map[string]bool
+	// partial: пути, поставленные в индекс частично (#212), панель их помечает
+	partial map[string]bool
 	// location ветка и worktree для левого края подвала
 	location git.Location
 	// baseArgs аргументы запуска: b возвращает к ним дифф рабочего дерева
@@ -146,6 +148,8 @@ type Options struct {
 	Ticks <-chan time.Time
 	// Staged пути, уже лежащие в индексе при запуске
 	Staged map[string]bool
+	// Partial пути, поставленные в индекс частично
+	Partial map[string]bool
 	// Location ветка и worktree при запуске, дальше их обновляет перечитывание
 	Location git.Location
 	// Text тексты интерфейса на выбранном языке, нулевое значение английское
@@ -197,6 +201,7 @@ func New(opts Options, files []diff.File) Model {
 		context:  -1,
 		ticks:    opts.Ticks,
 		staged:   opts.Staged,
+		partial:  opts.Partial,
 		location: opts.Location,
 		notice:   opts.Notice,
 		keys:     opts.Keys,
@@ -263,7 +268,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.poll()
 		}
 	case polledMsg:
-		m = m.polled(msg)
+		return m.polled(msg)
+	case unstagedMsg:
+		m = m.unstagedArrived(msg)
 	case spinMsg:
 		if m.loading && msg.load == m.load {
 			m.spin++
@@ -489,6 +496,9 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 			return next, nil
 		}
 	}
+	if next, cmd, handled := m.selectionAction(action); handled {
+		return next, cmd
+	}
 
 	switch action {
 	case keymap.AppQuit:
@@ -537,6 +547,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m.view = m.view.ScrollRight(shiftStep)
 	case keymap.DiffReload:
 		return m.startReload()
+	case keymap.DiffSelect:
+		return m.startSelect()
 	case keymap.FilesStage:
 		return m.toggleStage()
 	case keymap.FilesDiscard:
@@ -649,7 +661,10 @@ func (m Model) applyReload(files []diff.File) Model {
 	m.files = files
 	if kept >= 0 {
 		m.current = kept
-		m.view = m.view.Reload(files[kept])
+		// при выделении на экране дифф вне индекса, его обновит refreshSelection
+		if !m.view.Selecting() {
+			m.view = m.view.Reload(files[kept])
+		}
 		return m
 	}
 
@@ -864,13 +879,18 @@ func (m Model) emptyBody(noChanges string, width, height int) string {
 }
 
 // labels это подписи файлов для панели: имя и статус, если он не просто
-// изменён. Отметки индекса нет (#99): она загромождала список.
+// изменён. Отметки полного индекса нет (#99): она загромождала список.
 func (m Model) labels() []string {
 	labels := make([]string, len(m.files))
 	for index, file := range m.files {
 		labels[index] = fileTitle(file, m.text)
 		if status := statusLabel(file.Status, m.text); status != "" {
 			labels[index] += " " + status
+		}
+		// частичный индекс отмечен словом (#212): space на таком файле уберёт
+		// из индекса и поставленную часть
+		if m.partial[stagedKey(file)] {
+			labels[index] += " " + m.text.Text("status.partlyStaged", nil)
 		}
 	}
 

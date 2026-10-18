@@ -22,19 +22,30 @@ func Load(dir string, args []string, flags ...string) ([]diff.File, error) {
 }
 
 // Staged возвращает пути, у которых индекс отличается от HEAD. По ним space
-// решает, ставить файл в индекс или убирать.
-func Staged(dir string) (map[string]bool, error) {
+// решает, ставить файл в индекс или убирать. partial это те из них, у которых
+// и рабочее дерево отличается от индекса: файл поставлен частично (#212).
+func Staged(dir string) (staged, partial map[string]bool, err error) {
 	paths, err := git.StagedPaths(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	unstaged, err := git.UnstagedPaths(dir)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	staged := make(map[string]bool, len(paths))
+	staged = make(map[string]bool, len(paths))
 	for _, path := range paths {
 		staged[path] = true
 	}
+	partial = make(map[string]bool)
+	for _, path := range unstaged {
+		if staged[path] {
+			partial[path] = true
+		}
+	}
 
-	return staged, nil
+	return staged, partial, nil
 }
 
 // Locate называет ветку и worktree для подвала.
@@ -64,6 +75,7 @@ type reloadMsg struct {
 	flags    []string
 	files    []diff.File
 	staged   map[string]bool
+	partial  map[string]bool
 	location git.Location
 	err      error
 }
@@ -92,7 +104,7 @@ func readDiff(dir string, args, flags []string) reloadMsg {
 	if msg.err != nil {
 		return msg
 	}
-	msg.staged, msg.err = Staged(dir)
+	msg.staged, msg.partial, msg.err = Staged(dir)
 	if msg.err != nil {
 		return msg
 	}
@@ -118,11 +130,11 @@ func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
 		m = m.say(m.text.Error(msg.err))
 	} else {
 		m = m.applyReload(msg.files)
-		m.staged, m.location = msg.staged, msg.location
+		m.staged, m.partial, m.location = msg.staged, msg.partial, msg.location
 	}
 
 	if m.stale {
 		return m.startReload()
 	}
-	return m, nil
+	return m.refreshSelection()
 }
