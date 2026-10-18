@@ -273,6 +273,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.worktreeChecked(msg)
 	case editorMsg:
 		return m.startEditor(msg)
+	case patchMsg:
+		return m.patchSaved(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список

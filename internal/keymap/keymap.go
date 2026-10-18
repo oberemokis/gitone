@@ -78,6 +78,7 @@ const (
 	// ветка и checkout от коммита лога (#223)
 	LogNewBranch Action = "log.newBranch"
 	LogCheckout  Action = "log.checkout"
+	LogCopy      Action = "log.copy"
 	// cherry-pick (#222): copy в логе, paste в логе и в окне веток
 	CherryPickCopy  Action = "cherryPick.copy"
 	CherryPickPaste Action = "cherryPick.paste"
@@ -182,7 +183,7 @@ func (k Keymap) Is(action Action, key string) bool {
 func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
-		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, CherryPickCopy, CherryPickPaste, ListSearch}, list...),
+		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, CherryPickCopy, CherryPickPaste, ListSearch}, list...),
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, CherryPickPaste, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
@@ -562,6 +563,7 @@ func defaults() []Binding {
 		{Action: CherryPickPaste, Keys: []string{"V"}},
 		{Action: LogNewBranch, Keys: []string{"n"}},
 		{Action: LogCheckout, Keys: []string{"space"}},
+		{Action: LogCopy, Keys: []string{"y"}},
 		{Action: ListSearch, Keys: []string{"/"}},
 		{Action: BranchesSwitch, Keys: []string{"enter"}},
 		{Action: BranchesNew, Keys: []string{"n"}},
