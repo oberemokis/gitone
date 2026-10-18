@@ -434,6 +434,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		m.helpOpen = false
 	case keymap.GitPull:
 		return m.startRemote(pulling)
+	case keymap.GitFetch:
+		return m.startRemote(fetching)
 	case keymap.GitPush:
 		return m.startRemote(pushing)
 	case keymap.FilesPick:

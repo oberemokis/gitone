@@ -49,6 +49,41 @@ func revision(t *testing.T, repo, name string) string {
 	return strings.TrimSpace(runGit(t, repo, "rev-parse", name))
 }
 
+// Fetch сдвигает удалённую ветку, а локальная остаётся на месте (#232).
+func TestFetchMovesRemoteBranchOnly(t *testing.T) {
+	origin, local := remotePair(t)
+	before := revision(t, local, "HEAD")
+	publish(t, origin, "b.txt", "two\n")
+
+	if err := git.Fetch(context.Background(), local); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if got := revision(t, local, "origin/main"); got != revision(t, origin, "main") {
+		t.Errorf("origin/main %s, ожидался main с origin %s", got, revision(t, origin, "main"))
+	}
+	if got := revision(t, local, "HEAD"); got != before {
+		t.Errorf("HEAD сдвинулся: %s, был %s", got, before)
+	}
+}
+
+// Без remote fetch отказывает, а не молчит, и недоступный remote даёт ошибку
+// git.
+func TestFetchRefusesWithoutRemoteOrNetwork(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+
+	var refusal *i18n.Error
+	if err := git.Fetch(context.Background(), repo); !errors.As(err, &refusal) || refusal.Key != "git.noRemote" {
+		t.Fatalf("Fetch без remote = %v, ожидался отказ git.noRemote", err)
+	}
+
+	runGit(t, repo, "remote", "add", "origin", filepath.Join(t.TempDir(), "missing.git"))
+	if err := git.Fetch(context.Background(), repo); err == nil || !strings.Contains(err.Error(), "fetch: ") {
+		t.Fatalf("Fetch с недоступным remote = %v, ожидалась ошибка git", err)
+	}
+}
+
 func TestPullFastForwardsBehindBranch(t *testing.T) {
 	origin, local := remotePair(t)
 	publish(t, origin, "b.txt", "two\n")

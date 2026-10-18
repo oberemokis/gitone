@@ -9,6 +9,26 @@ import (
 	"gitone/internal/i18n"
 )
 
+// Fetch забирает коммиты всех remote, `git fetch --all`, и не трогает текущую
+// ветку (#232). Без единого remote отказывает ошибкой из словаря: git fetch
+// --all на таком репозитории молча выходит с успехом. Отмена ctx убивает git,
+// ошибка тогда context.Canceled.
+func Fetch(ctx context.Context, dir string) error {
+	return failed("fetch", headline(fetch(ctx, dir)))
+}
+
+func fetch(ctx context.Context, dir string) error {
+	remotes, err := run(call{dir: dir}, "remote")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(remotes) == "" {
+		return i18n.New("git.noRemote", nil)
+	}
+
+	return network(ctx, dir, "fetch", "--all")
+}
+
 // Pull подтягивает текущую ветку из её upstream только перемоткой: `git pull
 // --ff-only`. Разошедшиеся ветки git отвергает, ничего не сливая и не
 // перебазируя, pull.rebase пользователя на это не влияет. updated говорит, что

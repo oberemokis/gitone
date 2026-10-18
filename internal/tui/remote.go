@@ -19,6 +19,7 @@ const (
 	noRemote remoteKind = iota
 	pulling
 	pushing
+	fetching
 )
 
 // remote это идущий pull или push. Он идёт командой в фоне, интерфейс при этом
@@ -37,15 +38,21 @@ func (r remote) running() bool {
 
 // labelKey это надпись индикатора в подвале, busyKey заметка об отказе.
 func (r remote) labelKey() string {
-	if r.kind == pushing {
+	switch r.kind {
+	case pushing:
 		return "screen.pushing"
+	case fetching:
+		return "screen.fetching"
 	}
 	return "screen.pulling"
 }
 
 func (r remote) busyKey() string {
-	if r.kind == pushing {
+	switch r.kind {
+	case pushing:
 		return "remote.pushRunning"
+	case fetching:
+		return "remote.fetchRunning"
 	}
 	return "remote.pullRunning"
 }
@@ -87,15 +94,24 @@ func pushCmd(ctx context.Context, dir string, id int) tea.Cmd {
 	}
 }
 
-// startRemote запускает pull или push. Второй не стартует, пока идёт первый:
-// это отказ из changesRepo, он решён выше по вызову.
+func fetchCmd(ctx context.Context, dir string, id int) tea.Cmd {
+	return func() tea.Msg {
+		return remoteDoneMsg{id: id, kind: fetching, err: git.Fetch(ctx, dir)}
+	}
+}
+
+// startRemote запускает pull, push или fetch. Вторая операция не стартует, пока
+// идёт первая: это отказ из changesRepo, он решён выше по вызову.
 func (m Model) startRemote(kind remoteKind) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.remote = remote{kind: kind, id: m.remote.id + 1, cancel: cancel}
 
 	run := pullCmd(ctx, m.dir, m.remote.id)
-	if kind == pushing {
+	switch kind {
+	case pushing:
 		run = pushCmd(ctx, m.dir, m.remote.id)
+	case fetching:
+		run = fetchCmd(ctx, m.dir, m.remote.id)
 	}
 
 	return m, tea.Batch(remoteSpinTick(m.remote.id), run)
@@ -140,6 +156,8 @@ func (m Model) remoteResult(msg remoteDoneMsg) string {
 	switch {
 	case msg.kind == pushing:
 		return m.text.Text("remote.pushed", i18n.Args{"target": msg.target})
+	case msg.kind == fetching:
+		return m.text.Text("remote.fetched", nil)
 	case msg.updated:
 		return m.text.Text("remote.fastForwarded", nil)
 	}
@@ -148,13 +166,13 @@ func (m Model) remoteResult(msg remoteDoneMsg) string {
 }
 
 // changesRepo говорит, что глобальное действие меняет репозиторий или само
-// запускает pull или push. Пока идёт pull или push, такое действие отказывает:
-// git pull меняет дерево, и x посреди него стёр бы не те правки. Действия
-// окон (переключение ветки и worktree, apply и drop у stash) проверяют то же
-// сами. Просмотр, окна и перечитывание диффа работают.
+// запускает pull, push или fetch. Пока идёт сетевая операция, такое действие
+// отказывает: git pull меняет дерево, и x посреди него стёр бы не те правки.
+// Действия окон (переключение ветки и worktree, apply и drop у stash) проверяют
+// то же сами. Просмотр, окна и перечитывание диффа работают.
 func changesRepo(action keymap.Action) bool {
 	switch action {
-	case keymap.FilesStage, keymap.FilesDiscard, keymap.FilesCommit, keymap.StashPush, keymap.GitPull, keymap.GitPush:
+	case keymap.FilesStage, keymap.FilesDiscard, keymap.FilesCommit, keymap.StashPush, keymap.GitPull, keymap.GitPush, keymap.GitFetch:
 		return true
 	}
 
