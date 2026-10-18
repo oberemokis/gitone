@@ -94,7 +94,7 @@ func (m Model) windowBox() string {
 	case pickerWindow:
 		return pickerBox(m.colors, m.text, m.keys, m.picker, len(m.files) == 0, width, height)
 	case commitWindow:
-		return commitBox(m.colors, m.text, m.keys, m.subject, m.description, m.commitField, width)
+		return commitBox(m.colors, m.text, m.keys, m.subject, m.description, m.commitField, m.amending, width)
 	case logWindow:
 		return logBox(m.colors, m.text, m.keys, m.logShown(), m.cursor, m.query, m.searching, question, width, height)
 	case branchWindow:

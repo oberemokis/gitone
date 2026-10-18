@@ -34,13 +34,53 @@ func commit(dir string, subject string, description string) error {
 		}
 	}
 
-	args := []string{"commit", "-m", subject}
+	_, err = run(call{dir: root}, messageArgs([]string{"commit"}, subject, description)...)
+	return err
+}
+
+// messageArgs добавляет к команде тему и описание вторым -m: git ставит между
+// ними пустую строку, а пустое описание тела не даёт.
+func messageArgs(args []string, subject, description string) []string {
+	args = append(args, "-m", subject)
 	if body := strings.TrimSpace(description); body != "" {
 		args = append(args, "-m", body)
 	}
+	return args
+}
 
-	_, err = run(call{dir: root}, args...)
-	return err
+// LastMessage возвращает тему и описание последнего коммита (#218): окно
+// amend открывается с ними. В репозитории без коммитов исправлять нечего.
+func LastMessage(dir string) (subject, description string, err error) {
+	out, err := inRoot(dir, "log", "-1", "--format=%s%x00%b")
+	if err != nil {
+		if !hasCommits(dir) {
+			err = i18n.New("git.noCommits", nil)
+		}
+		return "", "", failed("log", err)
+	}
+
+	subject, description, _ = strings.Cut(strings.TrimRight(out, "\n"), "\x00")
+	return subject, strings.TrimSpace(description), nil
+}
+
+// Amend переписывает последний коммит (#218): индекс входит в него, тема и
+// описание заменяются. published говорит, что прежний коммит уже лежал в
+// upstream: после amend ветка разошлась с remote, и обычный push её не
+// отправит. Хуки выполняются, как у Commit.
+func Amend(dir, subject, description string) (published bool, err error) {
+	published, err = amend(dir, subject, description)
+	return published, failed("commit", err)
+}
+
+func amend(dir, subject, description string) (bool, error) {
+	root, err := topLevel(dir)
+	if err != nil {
+		return false, err
+	}
+
+	_, pushedErr := run(call{dir: root}, "merge-base", "--is-ancestor", "HEAD", "@{upstream}")
+	_, err = run(call{dir: root}, messageArgs([]string{"commit", "--amend"}, subject, description)...)
+	return err == nil && pushedErr == nil, headline(err)
 }
 
 // inProgress говорит, что в репозитории не завершены слияние, cherry-pick или
