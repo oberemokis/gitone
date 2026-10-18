@@ -5,12 +5,14 @@ import "gitone/internal/diff"
 // selection это выделение изменённых строк для индекса (#212). Курсор и якорь
 // это изменённые строки по номерам, а не по индексу на экране: так выделение
 // переживает смену вида, ширины и перенос. hunk значит, что выделен весь хунк
-// под курсором, иначе строки от якоря до курсора.
+// под курсором, иначе строки от якоря до курсора. conflict значит выбор
+// конфликтов (conflict.go): выделен конфликт под курсором.
 type selection struct {
-	on     bool
-	hunk   bool
-	cursor diff.LineRef
-	anchor diff.LineRef
+	on       bool
+	hunk     bool
+	conflict bool
+	cursor   diff.LineRef
+	anchor   diff.LineRef
 }
 
 // Select показывает file и ставит курсор на первую изменённую строку экрана,
@@ -58,8 +60,13 @@ func (m Model) Deselect(file diff.File) Model {
 }
 
 // MoveCursor переводит курсор на delta изменённых строк вниз или вверх, а при
-// выделении хунка на delta хунков. Экран идёт за курсором.
+// выделении хунка на delta хунков, при выборе конфликтов на delta
+// конфликтов. Экран идёт за курсором.
 func (m Model) MoveCursor(delta int) Model {
+	if m.selection.conflict {
+		return m.moveConflict(delta)
+	}
+
 	index := m.cursorIndex()
 	if index < 0 {
 		return m
@@ -114,6 +121,9 @@ func (m Model) bounds() (from, to int) {
 	if !m.selection.on || cursor < 0 {
 		return 0, -1
 	}
+	if m.selection.conflict {
+		return m.conflictBounds()
+	}
 	if m.selection.hunk {
 		return m.hunkBounds(cursor)
 	}
@@ -159,6 +169,9 @@ func (m Model) follow() Model {
 // перечитывания: строку поставили в индекс. Тогда он встаёт на ближайшую
 // изменённую строку ниже, а без неё выше.
 func (m Model) cursorIndex() int {
+	if m.selection.conflict {
+		return m.conflictCursor()
+	}
 	if index := m.rowIndex(m.selection.cursor); index >= 0 {
 		return index
 	}

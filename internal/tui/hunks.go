@@ -35,9 +35,13 @@ func unstagedCmd(dir, path string, flags []string, refresh bool) tea.Cmd {
 // lazygit: на экране вместо диффа от HEAD правки файла вне индекса, и space
 // ставит выделенное из них. Повторное нажатие переключает выделение хунка и
 // строк. Хунки есть только у изменённого текстового файла: новый,
-// неотслеженный, удалённый и переименованный ставятся целиком.
+// неотслеженный, удалённый и переименованный ставятся целиком. На файле с
+// конфликтом слияния вместо выделения выбор конфликтов (#242).
 func (m Model) startSelect() (tea.Model, tea.Cmd) {
-	if m.view.Selecting() {
+	switch {
+	case m.view.SelectingConflicts():
+		return m, nil
+	case m.view.Selecting():
 		m.view = m.view.ToggleLines()
 		return m, nil
 	}
@@ -47,6 +51,9 @@ func (m Model) startSelect() (tea.Model, tea.Cmd) {
 		return m.putNotice(note, true), nil
 	}
 	file := m.files[m.current]
+	if m.index.Conflicted[stagedKey(file)] {
+		return m.startConflicts(file), nil
+	}
 	if file.Status != diff.StatusModified || file.Binary {
 		return m.putNotice(m.text.Text("select.wholeFile", i18n.Args{"key": firstKey(m.keys, keymap.FilesStage)}), true), nil
 	}
@@ -85,13 +92,22 @@ func (m Model) unstagedArrived(msg unstagedMsg) Model {
 
 // refreshSelection перечитывает выделение после перечитывания диффа: правка
 // индекса или файла меняет то, что вне индекса. Вид только для просмотра
-// (аргументы, коммит из лога) выделение снимает.
+// (аргументы, коммит из лога) выделение снимает. Выбор конфликтов идёт по
+// диффу от HEAD и остаётся, пока у файла есть конфликт.
 func (m Model) refreshSelection() (Model, tea.Cmd) {
 	if !m.view.Selecting() || len(m.files) == 0 {
 		return m, nil
 	}
 
 	file := m.files[m.current]
+	if m.view.SelectingConflicts() {
+		if len(m.args) == 0 && m.index.Conflicted[stagedKey(file)] {
+			m.view = m.view.Reload(file)
+		} else {
+			m.view = m.view.Deselect(file)
+		}
+		return m, nil
+	}
 	if len(m.args) > 0 || file.Status != diff.StatusModified {
 		m.view = m.view.Deselect(file)
 		return m, nil
@@ -113,10 +129,14 @@ func (m Model) selectionAction(action keymap.Action) (next tea.Model, cmd tea.Cm
 		m.view = m.view.MoveCursor(1)
 	case action == keymap.DiffScrollUp:
 		m.view = m.view.MoveCursor(-1)
+	case action == keymap.FilesStage && m.view.SelectingConflicts():
+		next, cmd = m.chooseSide()
+		return next, cmd, true
 	case action == keymap.FilesStage:
 		next, cmd = m.stageSelection()
 		return next, cmd, true
-	case action == keymap.FilesDiscard:
+	// при выборе конфликтов x отменяет файл целиком, как без выбора
+	case action == keymap.FilesDiscard && !m.view.SelectingConflicts():
 		next, cmd = m.askDiscardSelection()
 		return next, cmd, true
 	case action == keymap.HelpClose && !m.helpOpen:

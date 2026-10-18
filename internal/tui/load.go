@@ -21,31 +21,69 @@ func Load(dir string, args []string, flags ...string) ([]diff.File, error) {
 	return diff.Parse(text), nil
 }
 
-// Staged возвращает пути, у которых индекс отличается от HEAD. По ним space
-// решает, ставить файл в индекс или убирать. partial это те из них, у которых
-// и рабочее дерево отличается от индекса: файл поставлен частично (#212).
-func Staged(dir string) (staged, partial map[string]bool, err error) {
-	paths, err := git.StagedPaths(dir)
+// withConflicts дописывает в дифф рабочего дерева файлы с конфликтом, которых
+// в нём нет (#242): у бинарного конфликта git оставляет в дереве нашу версию,
+// она совпадает с HEAD, и файл пропал бы из списка, а решать его надо. Дифф с
+// аргументами только для просмотра, туда ничего не дописывается.
+func withConflicts(files []diff.File, args []string, conflicted map[string]bool) []diff.File {
+	if len(args) > 0 {
+		return files
+	}
+
+	var missing []string
+	for path := range conflicted {
+		if !slices.ContainsFunc(files, func(file diff.File) bool { return stagedKey(file) == path }) {
+			missing = append(missing, path)
+		}
+	}
+	slices.Sort(missing)
+
+	for _, path := range missing {
+		files = append(files, diff.File{OldPath: path, NewPath: path, Status: diff.StatusModified})
+	}
+	return files
+}
+
+// Index это состояние индекса по путям. Staged: индекс отличается от HEAD, по
+// ним space решает, ставить файл в индекс или убирать. Partial: из них те, у
+// которых и рабочее дерево отличается от индекса, файл поставлен частично
+// (#212). Conflicted: нерешённый конфликт слияния (#242).
+type Index struct {
+	Staged     map[string]bool
+	Partial    map[string]bool
+	Conflicted map[string]bool
+}
+
+// ReadIndex читает состояние индекса.
+func ReadIndex(dir string) (Index, error) {
+	staged, err := git.StagedPaths(dir)
 	if err != nil {
-		return nil, nil, err
+		return Index{}, err
 	}
 	unstaged, err := git.UnstagedPaths(dir)
 	if err != nil {
-		return nil, nil, err
+		return Index{}, err
+	}
+	conflicted, err := git.ConflictedPaths(dir)
+	if err != nil {
+		return Index{}, err
 	}
 
-	staged = make(map[string]bool, len(paths))
-	for _, path := range paths {
-		staged[path] = true
-	}
-	partial = make(map[string]bool)
+	index := Index{Staged: pathSet(staged), Partial: make(map[string]bool), Conflicted: pathSet(conflicted)}
 	for _, path := range unstaged {
-		if staged[path] {
-			partial[path] = true
+		if index.Staged[path] {
+			index.Partial[path] = true
 		}
 	}
+	return index, nil
+}
 
-	return staged, partial, nil
+func pathSet(paths []string) map[string]bool {
+	set := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		set[path] = true
+	}
+	return set
 }
 
 // Locate называет ветку и worktree для подвала.
@@ -74,8 +112,7 @@ type reloadMsg struct {
 	args     []string
 	flags    []string
 	files    []diff.File
-	staged   map[string]bool
-	partial  map[string]bool
+	index    Index
 	location git.Location
 	err      error
 }
@@ -104,10 +141,11 @@ func readDiff(dir string, args, flags []string) reloadMsg {
 	if msg.err != nil {
 		return msg
 	}
-	msg.staged, msg.partial, msg.err = Staged(dir)
+	msg.index, msg.err = ReadIndex(dir)
 	if msg.err != nil {
 		return msg
 	}
+	msg.files = withConflicts(msg.files, args, msg.index.Conflicted)
 
 	msg.location, msg.err = Locate(dir)
 	return msg
@@ -130,7 +168,7 @@ func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
 		m = m.say(m.text.Error(msg.err))
 	} else {
 		m = m.applyReload(msg.files)
-		m.staged, m.partial, m.location = msg.staged, msg.partial, msg.location
+		m.index, m.location = msg.index, msg.location
 	}
 
 	if m.stale {

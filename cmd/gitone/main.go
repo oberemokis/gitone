@@ -123,8 +123,8 @@ func loadWithNotice(opts tui.Options) (tea.Model, error) {
 	})
 
 	files, err := tui.Load(opts.Dir, opts.Args)
-	staged, partial, stagedErr := tui.Staged(opts.Dir)
-	opts.Staged, opts.Partial = staged, partial
+	index, stagedErr := tui.ReadIndex(opts.Dir)
+	opts.Index = index
 	// вне репозитория Load уже вернул ошибку, вторая ничего бы не добавила
 	opts.Location, _ = tui.Locate(opts.Dir)
 	opts.Notice = addNotice(opts.Text, opts.Notice, stagedErr)
