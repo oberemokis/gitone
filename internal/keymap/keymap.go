@@ -46,6 +46,7 @@ const (
 	DiffWorkingTree  Action = "diff.workingTree"
 	AppBranches      Action = "app.branches"
 	AppWorktrees     Action = "app.worktrees"
+	AppTags          Action = "app.tags"
 	GitPull          Action = "git.pull"
 	GitPush          Action = "git.push"
 	GitFetch         Action = "git.fetch"
@@ -114,14 +115,19 @@ const (
 	StashDrop        Action = "stash.drop"
 	StashNew         Action = "stash.new"
 	StashRename      Action = "stash.rename"
-	QuestionYes      Action = "question.yes"
-	SearchChoose     Action = "search.choose"
-	SearchClose      Action = "search.close"
-	SearchUp         Action = "search.up"
-	SearchDown       Action = "search.down"
-	CommitSubmit     Action = "commit.submit"
-	CommitField      Action = "commit.field"
-	CommitClose      Action = "commit.close"
+	// окно тегов (#238)
+	TagsDiff     Action = "tags.diff"
+	TagsNew      Action = "tags.new"
+	TagsDelete   Action = "tags.delete"
+	TagsPush     Action = "tags.push"
+	QuestionYes  Action = "question.yes"
+	SearchChoose Action = "search.choose"
+	SearchClose  Action = "search.close"
+	SearchUp     Action = "search.up"
+	SearchDown   Action = "search.down"
+	CommitSubmit Action = "commit.submit"
+	CommitField  Action = "commit.field"
+	CommitClose  Action = "commit.close"
 	// поиск в логе, ветках и worktree: / открывает поле, done оставляет
 	// фильтр, cancel снимает
 	ListSearch       Action = "list.search"
@@ -206,6 +212,7 @@ func windows() [][]Action {
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, BranchesUpstream, CherryPickPaste, CompareWith, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
+		append([]Action{TagsDiff, TagsNew, TagsDelete, TagsPush, ListSearch}, list...),
 		append([]Action{MenuChoose}, list...),
 		{QuestionYes},
 		{SearchChoose, SearchClose, SearchUp, SearchDown},
@@ -548,6 +555,7 @@ func defaults() []Binding {
 		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Help: true},
 		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Help: true},
 		{Action: AppWorktrees, Category: CategoryGeneral, Keys: []string{"W"}, Help: true},
+		{Action: AppTags, Category: CategoryGeneral, Keys: []string{"t"}, Help: true},
 		{Action: GitPull, Category: CategoryGeneral, Keys: []string{"p"}, Help: true},
 		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
 		// f у lazygit, здесь f открывает панель файлов
@@ -612,6 +620,10 @@ func defaults() []Binding {
 		{Action: StashNew, Keys: []string{"n"}},
 		{Action: StashRename, Keys: []string{"r"}},
 		{Action: StashDrop, Keys: []string{"d"}},
+		{Action: TagsDiff, Keys: []string{"enter"}},
+		{Action: TagsNew, Keys: []string{"n"}},
+		{Action: TagsDelete, Keys: []string{"d"}},
+		{Action: TagsPush, Keys: []string{"P"}},
 		{Action: QuestionYes, Keys: []string{"y"}},
 		{Action: SearchChoose, Keys: []string{"enter"}},
 		{Action: SearchClose, Keys: []string{"esc"}},
