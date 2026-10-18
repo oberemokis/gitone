@@ -38,6 +38,7 @@ const (
 	FilesStage       Action = "files.stage"
 	FilesDiscard     Action = "files.discard"
 	FilesCommit      Action = "files.commit"
+	FilesIgnore      Action = "files.ignore"
 	AppLog           Action = "app.log"
 	DiffWorkingTree  Action = "diff.workingTree"
 	AppBranches      Action = "app.branches"
@@ -507,6 +508,7 @@ func defaults() []Binding {
 		{Action: FilesStage, Category: CategoryFiles, Keys: []string{"space"}, Help: true},
 		{Action: FilesDiscard, Category: CategoryFiles, Keys: []string{"x"}, Help: true},
 		{Action: FilesCommit, Category: CategoryFiles, Keys: []string{"c"}, Help: true},
+		{Action: FilesIgnore, Category: CategoryFiles, Keys: []string{"i"}, Help: true},
 		{Action: AppLog, Category: CategoryDiff, Keys: []string{"l"}, Help: true},
 		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Help: true},
 		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Help: true},
