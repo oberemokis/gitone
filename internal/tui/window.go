@@ -325,10 +325,24 @@ func (l list) rowWidth(screenWidth int) int {
 // прокручивается так, чтобы курсор оставался видимым.
 func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	width := l.windowWidth(screenWidth)
-	// без двух отступов окна, заголовка с пустой строкой под ним и подсказки
-	// с пустой строкой над ней (по две строки), заголовков столбцов (одна) и
-	// поиска с пустой строкой под ним (две) (#153)
-	chrome := 6
+	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
+	content := width - 2*windowPaddingX
+
+	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	muted := panel.Foreground(colors.TextMuted)
+
+	// вопрос обрезается, как строки: иначе окно вылезло бы за экран. Подсказка
+	// переносится по парам «клавиша подпись», когда действий больше, чем
+	// помещается в строку (#229)
+	bottom := packHint(panel, muted, l.hint, content)
+	if l.question != "" {
+		bottom = []string{panel.Foreground(colors.Error).Render(ansi.Truncate(l.question, content, "…"))}
+	}
+
+	// без двух отступов окна, заголовка с пустой строкой под ним, пустой строки
+	// над подсказкой и самой подсказки, заголовков столбцов (одна) и поиска с
+	// пустой строкой под ним (две) (#153)
+	chrome := 5 + len(bottom)
 	if l.header != "" {
 		chrome++
 	}
@@ -339,12 +353,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	if l.fill {
 		shown = max(screenHeight-2*min(fillMarginY, screenHeight/8)-chrome, 1)
 	}
-	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
-	content := width - 2*windowPaddingX
 	start := max(0, l.cursor-shown+1)
-
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
 
 	lines := []string{windowTitle(colors, content, l.title, l.close), ""}
 	// поиск отделён пустыми строками сверху и снизу (#133)
@@ -377,19 +386,37 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	}
 
 	// окно на весь экран держит высоту и с коротким списком
-	for l.fill && len(lines) < shown+chrome-4 {
+	for l.fill && len(lines) < shown+chrome-3-len(bottom) {
 		lines = append(lines, "")
 	}
 
-	// подсказка и вопрос обрезаются, как строки: длинные переназначенные
-	// клавиши иначе перенесли бы строку, и окно вылезло бы за экран
-	last := ansi.Truncate(l.hint, content, muted.Render("…"))
-	if l.question != "" {
-		last = panel.Foreground(colors.Error).Render(ansi.Truncate(l.question, content, "…"))
-	}
-	lines = append(lines, "", last)
+	lines = append(append(lines, ""), bottom...)
 
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))
+}
+
+// packHint раскладывает подсказку окна по строкам шириной width: пары
+// «клавиша подпись» (windowHint) не рвутся, строка переносится между ними. Пара
+// шире строки обрезается «…»: длинную переназначенную клавишу иначе нечем
+// показать.
+func packHint(panel, muted lipgloss.Style, hint string, width int) []string {
+	gap := panel.Render("   ")
+	ellipsis := muted.Render("…")
+
+	var lines []string
+	line := ""
+	for _, pair := range strings.Split(hint, gap) {
+		switch {
+		case line == "":
+			line = pair
+		case ansi.StringWidth(line+gap+pair) <= width:
+			line += gap + pair
+		default:
+			lines = append(lines, ansi.Truncate(line, width, ellipsis))
+			line = pair
+		}
+	}
+	return append(lines, ansi.Truncate(line, width, ellipsis))
 }
 
 // windowPaddingX это боковой отступ окон списка и коммита.

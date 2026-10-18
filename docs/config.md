@@ -119,6 +119,7 @@ git получает тот же язык через переменную `LANGU
 | `log.open` | `enter` | лог: диф коммита |
 | `branches.switch` | `enter` | ветки |
 | `branches.new`, `branches.rename`, `branches.delete` | `n`, `R`, `d` | ветки: новая ветка на выбранной, переименование выбранной только локально, удаление выбранной после `y` |
+| `branches.merge`, `branches.rebase` | `M`, `r` | ветки: слить выбранную в текущую, перестроить текущую поверх выбранной |
 | `worktrees.switch` | `enter` | worktree |
 | `stash.diff`, `stash.apply`, `stash.drop` | `enter`, `a`, `d` | stash |
 | `question.yes` | `y` | вопросы: любая другая клавиша значит «нет» |

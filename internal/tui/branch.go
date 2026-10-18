@@ -83,7 +83,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	pressed := key.String()
-	acts := []keymap.Action{keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete}
+	acts := []keymap.Action{keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase}
 	if !slices.ContainsFunc(acts, func(action keymap.Action) bool { return m.keys.Is(action, pressed) }) || len(shown) == 0 {
 		return m, nil
 	}
@@ -99,6 +99,10 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.askRename(branch.Name), nil
 	case m.keys.Is(keymap.BranchesDelete, pressed):
 		return m.askDeleteBranch(branch), nil
+	case m.keys.Is(keymap.BranchesMerge, pressed):
+		return m.ontoCurrent(branch, git.Merge, "branches.merged")
+	case m.keys.Is(keymap.BranchesRebase, pressed):
+		return m.ontoCurrent(branch, git.Rebase, "branches.rebased")
 	}
 
 	m.active = noWindow
@@ -106,6 +110,22 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, switchCmd(m.dir, branch.Name)
+}
+
+// ontoCurrent сливает выбранную ветку в текущую или перестраивает текущую
+// поверх неё (#229), без вопроса: операцию отменяет reflog, а конфликт
+// останавливает её с причиной в подвале. Выбрана сама текущая, и подвал
+// сразу говорит, что нужна другая. Итог успеха noteKey гаснет сам.
+func (m Model) ontoCurrent(branch git.Branch, run func(dir, name string) error, noteKey string) (tea.Model, tea.Cmd) {
+	if branch.Current {
+		return m.putNotice(m.text.Text("branches.sameBranch", nil), false), nil
+	}
+
+	m.active = noWindow
+	dir, note := m.dir, m.text.Text(noteKey, i18n.Args{"name": visible(branch.Name)})
+	return m, func() tea.Msg {
+		return actionDoneMsg{err: run(dir, branch.Name), note: note}
+	}
 }
 
 // askBranchName спрашивает имя новой ветки на base, как n в lazygit: базой
@@ -162,7 +182,7 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 		width:    90,
 		cursor:   cursor,
 		empty:    []string{text.Text("branches.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.ListSearch),
+		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.ListSearch),
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
 

@@ -68,3 +68,16 @@ func RenameBranch(dir, from, to string) error {
 	_, err := inRoot(dir, "branch", "-m", "--", from, to)
 	return failed("branch", err)
 }
+
+// Merge сливает ветку name в текущую (#229): перемоткой, если можно, иначе
+// merge-коммитом с сообщением по умолчанию, редактор не открывается. Конфликт
+// останавливает слияние, ошибка тогда git.stoppedOnConflict.
+func Merge(dir, name string) error {
+	return failed("merge", stopping(dir, "merge", "merge", "--no-edit", name))
+}
+
+// Rebase перестраивает текущую ветку поверх name (#229). Грязное дерево git
+// отвергает, конфликт останавливает rebase на первом спорном коммите.
+func Rebase(dir, name string) error {
+	return failed("rebase", stopping(dir, "rebase", "rebase", name))
+}
