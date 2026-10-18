@@ -91,6 +91,8 @@ func loadSettings() (tui.Options, []error) {
 	palette, themeErr := theme.Load(dir, settings.Theme)
 	root, layoutErr := layout.Load(dir, settings.Layout)
 	opts.Config, opts.Keys, opts.Theme, opts.Layout = settings, keys, palette, root
+	// state.json с недавними репозиториями лежит рядом с конфигом (#248)
+	opts.StateDir = dir
 
 	return opts, []error{settingsErr, keysErr, themeErr, layoutErr}
 }

@@ -155,6 +155,9 @@ func (m Model) clickRow(index int) (tea.Model, tea.Cmd) {
 	case submoduleWindow, journalWindow:
 		m.cursor = index
 		return m, nil
+	case recentWindow:
+		m.cursor = index
+		return m.press(keymap.RecentOpen)
 	case reflogWindow:
 		m.cursor = index
 		return m.press(keymap.LogOpen)

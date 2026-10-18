@@ -86,7 +86,11 @@ type Model struct {
 	submodules []git.Submodule
 	// журнал команд git для окна (#247)
 	journal []git.JournalEntry
-	picker  picker.Model
+	// недавние репозитории для окна и каталог state.json (#248), пустой без
+	// записи состояния
+	recent   []recentRepo
+	stateDir string
+	picker   picker.Model
 	// заметка подвала стоит до следующего нажатия, а гаснущая (fades) ещё и
 	// пропадает сама через noticeLifetime (notice.go); noticeID номер заметки, у
 	// таймера свой номер; noFade выключает таймер (Options.KeepNotices).
@@ -163,6 +167,9 @@ type Options struct {
 	// подставляет запуск без терминала: Bubble Tea выполняет ExecProcess сам,
 	// и команда без программы его не выполнит.
 	Exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd
+	// StateDir каталог state.json со списком недавних репозиториев (#248),
+	// пусто значит без записи состояния: так работают тесты
+	StateDir string
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -210,11 +217,13 @@ func New(opts Options, files []diff.File) Model {
 		text:     opts.Text,
 		files:    files,
 		view:     view,
+		stateDir: opts.StateDir,
 	}
 }
 
+// Init ждёт тик опроса и записывает открытый репозиторий в недавние (#248).
 func (m Model) Init() tea.Cmd {
-	return waitTick(m.ticks)
+	return tea.Batch(waitTick(m.ticks), rememberRepoCmd(m.stateDir, m.dir))
 }
 
 // Update разбирает сообщение, а после него следит, чтобы открытый
@@ -308,6 +317,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.reflogArrived(msg)
 	case journalMsg:
 		m = m.journalArrived(msg)
+	case recentMsg:
+		m = m.recentArrived(msg)
 	case submodulesMsg:
 		m = m.submodulesArrived(msg)
 	case lastMessageMsg:
@@ -584,6 +595,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m, reflogCmd(m.dir)
 	case keymap.AppJournal:
 		return m, journalCmd()
+	case keymap.AppRecent:
+		return m, recentCmd(m.stateDir, m.dir)
 	case keymap.AppSubmodules:
 		return m, submodulesCmd(m.dir)
 	case keymap.StashPush:
