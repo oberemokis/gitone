@@ -22,6 +22,8 @@ const (
 	fetching
 	// push с --force-with-lease после вопроса (#234)
 	forcePushing
+	// отправка тега на origin (#238)
+	pushingTag
 )
 
 // remote это идущий pull или push. Он идёт командой в фоне, интерфейс при этом
@@ -41,7 +43,7 @@ func (r remote) running() bool {
 // labelKey это надпись индикатора в подвале, busyKey заметка об отказе.
 func (r remote) labelKey() string {
 	switch r.kind {
-	case pushing, forcePushing:
+	case pushing, forcePushing, pushingTag:
 		return "screen.pushing"
 	case fetching:
 		return "screen.fetching"
@@ -51,7 +53,7 @@ func (r remote) labelKey() string {
 
 func (r remote) busyKey() string {
 	switch r.kind {
-	case pushing, forcePushing:
+	case pushing, forcePushing, pushingTag:
 		return "remote.pushRunning"
 	case fetching:
 		return "remote.fetchRunning"
@@ -183,6 +185,8 @@ func (m Model) remoteResult(msg remoteDoneMsg) string {
 	switch {
 	case msg.kind == pushing || msg.kind == forcePushing:
 		return m.text.Text("remote.pushed", i18n.Args{"target": msg.target})
+	case msg.kind == pushingTag:
+		return m.text.Text("tags.pushed", i18n.Args{"name": visible(msg.target)})
 	case msg.kind == fetching:
 		return m.text.Text("remote.fetched", nil)
 	case msg.updated:

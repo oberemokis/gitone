@@ -80,6 +80,7 @@ type Model struct {
 	branches  []git.Branch
 	worktrees []git.Worktree
 	stashes   []git.Stash
+	tags      []git.Tag
 	picker    picker.Model
 	// заметка подвала стоит до следующего нажатия, а гаснущая (fades) ещё и
 	// пропадает сама через noticeLifetime (notice.go); noticeID номер заметки, у
@@ -287,6 +288,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resetTargetFound(msg)
 	case remoteBranchesMsg:
 		m = m.chooseUpstream(msg)
+	case tagsMsg:
+		m = m.tagsArrived(msg)
 	case lastMessageMsg:
 		m = m.openAmend(msg)
 	case rewordMsg:
@@ -542,6 +545,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m, branchesCmd(m.dir)
 	case keymap.AppWorktrees:
 		return m, worktreesCmd(m.dir)
+	case keymap.AppTags:
+		return m, tagsCmd(m.dir)
 	case keymap.StashPush:
 		return m, stashPushCmd(m.dir)
 	case keymap.StashList:

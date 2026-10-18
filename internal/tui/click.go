@@ -145,6 +145,9 @@ func (m Model) clickRow(index int) (tea.Model, tea.Cmd) {
 	case stashWindow:
 		m.cursor = index
 		return m.press(keymap.StashDiff)
+	case tagWindow:
+		m.cursor = index
+		return m.press(keymap.TagsDiff)
 	case menuWindow:
 		m.menu.cursor = index
 		return m.press(keymap.MenuChoose)
