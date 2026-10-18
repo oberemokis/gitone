@@ -64,8 +64,10 @@ type Model struct {
 	subject     string
 	description editor.Model
 	commitField commitField
-	// amending: окно коммита переписывает последний коммит (#218)
+	// amending: окно коммита переписывает последний коммит (#218), rewording
+	// хэш коммита, сообщение которого оно правит (#219)
 	amending   bool
+	rewording  string
 	logEntries []git.LogEntry
 	// logFilter фильтр открытого лога по автору и пути (#226)
 	logFilter git.LogFilter
@@ -287,6 +289,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.chooseUpstream(msg)
 	case lastMessageMsg:
 		m = m.openAmend(msg)
+	case rewordMsg:
+		m = m.openReword(msg)
+	case rewrittenMsg:
+		return m.rewritten(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список

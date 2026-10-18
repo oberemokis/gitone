@@ -244,8 +244,9 @@ func oneTick() <-chan time.Time {
 
 // runAll выполняет команду, как Bubble Tea: части пакетной команды идут
 // одновременно. Ждёт все части и возвращает ответы в порядке пакета, а не в
-// порядке прихода. Ожидание тика возвращается только по тику или закрытию
-// канала, поэтому тест с таймером берёт закрытый канал из oneTick.
+// порядке прихода. Пакет внутри пакета раскрывается так же, как его раскрывает
+// Bubble Tea. Ожидание тика возвращается только по тику или закрытию канала,
+// поэтому тест с таймером берёт закрытый канал из oneTick.
 func runAll(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
 		return nil
@@ -257,13 +258,17 @@ func runAll(cmd tea.Cmd) []tea.Msg {
 		return []tea.Msg{msg}
 	}
 
-	msgs := make([]tea.Msg, len(batch))
+	parts := make([][]tea.Msg, len(batch))
 	var wg sync.WaitGroup
 	for index, sub := range batch {
-		wg.Go(func() { msgs[index] = sub() })
+		wg.Go(func() { parts[index] = runAll(sub) })
 	}
 	wg.Wait()
 
+	var msgs []tea.Msg
+	for _, part := range parts {
+		msgs = append(msgs, part...)
+	}
 	return msgs
 }
 

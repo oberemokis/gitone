@@ -85,13 +85,25 @@ func (m Model) openCommit() Model {
 	return m.clearCommit()
 }
 
-// clearCommit сбрасывает набранное в окне коммита и режим amend.
+// clearCommit сбрасывает набранное в окне коммита и режимы amend и reword.
 func (m Model) clearCommit() Model {
 	m.subject = ""
 	m.description = editor.Model{}.Resize(commitFieldSize(m.width, m.bodyHeight()))
 	m.commitField = subjectField
-	m.amending = false
+	m.amending, m.rewording = false, ""
 	return m
+}
+
+// commitTitle это заголовок окна коммита по его режиму: amend (#218) и reword
+// (#219) правят уже сделанный коммит.
+func (m Model) commitTitle() string {
+	switch {
+	case m.amending:
+		return m.text.Text("commit.amendTitle", nil)
+	case m.rewording != "":
+		return m.text.Text("commit.rewordTitle", i18n.Args{"hash": m.rewording[:7]})
+	}
+	return m.text.Text("commit.title", nil)
 }
 
 // wheelCommit прокручивает поле описания колесом на столько же строк, что и
@@ -129,12 +141,15 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if subject == "" {
 			return m, nil
 		}
-		description, amending := m.description.Text(), m.amending
+		description, amending, rewording := m.description.Text(), m.amending, m.rewording
 		m.active = noWindow
 		m = m.clearCommit()
-		if amending {
+		switch {
+		case amending:
 			note := m.text.Text("commit.amended", nil)
 			return m, amendCmd(m.dir, subject, description, note, m.text.Text("commit.amendPublished", nil))
+		case rewording != "":
+			return m, m.rewrite(rewording, git.RewriteReword, fullMessage(subject, description), -1)
 		}
 		return m, commitCmd(m.dir, subject, description)
 	case pressed == "backspace":
@@ -174,18 +189,13 @@ func commitFieldSize(screenWidth, bodyHeight int) (width, height int) {
 
 // commitBox рисует окно коммита: тему и описание, у каждого подпись, активное
 // поле с курсором и подписью accent. Подсказка внизу называет поле, куда ведёт
-// commit.field. В режиме amend (#218) заголовок говорит, что правится последний
-// коммит.
-func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, subject string, description editor.Model, field commitField, amending bool, screenWidth int) string {
+// commit.field. Заголовок называет режим окна (commitTitle).
+func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, heading, subject string, description editor.Model, field commitField, screenWidth int) string {
 	width := commitWidth(screenWidth)
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	content := width - 2*windowPaddingX
-	titleKey := "commit.title"
-	if amending {
-		titleKey = "commit.amendTitle"
-	}
-	title := windowTitle(colors, content, text.Text(titleKey, nil), closeHint(colors, keys, text, keymap.CommitClose))
+	title := windowTitle(colors, content, heading, closeHint(colors, keys, text, keymap.CommitClose))
 	label := func(key string, active bool) string {
 		color := colors.TextMuted
 		if active {
