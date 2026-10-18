@@ -82,7 +82,9 @@ type Model struct {
 	tags      []git.Tag
 	remotes   []git.Remote
 	reflog    []git.ReflogEntry
-	picker    picker.Model
+	// подмодули для окна (#244)
+	submodules []git.Submodule
+	picker     picker.Model
 	// заметка подвала стоит до следующего нажатия, а гаснущая (fades) ещё и
 	// пропадает сама через noticeLifetime (notice.go); noticeID номер заметки, у
 	// таймера свой номер; noFade выключает таймер (Options.KeepNotices).
@@ -302,6 +304,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.remotesArrived(msg)
 	case reflogMsg:
 		m = m.reflogArrived(msg)
+	case submodulesMsg:
+		m = m.submodulesArrived(msg)
 	case lastMessageMsg:
 		m = m.openAmend(msg)
 	case rewordMsg:
@@ -574,6 +578,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m, remotesCmd(m.dir)
 	case keymap.AppReflog:
 		return m, reflogCmd(m.dir)
+	case keymap.AppSubmodules:
+		return m, submodulesCmd(m.dir)
 	case keymap.StashPush:
 		return m, stashPushCmd(m.dir)
 	case keymap.StashList:
@@ -887,8 +893,11 @@ func (m Model) labels() []string {
 			labels[index] += " " + status
 		}
 		// частичный индекс отмечен словом (#212): space на таком файле уберёт
-		// из индекса и поставленную часть; конфликт тоже словом (#242)
+		// из индекса и поставленную часть; конфликт тоже словом (#242), а
+		// подмодуль словом, чтобы его не путали с файлом (#244)
 		switch key := stagedKey(file); {
+		case isSubmodule(file):
+			labels[index] += " " + m.text.Text("status.submodule", nil)
 		case m.index.Conflicted[key]:
 			labels[index] += " " + m.text.Text("status.conflict", nil)
 		case m.index.Partial[key]:
