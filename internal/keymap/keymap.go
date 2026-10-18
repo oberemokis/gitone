@@ -52,6 +52,8 @@ const (
 	GitPull          Action = "git.pull"
 	GitPush          Action = "git.push"
 	GitFetch         Action = "git.fetch"
+	GitUndo          Action = "git.undo"
+	GitRedo          Action = "git.redo"
 	StashPush        Action = "stash.push"
 	StashList        Action = "stash.list"
 	HelpClose        Action = "help.close"
@@ -569,6 +571,9 @@ func defaults() []Binding {
 		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
 		// f у lazygit, здесь f открывает панель файлов
 		{Action: GitFetch, Category: CategoryGeneral, Keys: []string{"F"}, Help: true},
+		// z и ctrl+z у lazygit, здесь z кладёт в stash; u и U как в vim
+		{Action: GitUndo, Category: CategoryGeneral, Keys: []string{"u"}, Help: true},
+		{Action: GitRedo, Category: CategoryGeneral, Keys: []string{"U"}, Help: true},
 		{Action: StashPush, Category: CategoryFiles, Keys: []string{"z"}, Help: true},
 		{Action: StashList, Category: CategoryFiles, Keys: []string{"Z"}, Help: true},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Help: true},
