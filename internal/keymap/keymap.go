@@ -74,6 +74,7 @@ const (
 	ListDown        Action = "list.down"
 	ListClose       Action = "list.close"
 	LogOpen         Action = "log.open"
+	LogRevert       Action = "log.revert"
 	BranchesSwitch  Action = "branches.switch"
 	BranchesNew     Action = "branches.new"
 	BranchesRename  Action = "branches.rename"
@@ -175,7 +176,7 @@ func (k Keymap) Is(action Action, key string) bool {
 func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
-		append([]Action{LogOpen, ListSearch}, list...),
+		append([]Action{LogOpen, LogRevert, ListSearch}, list...),
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
@@ -550,6 +551,7 @@ func defaults() []Binding {
 		{Action: ListDown, Keys: []string{"j", "down"}},
 		{Action: ListClose, Keys: []string{"esc"}},
 		{Action: LogOpen, Keys: []string{"enter"}},
+		{Action: LogRevert, Keys: []string{"t"}},
 		{Action: ListSearch, Keys: []string{"/"}},
 		{Action: BranchesSwitch, Keys: []string{"enter"}},
 		{Action: BranchesNew, Keys: []string{"n"}},
