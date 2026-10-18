@@ -171,12 +171,12 @@ func TestOpeningWindowResetsSearch(t *testing.T) {
 // list.search переназначается для всех списков сразу.
 func TestRemappedListSearch(t *testing.T) {
 	repo, _ := branchesWith(t, "fix-one", "feat-two")
-	model := openWithKeybinds(t, repo, `{"keybinds":{"list.search":"s"}}`, 120)
+	model := openWithKeybinds(t, repo, `{"keybinds":{"list.search":"S"}}`, 120)
 
 	for _, window := range []rune{'l', 'B', 'W'} {
-		opened := typeText(openAsync(model, key(window)), "s")
+		opened := typeText(openAsync(model, key(window)), "S")
 		if screen := screenText(opened); !strings.Contains(screen, "/ ") {
-			t.Fatalf("s не открыл поиск в окне %c:\n%s", window, screen)
+			t.Fatalf("S не открыл поиск в окне %c:\n%s", window, screen)
 		}
 	}
 }

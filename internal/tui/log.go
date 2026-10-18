@@ -19,17 +19,20 @@ import (
 // секундами ради списка, который всё равно не листают до конца.
 const logLimit = 200
 
-// logMsg несёт список коммитов под фильтром или ошибку git.
+// logMsg несёт список коммитов под фильтром или ошибку git. at это строка, на
+// которую встаёт курсор открытого лога после правки истории (#219), -1 значит
+// тот же коммит, что был под курсором.
 type logMsg struct {
 	entries []git.LogEntry
 	filter  git.LogFilter
 	err     error
+	at      int
 }
 
 func logCmd(dir string, filter git.LogFilter) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := git.Log(dir, logLimit, filter)
-		return logMsg{entries: entries, filter: filter, err: err}
+		return logMsg{entries: entries, filter: filter, err: err, at: -1}
 	}
 }
 
@@ -58,7 +61,12 @@ func (m Model) refilterLog(msg logMsg) Model {
 	}
 
 	m.logEntries, m.logFilter = msg.entries, msg.filter
-	m.cursor = max(slices.IndexFunc(m.logShown(), func(entry git.LogEntry) bool { return entry.Hash == hash && hash != "" }), 0)
+	shown := m.logShown()
+	if msg.at >= 0 {
+		m.cursor = commitRow(shown, 0, min(msg.at, len(shown)-1))
+		return m
+	}
+	m.cursor = max(slices.IndexFunc(shown, func(entry git.LogEntry) bool { return entry.Hash == hash && hash != "" }), 0)
 	return m
 }
 
@@ -130,6 +138,9 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	entry, pressed := shown[m.cursor], key.String()
+	if next, cmd, handled := m.rewriteKey(pressed, entry); handled {
+		return next, cmd
+	}
 	switch {
 	case m.keys.Is(keymap.LogOpen, pressed):
 		return m.showCommit(entry)
@@ -264,7 +275,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:    closeHint(colors, keys, text, keymap.ListClose),
 		cursor:   cursor,
 		empty:    []string{text.Text("log.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.ListSearch, keymap.LogFilter),
+		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.LogSquash, keymap.LogFixup, keymap.LogReword, keymap.LogDrop, keymap.LogMoveUp, keymap.LogMoveDown, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.ListSearch, keymap.LogFilter),
 		fill:     true,
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))

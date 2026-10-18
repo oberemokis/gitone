@@ -51,7 +51,13 @@ func messageArgs(args []string, subject, description string) []string {
 // LastMessage возвращает тему и описание последнего коммита (#218): окно
 // amend открывается с ними. В репозитории без коммитов исправлять нечего.
 func LastMessage(dir string) (subject, description string, err error) {
-	out, err := inRoot(dir, "log", "-1", "--format=%s%x00%b")
+	return Message(dir, "HEAD")
+}
+
+// Message возвращает тему и описание коммита rev: amend и reword (#219)
+// открывают окно коммита с ними.
+func Message(dir, rev string) (subject, description string, err error) {
+	out, err := inRoot(dir, "log", "-1", "--format=%s%x00%b", rev, "--")
 	if err != nil {
 		if !hasCommits(dir) {
 			err = i18n.New("git.noCommits", nil)

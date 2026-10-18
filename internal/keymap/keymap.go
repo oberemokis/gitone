@@ -88,7 +88,14 @@ const (
 	// сравнение с веткой или коммитом (#216): в логе и в окне веток
 	CompareWith Action = "compare.with"
 	// фильтр лога по автору и пути (#226)
-	LogFilter        Action = "log.filter"
+	LogFilter Action = "log.filter"
+	// правка истории в логе (#219)
+	LogSquash        Action = "log.squash"
+	LogFixup         Action = "log.fixup"
+	LogReword        Action = "log.reword"
+	LogDrop          Action = "log.drop"
+	LogMoveUp        Action = "log.moveUp"
+	LogMoveDown      Action = "log.moveDown"
 	BranchesSwitch   Action = "branches.switch"
 	BranchesNew      Action = "branches.new"
 	BranchesRename   Action = "branches.rename"
@@ -192,7 +199,7 @@ func (k Keymap) Is(action Action, key string) bool {
 func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
-		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogFilter, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, list...),
+		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogFilter, LogSquash, LogFixup, LogReword, LogDrop, LogMoveUp, LogMoveDown, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, list...),
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, BranchesUpstream, CherryPickPaste, CompareWith, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
@@ -574,6 +581,12 @@ func defaults() []Binding {
 		{Action: CherryPickPaste, Keys: []string{"V"}},
 		{Action: CompareWith, Keys: []string{"W"}},
 		{Action: LogFilter, Keys: []string{"ctrl+s"}},
+		{Action: LogSquash, Keys: []string{"s"}},
+		{Action: LogFixup, Keys: []string{"f"}},
+		{Action: LogReword, Keys: []string{"r"}},
+		{Action: LogDrop, Keys: []string{"d"}},
+		{Action: LogMoveUp, Keys: []string{"ctrl+k"}},
+		{Action: LogMoveDown, Keys: []string{"ctrl+j"}},
 		{Action: LogNewBranch, Keys: []string{"n"}},
 		{Action: LogCheckout, Keys: []string{"space"}},
 		{Action: LogCopy, Keys: []string{"y"}},
