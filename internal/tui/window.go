@@ -31,6 +31,7 @@ const (
 	remoteWindow
 	reflogWindow
 	submoduleWindow
+	journalWindow
 	// поле ввода и меню поверх окна или главного экрана (prompt.go, menu.go)
 	promptWindow
 	menuWindow
@@ -72,6 +73,8 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.reflogKey(key)
 	case submoduleWindow:
 		return m.submoduleKey(key)
+	case journalWindow:
+		return m.journalKey(key)
 	}
 
 	// окна выше подвал не гасят: сообщение, пришедшее при открытом окне,
@@ -127,6 +130,8 @@ func (m Model) windowBox() string {
 		return reflogBox(m.colors, m.text, m.keys, m.reflogShown(), m.cursor, m.query, m.searching, width, height)
 	case submoduleWindow:
 		return submoduleBox(m.colors, m.text, m.keys, m.submodules, m.cursor, width, height)
+	case journalWindow:
+		return journalBox(m.colors, m.text, m.keys, m.journal, m.cursor, width, height)
 	}
 
 	if m.helpOpen {
@@ -202,6 +207,8 @@ func (m Model) wheelList(button tea.MouseButton) Model {
 		m = m.moveCursor(delta*wheelStep, len(m.reflogShown()))
 	case submoduleWindow:
 		m = m.moveCursor(delta*wheelStep, len(m.submodules))
+	case journalWindow:
+		m = m.moveCursor(delta*wheelStep, len(m.journal))
 	case menuWindow:
 		m.menu = m.menu.move(delta * wheelStep)
 	}
