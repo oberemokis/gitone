@@ -99,3 +99,36 @@ func TestRewriteHistoryConflict(t *testing.T) {
 	_, err := git.RewriteHistory(repo, middle, git.RewriteMoveUp, "")
 	refusedWith(t, err, "git.stoppedOnConflict")
 }
+
+// Fixup из индекса создаёт коммит «fixup! <тема>», autosquash сливает его в
+// цель; пустой индекс и коммит не из ветки отвергаются (#225, случаи 1-3).
+func TestFixupAndAutosquash(t *testing.T) {
+	repo, hashes := historyRepo(t)
+	runGit(t, repo, "switch", "-q", "-c", "side", hashes[0])
+	write(t, repo, "side.txt", "side\n")
+	commitAll(t, repo)
+	side := revision(t, repo, "HEAD")
+	runGit(t, repo, "switch", "-q", "main")
+
+	refusedWith(t, git.Fixup(repo, hashes[1]), "git.nothingToCommit")
+	write(t, repo, "two.txt", "two fixed\n")
+	runGit(t, repo, "add", "two.txt")
+	refusedWith(t, git.Fixup(repo, side), "git.rewriteNotInBranch")
+
+	if err := git.Fixup(repo, hashes[1]); err != nil {
+		t.Fatalf("Fixup: %v", err)
+	}
+	if got := history(t, repo); got != "fixup! two four three two one" {
+		t.Fatalf("история %q, ожидался fixup-коммит сверху", got)
+	}
+
+	if _, err := git.Autosquash(repo, hashes[1]); err != nil {
+		t.Fatalf("Autosquash: %v", err)
+	}
+	if got := history(t, repo); got != "four three two one" {
+		t.Fatalf("история %q, ожидался fixup внутри two", got)
+	}
+	if got := readFile(t, repo+"/two.txt"); got != "two fixed\n" {
+		t.Fatalf("two.txt = %q, правка fixup потеряна", got)
+	}
+}

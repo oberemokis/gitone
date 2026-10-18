@@ -90,12 +90,15 @@ const (
 	// фильтр лога по автору и пути (#226)
 	LogFilter Action = "log.filter"
 	// правка истории в логе (#219)
-	LogSquash        Action = "log.squash"
-	LogFixup         Action = "log.fixup"
-	LogReword        Action = "log.reword"
-	LogDrop          Action = "log.drop"
-	LogMoveUp        Action = "log.moveUp"
-	LogMoveDown      Action = "log.moveDown"
+	LogSquash   Action = "log.squash"
+	LogFixup    Action = "log.fixup"
+	LogReword   Action = "log.reword"
+	LogDrop     Action = "log.drop"
+	LogMoveUp   Action = "log.moveUp"
+	LogMoveDown Action = "log.moveDown"
+	// fixup-коммит и autosquash (#225)
+	LogFixupCommit   Action = "log.fixupCommit"
+	LogAutosquash    Action = "log.autosquash"
 	BranchesSwitch   Action = "branches.switch"
 	BranchesNew      Action = "branches.new"
 	BranchesRename   Action = "branches.rename"
@@ -199,7 +202,7 @@ func (k Keymap) Is(action Action, key string) bool {
 func windows() [][]Action {
 	list := []Action{ListUp, ListDown, ListClose}
 	return [][]Action{
-		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogFilter, LogSquash, LogFixup, LogReword, LogDrop, LogMoveUp, LogMoveDown, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, list...),
+		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogFilter, LogSquash, LogFixup, LogReword, LogDrop, LogMoveUp, LogMoveDown, LogFixupCommit, LogAutosquash, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, list...),
 		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, BranchesUpstream, CherryPickPaste, CompareWith, ListSearch}, list...),
 		append([]Action{WorktreesSwitch, ListSearch}, list...),
 		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
@@ -587,6 +590,8 @@ func defaults() []Binding {
 		{Action: LogDrop, Keys: []string{"d"}},
 		{Action: LogMoveUp, Keys: []string{"ctrl+k"}},
 		{Action: LogMoveDown, Keys: []string{"ctrl+j"}},
+		{Action: LogFixupCommit, Keys: []string{"F"}},
+		{Action: LogAutosquash, Keys: []string{"S"}},
 		{Action: LogNewBranch, Keys: []string{"n"}},
 		{Action: LogCheckout, Keys: []string{"space"}},
 		{Action: LogCopy, Keys: []string{"y"}},
