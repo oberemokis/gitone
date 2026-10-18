@@ -1,6 +1,11 @@
 package git
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+
+	"gitone/internal/i18n"
+)
 
 // ResetMode это режим reset (#220): что станет с правками между HEAD и целью.
 type ResetMode string
@@ -34,6 +39,38 @@ func reset(dir, target string, mode ResetMode) (bool, error) {
 		return false, headline(err)
 	}
 	return published, nil
+}
+
+// ResetTarget это цель reset из окна веток (#231): у текущей ветки её upstream,
+// у другой ветки она сама. drops это коммиты HEAD, которых нет в цели: их
+// снимет reset, а hard не оставит и правок. Текущая ветка без upstream
+// отвергается ошибкой из словаря.
+func ResetTarget(dir, branch string, current bool) (target string, drops int, err error) {
+	target, drops, err = resetTarget(dir, branch, current)
+	return target, drops, failed("rev-list", err)
+}
+
+func resetTarget(dir, branch string, current bool) (string, int, error) {
+	root, err := topLevel(dir)
+	if err != nil {
+		return "", 0, err
+	}
+
+	target := branch
+	if current {
+		upstream, err := run(call{dir: root}, "rev-parse", "--abbrev-ref", "@{upstream}")
+		if err != nil {
+			return "", 0, i18n.New("git.noUpstream", nil)
+		}
+		target = strings.TrimSpace(upstream)
+	}
+
+	count, err := run(call{dir: root}, "rev-list", "--count", target+"..HEAD")
+	if err != nil {
+		return "", 0, err
+	}
+	drops, err := strconv.Atoi(strings.TrimSpace(count))
+	return target, drops, err
 }
 
 // dropsPublished говорит, что переход HEAD на target снимет коммит, который

@@ -73,7 +73,7 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case m.keys.Is(keymap.LogCopy, pressed):
 		return m.askCopy(entry), nil
 	case m.keys.Is(keymap.LogReset, pressed):
-		return m.askReset(entry.Hash, entry.Hash[:7]), nil
+		return m.askReset(entry.Hash, entry.Hash[:7], -1), nil
 	}
 
 	return m, nil
