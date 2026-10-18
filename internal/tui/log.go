@@ -72,6 +72,8 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		})
 	case m.keys.Is(keymap.LogCopy, pressed):
 		return m.askCopy(entry), nil
+	case m.keys.Is(keymap.LogReset, pressed):
+		return m.askReset(entry.Hash, entry.Hash[:7]), nil
 	}
 
 	return m, nil
@@ -172,14 +174,15 @@ const (
 // вложенный стиль со сбросом иначе погасил бы фон. Строка поиска стоит над
 // таблицей, пока поле открыто или фильтр не снят (#110). Под фильтром граф
 // скрыт: его линии соединяли бы несоседние коммиты (#111).
-func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
+func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
 	box := list{
-		title:  text.Text("log.title", nil),
-		close:  closeHint(colors, keys, text, keymap.ListClose),
-		cursor: cursor,
-		empty:  []string{text.Text("log.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.ListSearch),
-		fill:   true,
+		title:    text.Text("log.title", nil),
+		close:    closeHint(colors, keys, text, keymap.ListClose),
+		cursor:   cursor,
+		empty:    []string{text.Text("log.empty", nil)},
+		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.ListSearch),
+		fill:     true,
+		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
 
 	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
