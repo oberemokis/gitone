@@ -44,6 +44,7 @@ const (
 	AppWorktrees     Action = "app.worktrees"
 	GitPull          Action = "git.pull"
 	GitPush          Action = "git.push"
+	GitFetch         Action = "git.fetch"
 	StashPush        Action = "stash.push"
 	StashList        Action = "stash.list"
 	HelpClose        Action = "help.close"
@@ -504,6 +505,8 @@ func defaults() []Binding {
 		{Action: AppWorktrees, Category: CategoryGeneral, Keys: []string{"W"}, Help: true},
 		{Action: GitPull, Category: CategoryGeneral, Keys: []string{"p"}, Help: true},
 		{Action: GitPush, Category: CategoryGeneral, Keys: []string{"P"}, Help: true},
+		// f у lazygit, здесь f открывает панель файлов
+		{Action: GitFetch, Category: CategoryGeneral, Keys: []string{"F"}, Help: true},
 		{Action: StashPush, Category: CategoryFiles, Keys: []string{"z"}, Help: true},
 		{Action: StashList, Category: CategoryFiles, Keys: []string{"Z"}, Help: true},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Help: true},
