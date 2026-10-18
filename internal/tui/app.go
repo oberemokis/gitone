@@ -112,6 +112,8 @@ type Model struct {
 	// значит число git по умолчанию
 	ignoreSpace bool
 	context     int
+	// compare точка последнего сравнения (compare.go, #216)
+	compare comparison
 	// reading ключ версий файла, которые сейчас читаются (versions.go)
 	reading string
 	// now часы для отбрасывания двойного клика, closing последний клик,
@@ -739,7 +741,7 @@ func (m Model) screen() (string, []zone.Zone) {
 	if m.ui.PaneTitles {
 		title := ""
 		if len(m.files) > 0 {
-			title = header(m.width, m.files, m.current, m.flagsLabel(), m.colors, m.keys, m.text)
+			title = header(m.width, m.files, m.current, m.viewLabel(), m.colors, m.keys, m.text)
 		}
 		rows = append(rows, "", scan(title, 0, 1, free), "")
 	}

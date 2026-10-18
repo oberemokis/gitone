@@ -74,6 +74,8 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.askCopy(entry), nil
 	case m.keys.Is(keymap.LogReset, pressed):
 		return m.askReset(entry.Hash, entry.Hash[:7], -1), nil
+	case m.keys.Is(keymap.CompareWith, pressed):
+		return m.compareWith(entry.Hash, entry.Hash[:7])
 	}
 
 	return m, nil
@@ -180,7 +182,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		close:    closeHint(colors, keys, text, keymap.ListClose),
 		cursor:   cursor,
 		empty:    []string{text.Text("log.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.ListSearch),
+		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.ListSearch),
 		fill:     true,
 		question: question,
 	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
