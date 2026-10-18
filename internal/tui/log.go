@@ -33,6 +33,21 @@ func logCmd(dir string, filter git.LogFilter) tea.Cmd {
 	}
 }
 
+// fileHistory открывает лог коммитов, которые трогали открытый файл (#241):
+// фильтр по файлу из диффа, буквальный путь и история за переименованием
+// (`--follow`). Работает на любом диффе, путь у файла тот же.
+func (m Model) fileHistory() (tea.Model, tea.Cmd) {
+	if len(m.files) == 0 {
+		return m, nil
+	}
+
+	path := stagedKey(m.files[m.current])
+	if path == "" {
+		return m.putNotice(m.text.Text("stage.noFile", nil), true), nil
+	}
+	return m, logCmd(m.dir, git.LogFilter{Path: path, File: true})
+}
+
 // refilterLog ставит в открытый лог список под новым фильтром (#226). Курсор
 // остаётся на том же коммите, если он есть в новом списке, иначе встаёт на
 // первый: так после сброса фильтра не теряется место.

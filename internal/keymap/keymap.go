@@ -41,6 +41,7 @@ const (
 	FilesIgnore      Action = "files.ignore"
 	FilesEdit        Action = "files.edit"
 	FilesAmend       Action = "files.amend"
+	FilesHistory     Action = "files.history"
 	AppLog           Action = "app.log"
 	DiffWorkingTree  Action = "diff.workingTree"
 	AppBranches      Action = "app.branches"
@@ -532,6 +533,7 @@ func defaults() []Binding {
 		{Action: FilesIgnore, Category: CategoryFiles, Keys: []string{"i"}, Help: true},
 		{Action: FilesEdit, Category: CategoryFiles, Keys: []string{"e"}, Help: true},
 		{Action: FilesAmend, Category: CategoryFiles, Keys: []string{"A"}, Help: true},
+		{Action: FilesHistory, Category: CategoryFiles, Keys: []string{"h"}, Help: true},
 		{Action: AppLog, Category: CategoryDiff, Keys: []string{"l"}, Help: true},
 		{Action: DiffWorkingTree, Category: CategoryDiff, Keys: []string{"b"}, Help: true},
 		{Action: AppBranches, Category: CategoryGeneral, Keys: []string{"B"}, Help: true},

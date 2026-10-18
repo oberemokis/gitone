@@ -73,6 +73,11 @@ func Log(dir string, limit int, filter LogFilter) ([]LogEntry, error) {
 	if err != nil {
 		return nil, failed("log", err)
 	}
+	// фильтр, под который не попал ни один коммит, даёт пустой вывод, а не
+	// строку соединения графа
+	if strings.TrimSpace(out) == "" {
+		return nil, nil
+	}
 
 	var entries []LogEntry
 	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
