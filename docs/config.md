@@ -121,7 +121,7 @@ git получает тот же язык через переменную `LANGU
 | `branches.new`, `branches.rename`, `branches.delete` | `n`, `R`, `d` | ветки: новая ветка на выбранной, переименование выбранной только локально, удаление выбранной после `y` |
 | `branches.merge`, `branches.rebase` | `M`, `r` | ветки: слить выбранную в текущую, перестроить текущую поверх выбранной |
 | `worktrees.switch` | `enter` | worktree |
-| `stash.diff`, `stash.apply`, `stash.drop` | `enter`, `a`, `d` | stash |
+| `stash.diff`, `stash.apply`, `stash.pop`, `stash.drop` | `enter`, `a`, `g`, `d` | stash: дифф, применить, применить и удалить, удалить после `y` |
 | `question.yes` | `y` | вопросы: любая другая клавиша значит «нет» |
 | `search.choose`, `search.close` | `enter`, `esc` | поиск файлов |
 | `search.up`, `search.down` | `up`, `ctrl+p` и `down`, `ctrl+n` | поиск файлов |
