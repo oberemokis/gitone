@@ -20,6 +20,8 @@ const (
 	pulling
 	pushing
 	fetching
+	// push с --force-with-lease после вопроса (#234)
+	forcePushing
 )
 
 // remote это идущий pull или push. Он идёт командой в фоне, интерфейс при этом
@@ -39,7 +41,7 @@ func (r remote) running() bool {
 // labelKey это надпись индикатора в подвале, busyKey заметка об отказе.
 func (r remote) labelKey() string {
 	switch r.kind {
-	case pushing:
+	case pushing, forcePushing:
 		return "screen.pushing"
 	case fetching:
 		return "screen.fetching"
@@ -49,7 +51,7 @@ func (r remote) labelKey() string {
 
 func (r remote) busyKey() string {
 	switch r.kind {
-	case pushing:
+	case pushing, forcePushing:
 		return "remote.pushRunning"
 	case fetching:
 		return "remote.fetchRunning"
@@ -87,10 +89,14 @@ func pullCmd(ctx context.Context, dir string, id int) tea.Cmd {
 	}
 }
 
-func pushCmd(ctx context.Context, dir string, id int) tea.Cmd {
+func pushCmd(ctx context.Context, dir string, id int, kind remoteKind) tea.Cmd {
+	push := git.Push
+	if kind == forcePushing {
+		push = git.PushForceLease
+	}
 	return func() tea.Msg {
-		target, err := git.Push(ctx, dir)
-		return remoteDoneMsg{id: id, kind: pushing, target: target, err: err}
+		target, err := push(ctx, dir)
+		return remoteDoneMsg{id: id, kind: kind, target: target, err: err}
 	}
 }
 
@@ -108,8 +114,8 @@ func (m Model) startRemote(kind remoteKind) (tea.Model, tea.Cmd) {
 
 	run := pullCmd(ctx, m.dir, m.remote.id)
 	switch kind {
-	case pushing:
-		run = pushCmd(ctx, m.dir, m.remote.id)
+	case pushing, forcePushing:
+		run = pushCmd(ctx, m.dir, m.remote.id, kind)
 	case fetching:
 		run = fetchCmd(ctx, m.dir, m.remote.id)
 	}
@@ -137,6 +143,13 @@ func (m Model) remoteDone(msg remoteDoneMsg) (tea.Model, tea.Cmd) {
 	m.remote.cancel()
 	m.remote = remote{id: m.remote.id}
 
+	// разошедшаяся ветка ничего не поменяла: вопрос о принудительном push, и
+	// перечитывать нечего, а перечитывание сняло бы вопрос из подвала
+	var diverged *i18n.Error
+	if errors.As(msg.err, &diverged) && diverged.Key == "git.pushDiverged" && m.active == noWindow {
+		return m.askForcePush(diverged.Args["upstream"]), nil
+	}
+
 	switch {
 	case errors.Is(msg.err, context.Canceled):
 		m = m.sayCalm(m.text.Text("remote.cancelled", nil))
@@ -150,11 +163,25 @@ func (m Model) remoteDone(msg remoteDoneMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
+// askForcePush спрашивает в подвале, отправить ли разошедшуюся ветку с
+// --force-with-lease (#234), как lazygit на P. Отдельной клавиши нет:
+// принудительный push нужен только тогда, когда обычный отказал.
+func (m Model) askForcePush(upstream any) Model {
+	args := questionArgs(m.keys)
+	args["upstream"] = upstream
+	return m.ask(m.text.Text("remote.forceQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
+		if next, refused := m.refuseWhileRemote(); refused {
+			return next, nil
+		}
+		return m.startRemote(forcePushing)
+	})
+}
+
 // remoteResult это итог успешной операции на языке словаря, а не сырой вывод
 // git.
 func (m Model) remoteResult(msg remoteDoneMsg) string {
 	switch {
-	case msg.kind == pushing:
+	case msg.kind == pushing || msg.kind == forcePushing:
 		return m.text.Text("remote.pushed", i18n.Args{"target": msg.target})
 	case msg.kind == fetching:
 		return m.text.Text("remote.fetched", nil)

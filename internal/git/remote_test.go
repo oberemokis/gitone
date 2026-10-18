@@ -264,6 +264,40 @@ func TestPushNeverOverwritesRemoteCommits(t *testing.T) {
 	}
 }
 
+// Переписанную ветку обычный push не отправляет и до сети говорит, что она
+// разошлась с upstream; с --force-with-lease она уходит (#234, случай 1).
+func TestPushForceLeaseSendsRewrittenBranch(t *testing.T) {
+	origin, local := remotePair(t)
+	runGit(t, local, "commit", "-q", "--amend", "-m", "rewritten")
+
+	_, err := git.Push(context.Background(), local)
+	refusedWith(t, err, "git.pushDiverged")
+
+	target, err := git.PushForceLease(context.Background(), local)
+	if err != nil || target != "origin/main" {
+		t.Fatalf("PushForceLease = %q, %v", target, err)
+	}
+	if got, want := revision(t, origin, "main"), revision(t, local, "HEAD"); got != want {
+		t.Fatalf("main на origin %s, ожидалась переписанная ветка %s", got, want)
+	}
+}
+
+// Remote ушёл вперёд после последнего fetch: lease не совпал, git отказывает,
+// чужой коммит на месте (случай 2).
+func TestPushForceLeaseKeepsUnseenRemoteCommits(t *testing.T) {
+	origin, local := remotePair(t)
+	publish(t, origin, "b.txt", "peer\n")
+	peerHead := revision(t, origin, "main")
+	runGit(t, local, "commit", "-q", "--amend", "-m", "rewritten")
+
+	if _, err := git.PushForceLease(context.Background(), local); err == nil || !strings.HasPrefix(err.Error(), "push: ") {
+		t.Fatalf("PushForceLease = %v, ожидался отказ git", err)
+	}
+	if got := revision(t, origin, "main"); got != peerHead {
+		t.Fatalf("main на origin %s, ожидался коммит коллеги %s", got, peerHead)
+	}
+}
+
 // Remote просит пароль: git не читает терминал, причина приходит ошибкой.
 func TestPullDoesNotPromptForPassword(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
