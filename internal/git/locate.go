@@ -10,6 +10,9 @@ import (
 type Location struct {
 	Branch   string
 	Worktree string
+	// Operation незавершённая операция: merge, rebase, cherry-pick, revert
+	// (#243), пусто без неё
+	Operation string
 }
 
 // Locate называет ветку и worktree каталога dir. symbolic-ref знает ветку и в
@@ -33,7 +36,7 @@ func Locate(dir string) (Location, error) {
 		branch = shortHash(strings.TrimSpace(head))
 	}
 
-	return Location{Branch: strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/"), Worktree: filepath.Base(root)}, nil
+	return Location{Branch: strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/"), Worktree: filepath.Base(root), Operation: operation(root)}, nil
 }
 
 // Root это корень репозитория, в котором лежит dir: от него идут пути диффа.

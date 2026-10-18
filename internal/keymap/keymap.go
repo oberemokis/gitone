@@ -54,6 +54,7 @@ const (
 	GitFetch         Action = "git.fetch"
 	GitUndo          Action = "git.undo"
 	GitRedo          Action = "git.redo"
+	GitOperation     Action = "git.operation"
 	StashPush        Action = "stash.push"
 	StashList        Action = "stash.list"
 	HelpClose        Action = "help.close"
@@ -575,6 +576,8 @@ func defaults() []Binding {
 		// z и ctrl+z у lazygit, здесь z кладёт в stash; u и U как в vim
 		{Action: GitUndo, Category: CategoryGeneral, Keys: []string{"u"}, Help: true},
 		{Action: GitRedo, Category: CategoryGeneral, Keys: []string{"U"}, Help: true},
+		// m у lazygit, здесь m переключает вид диффа
+		{Action: GitOperation, Category: CategoryGeneral, Keys: []string{"M"}, Help: true},
 		{Action: StashPush, Category: CategoryFiles, Keys: []string{"z"}, Help: true},
 		{Action: StashList, Category: CategoryFiles, Keys: []string{"Z"}, Help: true},
 		{Action: DiffScrollDown, Category: CategoryDiff, Keys: []string{"j", "down"}, Help: true},

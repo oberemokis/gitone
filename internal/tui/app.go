@@ -515,6 +515,8 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 		return m.startRemote(fetching)
 	case keymap.GitPush:
 		return m.startRemote(pushing)
+	case keymap.GitOperation:
+		m = m.askOperation()
 	case keymap.GitUndo:
 		return m, undoStepCmd(m.dir, false)
 	case keymap.GitRedo:
@@ -828,7 +830,7 @@ func (m Model) footerLine() string {
 		hints = keyHints(m.colors, m.text, m.keys.Bindings())
 	}
 
-	return footer(m.width, locationLabel(m.location, m.colors, m.keys), center, hints)
+	return footer(m.width, locationLabel(m.location, m.colors, m.keys, m.text), center, hints)
 }
 
 // panes рисует дерево размещения: лист это панель, контейнер склеивает детей

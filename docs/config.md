@@ -93,6 +93,7 @@ git получает тот же язык через переменную `LANGU
 | `git.pull` | `p` | подтянуть ветку из upstream, только перемоткой |
 | `git.push` | `P` | отправить ветку на upstream, а без него на origin; разошедшуюся с upstream ветку после `y` с `--force-with-lease` |
 | `git.fetch` | `F` | забрать коммиты всех remote, текущая ветка не двигается |
+| `git.operation` | `M` | меню незавершённого merge, rebase, cherry-pick или revert: продолжить или после `y` прервать; операция видна в подвале справа от worktree |
 | `git.undo`, `git.redo` | `u` и `U` | после `y` откатить последнее движение HEAD по reflog (коммит, reset, checkout, rebase) и вернуть откаченное; файлы и индекс не меняются |
 | `app.log` | `l` | окно лога коммитов |
 | `stash.push` | `z` | сохранить отслеженные правки в stash |
