@@ -72,10 +72,48 @@ func thenBranches(dir string, change func() error) tea.Cmd {
 	}
 }
 
-// branchKey отдаёт клавиши окну веток: branches.switch переключает на
-// выбранную, branches.new создаёт ветку на выбранной, branches.delete удаляет
-// выбранную после вопроса, list.search открывает поиск, list.close закрывает.
-// Переключение на текущую ничего не делает.
+// branchActions это действия окна веток: branches.switch переключает на
+// выбранную (на текущую ничего не делает), branches.new создаёт ветку на
+// выбранной, branches.delete удаляет выбранную после вопроса.
+var branchActions = []windowAction[git.Branch]{
+	{action: keymap.BranchesSwitch, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		m.active = noWindow
+		if branch.Current {
+			return m, nil
+		}
+		return m, switchCmd(m.dir, branch.Name)
+	}},
+	{action: keymap.BranchesNew, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m.askBranchName(branch.Name, branch.Name), nil
+	}},
+	{action: keymap.BranchesRename, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m.askRename(branch.Name), nil
+	}},
+	{action: keymap.BranchesDelete, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m.askDeleteBranch(branch), nil
+	}},
+	{action: keymap.BranchesMerge, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m.ontoCurrent(branch, git.Merge, "branches.merged")
+	}},
+	{action: keymap.BranchesRebase, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m.ontoCurrent(branch, git.Rebase, "branches.rebased")
+	}},
+	{action: keymap.BranchesReset, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m, resetTargetCmd(m.dir, branch)
+	}},
+	{action: keymap.BranchesUpstream, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m, remoteBranchesCmd(m.dir, branch.Name)
+	}},
+	{action: keymap.CherryPickPaste, anyRow: true, run: func(m Model, _ git.Branch) (tea.Model, tea.Cmd) {
+		return m.pasteCommit()
+	}},
+	{action: keymap.CompareWith, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
+		return m.compareWith(branch.Name, branch.Name)
+	}},
+}
+
+var branchHint = actionsOf(branchActions, keymap.ListSearch)
+
 func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -85,46 +123,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd
 	}
-
-	pressed := key.String()
-	if m.keys.Is(keymap.CherryPickPaste, pressed) {
-		return m.pasteCommit()
-	}
-	if m.keys.Is(keymap.CompareWith, pressed) && len(shown) > 0 {
-		branch := shown[m.cursor]
-		return m.compareWith(branch.Name, branch.Name)
-	}
-	acts := []keymap.Action{keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset, keymap.BranchesUpstream}
-	if !slices.ContainsFunc(acts, func(action keymap.Action) bool { return m.keys.Is(action, pressed) }) || len(shown) == 0 {
-		return m, nil
-	}
-	if next, refused := m.refuseWhileRemote(); refused {
-		return next, nil
-	}
-
-	branch := shown[m.cursor]
-	switch {
-	case m.keys.Is(keymap.BranchesNew, pressed):
-		return m.askBranchName(branch.Name, branch.Name), nil
-	case m.keys.Is(keymap.BranchesRename, pressed):
-		return m.askRename(branch.Name), nil
-	case m.keys.Is(keymap.BranchesDelete, pressed):
-		return m.askDeleteBranch(branch), nil
-	case m.keys.Is(keymap.BranchesMerge, pressed):
-		return m.ontoCurrent(branch, git.Merge, "branches.merged")
-	case m.keys.Is(keymap.BranchesRebase, pressed):
-		return m.ontoCurrent(branch, git.Rebase, "branches.rebased")
-	case m.keys.Is(keymap.BranchesReset, pressed):
-		return m, resetTargetCmd(m.dir, branch)
-	case m.keys.Is(keymap.BranchesUpstream, pressed):
-		return m, remoteBranchesCmd(m.dir, branch.Name)
-	}
-
-	m.active = noWindow
-	if branch.Current {
-		return m, nil
-	}
-	return m, switchCmd(m.dir, branch.Name)
+	return dispatch(m, branchActions, key.String(), shown)
 }
 
 // ontoCurrent сливает выбранную ветку в текущую или перестраивает текущую
@@ -199,7 +198,7 @@ func branchBox(p paint, branches []git.Branch, cursor int, query string, typing 
 		width:    90,
 		cursor:   cursor,
 		empty:    []string{p.text.Text("branches.empty", nil)},
-		hint:     p.hint(keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset, keymap.BranchesUpstream, keymap.CherryPickPaste, keymap.CompareWith, keymap.ListSearch),
+		hint:     p.hint(branchHint...),
 		question: question,
 	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 

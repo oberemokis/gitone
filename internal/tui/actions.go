@@ -14,12 +14,60 @@ type actionFunc func(Model) (tea.Model, tea.Cmd)
 // globalAction это действие главного экрана. changesRepo значит, что действие
 // меняет репозиторий или само запускает pull, push или fetch. Пока идёт
 // сетевая операция, такое действие отказывает: git pull меняет дерево, и x
-// посреди него стёр бы не те правки. Действия окон (переключение ветки и
-// worktree, apply и drop у stash) проверяют то же сами. Просмотр, окна и
-// перечитывание диффа работают.
+// посреди него стёр бы не те правки. Просмотр, окна и перечитывание диффа
+// работают.
 type globalAction struct {
 	run         actionFunc
 	changesRepo bool
+}
+
+// windowAction это действие окна-списка над выбранной строкой типа T (#353).
+// Таблица окна записана в порядке его подсказки: из неё идут и разбор клавиш,
+// и подсказка. changesRepo значит то же, что у globalAction. anyRow значит,
+// что действие работает и на пустом списке (новый тег, новый stash), тогда
+// строка нулевая.
+type windowAction[T any] struct {
+	action      keymap.Action
+	run         func(Model, T) (tea.Model, tea.Cmd)
+	changesRepo bool
+	anyRow      bool
+}
+
+// dispatch выполняет действие таблицы по нажатию над строкой rows[m.cursor].
+// Внутри окна клавиши не конфликтуют, это проверяет keymap, поэтому порядок
+// поиска поведения не задаёт. Клавиша не из таблицы ничего не делает.
+func dispatch[T any](m Model, actions []windowAction[T], pressed string, rows []T) (tea.Model, tea.Cmd) {
+	for _, entry := range actions {
+		if !m.keys.Is(entry.action, pressed) {
+			continue
+		}
+
+		var row T
+		switch {
+		case m.cursor < len(rows):
+			row = rows[m.cursor]
+		case !entry.anyRow:
+			return m, nil
+		}
+		if entry.changesRepo {
+			if next, refused := m.refuseWhileRemote(); refused {
+				return next, nil
+			}
+		}
+		return entry.run(m, row)
+	}
+
+	return m, nil
+}
+
+// actionsOf это действия таблицы в её порядке и за ними extra: так подсказка
+// окна собирается из таблицы.
+func actionsOf[T any](actions []windowAction[T], extra ...keymap.Action) []keymap.Action {
+	listed := make([]keymap.Action, 0, len(actions)+len(extra))
+	for _, entry := range actions {
+		listed = append(listed, entry.action)
+	}
+	return append(listed, extra...)
 }
 
 // globalActions это все действия главного экрана (#350). Действие keymap без

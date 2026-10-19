@@ -187,8 +187,12 @@ func TestDictionaryKeysUsed(t *testing.T) {
 		used["action."+action+".help"] = binding.Help
 		used["action."+action+".footer"] = binding.Footer
 	}
-	for _, action := range tuiActions(t, "hint") {
-		used["action."+action+".hint"] = true
+	// подсказку окна собирают paint.hint, таблицы действий окон (поле action)
+	// и действия сверх таблицы в actionsOf
+	for _, name := range []string{"hint", "action", "actionsOf"} {
+		for _, action := range tuiActions(t, name) {
+			used["action."+action+".hint"] = true
+		}
 	}
 	for _, action := range tuiActions(t, "emptyActions") {
 		used["action."+action+".footer"] = true
@@ -213,8 +217,8 @@ func TestDictionaryKeysUsed(t *testing.T) {
 }
 
 // tuiActions это действия keymap, которые tui передаёт в вызов функции или
-// метода name (paint.hint) или перечисляет в переменной name, строками имён
-// действий.
+// метода name (paint.hint), перечисляет в переменной name или пишет в поле
+// name составного литерала (windowAction.action), строками имён действий.
 func tuiActions(t *testing.T, name string) []string {
 	t.Helper()
 
@@ -254,6 +258,10 @@ func tuiActions(t *testing.T, name string) []string {
 							collect(list.Elts)
 						}
 					}
+				}
+			case *ast.KeyValueExpr:
+				if key, ok := node.Key.(*ast.Ident); ok && key.Name == name {
+					collect([]ast.Expr{node.Value})
 				}
 			}
 			return true

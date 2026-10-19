@@ -143,59 +143,46 @@ func stashPopCmd(dir string, stash git.Stash) tea.Cmd {
 	}
 }
 
-// stashKey отдаёт клавиши окну stash. stash.diff показывает диф stash в
+// stashActions это действия окна stash. stash.diff показывает диф stash в
 // экране, stash.apply применяет его, stash.pop применяет и удаляет (#235),
 // stash.drop спрашивает удаление, stash.new сохраняет новый с параметрами
 // (#236) и в пустом списке тоже.
-func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.navigate(key, len(m.stashes)); handled {
-		return next, cmd
-	}
-	if m.keys.Is(keymap.StashNew, key.String()) {
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		return m.askStashOptions(), nil
-	}
-	if len(m.stashes) == 0 {
-		return m, nil
-	}
-
-	stash := m.stashes[m.cursor]
-	pressed := key.String()
-	switch {
+var stashActions = []windowAction[git.Stash]{
 	// дифф stash открывается сразу, а неотслеженные файлы добавит
 	// openStashDiff, когда git соберёт дерево с ними
-	case m.keys.Is(keymap.StashDiff, pressed):
+	{action: keymap.StashDiff, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
 		m.active = noWindow
 		m.args = []string{stash.Hash + "^1", stash.Hash}
 		next, reload := m.startReload()
 		return next, tea.Batch(reload, stashTreeCmd(m.dir, stash.Hash))
-	case m.keys.Is(keymap.StashApply, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
+	}},
+	{action: keymap.StashApply, changesRepo: true, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
 		m.active = noWindow
 		return m, stashApplyCmd(m.dir, stash)
-	case m.keys.Is(keymap.StashPop, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
+	}},
+	{action: keymap.StashPop, changesRepo: true, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
 		m.active = noWindow
 		return m, stashPopCmd(m.dir, stash)
-	case m.keys.Is(keymap.StashDrop, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
+	}},
+	{action: keymap.StashDrop, changesRepo: true, run: func(m Model, _ git.Stash) (tea.Model, tea.Cmd) {
 		m.active = stashDropWindow
-	case m.keys.Is(keymap.StashRename, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
+		return m, nil
+	}},
+	{action: keymap.StashRename, changesRepo: true, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
 		return m.askStashMessage(stash), nil
-	}
+	}},
+	{action: keymap.StashNew, anyRow: true, changesRepo: true, run: func(m Model, _ git.Stash) (tea.Model, tea.Cmd) {
+		return m.askStashOptions(), nil
+	}},
+}
 
-	return m, nil
+var stashHint = actionsOf(stashActions)
+
+func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.navigate(key, len(m.stashes)); handled {
+		return next, cmd
+	}
+	return dispatch(m, stashActions, key.String(), m.stashes)
 }
 
 // answerStashDrop разбирает ответ на вопрос об удалении. Удаляет только
@@ -226,7 +213,7 @@ func stashBox(p paint, stashes []git.Stash, cursor int, asking bool, screenWidth
 		rows:   rows,
 		cursor: cursor,
 		empty:  []string{p.text.Text("stash.empty", nil)},
-		hint:   p.hint(keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop, keymap.StashRename, keymap.StashNew),
+		hint:   p.hint(stashHint...),
 	}
 	if asking {
 		args := questionArgs(p.keys)

@@ -37,10 +37,26 @@ func (m Model) reflogArrived(msg reflogMsg) Model {
 	return m
 }
 
-// reflogKey отдаёт клавиши окну reflog (#240). Клавиши те же, что у лога:
+// reflogActions это действия окна reflog (#240). Клавиши те же, что у лога:
 // log.open показывает дифф коммита записи, log.checkout переходит на него без
 // ветки, log.newBranch ставит на него ветку. Так потерянный коммит
 // возвращается в историю.
+var reflogActions = []windowAction[git.ReflogEntry]{
+	{action: keymap.LogOpen, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
+		return m.showCommit(git.LogEntry{Hash: entry.Hash, Root: entry.Root})
+	}},
+	{action: keymap.LogCheckout, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
+			return git.CheckoutCommit(dir, entry.Hash)
+		})
+	}},
+	{action: keymap.LogNewBranch, changesRepo: true, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
+		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
+	}},
+}
+
+var reflogHint = actionsOf(reflogActions, keymap.ListSearch)
+
 func (m Model) reflogKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -50,27 +66,7 @@ func (m Model) reflogKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd
 	}
-	if len(shown) == 0 {
-		return m, nil
-	}
-
-	entry, pressed := shown[m.cursor], key.String()
-	short := entry.Hash[:7]
-	switch {
-	case m.keys.Is(keymap.LogOpen, pressed):
-		return m.showCommit(git.LogEntry{Hash: entry.Hash, Root: entry.Root})
-	case m.keys.Is(keymap.LogCheckout, pressed):
-		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": short}), func(dir string) error {
-			return git.CheckoutCommit(dir, entry.Hash)
-		})
-	case m.keys.Is(keymap.LogNewBranch, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		return m.askBranchName(short, entry.Hash), nil
-	}
-
-	return m, nil
+	return dispatch(m, reflogActions, key.String(), shown)
 }
 
 // reflogShown это записи под фильтром поиска по хэшу, действию и описанию.
@@ -88,7 +84,7 @@ func reflogBox(p paint, entries []git.ReflogEntry, cursor int, query string, typ
 		close:  p.close(keymap.ListClose),
 		cursor: cursor,
 		empty:  []string{p.text.Text("reflog.empty", nil)},
-		hint:   p.hint(keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.ListSearch),
+		hint:   p.hint(reflogHint...),
 		fill:   true,
 	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 

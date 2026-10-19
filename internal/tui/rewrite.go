@@ -8,7 +8,6 @@ import (
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
-	"gitone/internal/keymap"
 )
 
 // rewrittenMsg несёт итог правки истории (#219): ошибку git, переписаны ли
@@ -23,48 +22,27 @@ type rewrittenMsg struct {
 	at        int
 }
 
-// rewriteKeys это клавиши правки истории в логе и что они делают.
-var rewriteKeys = []struct {
-	action keymap.Action
-	change git.Rewrite
-}{
-	{keymap.LogSquash, git.RewriteSquash},
-	{keymap.LogFixup, git.RewriteFixup},
-	{keymap.LogDrop, git.RewriteDrop},
-	{keymap.LogReword, git.RewriteReword},
-	{keymap.LogMoveUp, git.RewriteMoveUp},
-	{keymap.LogMoveDown, git.RewriteMoveDown},
-}
-
-// rewriteKey разбирает клавиши правки истории в логе, как в lazygit: squash и
-// fixup в предыдущий коммит, drop после вопроса, reword через окно коммита,
-// перенос вверх и вниз. handled false значит, что клавиша не про историю.
-func (m Model) rewriteKey(pressed string, entry git.LogEntry) (next tea.Model, cmd tea.Cmd, handled bool) {
-	for _, key := range rewriteKeys {
-		if !m.keys.Is(key.action, pressed) {
-			continue
-		}
-		if refused, stop := m.refuseWhileRemote(); stop {
-			return refused, nil, true
-		}
-
-		short := entry.Hash[:7]
-		switch key.change {
+// rewriteAction это правка истории в логе, как в lazygit: squash и fixup в
+// предыдущий коммит, drop после вопроса, reword через окно коммита, перенос
+// вверх и вниз. Клавиши стоят в таблице logActions.
+func rewriteAction(change git.Rewrite) func(Model, git.LogEntry) (tea.Model, tea.Cmd) {
+	return func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		switch change {
 		case git.RewriteDrop:
 			args := questionArgs(m.keys)
-			args["hash"] = short
+			args["hash"] = entry.Hash[:7]
 			return m.ask(m.text.Text("rewrite.dropQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
 				return m, m.rewrite(entry.Hash, git.RewriteDrop, "", git.LogEntry{}, m.cursor)
-			}), nil, true
+			}), nil
 		case git.RewriteReword:
-			return m, rewordMessageCmd(m.dir, entry.Hash), true
+			return m, rewordMessageCmd(m.dir, entry.Hash)
 		}
 
 		// git двигает коммит по всей истории, а не по строкам под поиском:
 		// курсор ищет коммит, строка остаётся запасным путём
 		at, follow := m.cursor, entry
 		shown := m.logShown()
-		switch key.change {
+		switch change {
 		case git.RewriteMoveUp:
 			at = commitRow(shown, m.cursor, m.cursor-1)
 		case git.RewriteMoveDown:
@@ -73,10 +51,8 @@ func (m Model) rewriteKey(pressed string, entry git.LogEntry) (next tea.Model, c
 		case git.RewriteSquash, git.RewriteFixup:
 			follow = m.parentEntry(entry.Hash)
 		}
-		return m, m.rewrite(entry.Hash, key.change, "", follow, at), true
+		return m, m.rewrite(entry.Hash, change, "", follow, at)
 	}
-
-	return m.fixupKey(pressed, entry)
 }
 
 // entryOf это коммит лога с хэшем hash, пустой без него.
@@ -102,33 +78,26 @@ func (m Model) parentEntry(hash string) git.LogEntry {
 	return git.LogEntry{}
 }
 
-// fixupKey разбирает fixup-коммиты (#225), как F и S в lazygit: F создаёт из
-// индекса коммит «fixup!» к коммиту под курсором, S сливает такие коммиты в их
-// цели от коммита под курсором. Курсор остаётся на том же коммите, его тема не
-// меняется; строкой он сдвигается и после F (сверху новый коммит), и после S
-// (fixup-коммиты над ним пропали).
-func (m Model) fixupKey(pressed string, entry git.LogEntry) (next tea.Model, cmd tea.Cmd, handled bool) {
-	creates := m.keys.Is(keymap.LogFixupCommit, pressed)
-	if !creates && !m.keys.Is(keymap.LogAutosquash, pressed) {
-		return m, nil, false
+// fixupCommit и autosquash это fixup-коммиты (#225), как F и S в lazygit: F
+// создаёт из индекса коммит «fixup!» к коммиту под курсором, S сливает такие
+// коммиты в их цели от коммита под курсором. Курсор остаётся на том же
+// коммите, его тема не меняется; строкой он сдвигается и после F (сверху новый
+// коммит), и после S (fixup-коммиты над ним пропали).
+func (m Model) fixupCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
+	dir, at := m.dir, m.cursor
+	note := m.text.Text("rewrite.fixupCreated", i18n.Args{"hash": entry.Hash[:7]})
+	return m, func() tea.Msg {
+		return rewrittenMsg{err: git.Fixup(dir, entry.Hash), note: note, follow: entry, at: at + 1}
 	}
-	if refused, stop := m.refuseWhileRemote(); stop {
-		return refused, nil, true
-	}
+}
 
-	dir, short, at := m.dir, entry.Hash[:7], m.cursor
-	if creates {
-		note := m.text.Text("rewrite.fixupCreated", i18n.Args{"hash": short})
-		return m, func() tea.Msg {
-			return rewrittenMsg{err: git.Fixup(dir, entry.Hash), note: note, follow: entry, at: at + 1}
-		}, true
-	}
-
-	note := m.text.Text("rewrite.autosquashed", i18n.Args{"hash": short})
+func (m Model) autosquash(entry git.LogEntry) (tea.Model, tea.Cmd) {
+	dir, at := m.dir, m.cursor
+	note := m.text.Text("rewrite.autosquashed", i18n.Args{"hash": entry.Hash[:7]})
 	return m, func() tea.Msg {
 		published, err := git.Autosquash(dir, entry.Hash)
 		return rewrittenMsg{err: err, published: published, note: note, follow: entry, at: at}
-	}, true
+	}
 }
 
 // rewrite запускает правку истории в команде: итог придёт rewrittenMsg.

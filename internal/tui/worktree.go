@@ -63,10 +63,21 @@ func (m Model) worktreeChecked(msg worktreeCheckedMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
-// worktreeKey отдаёт клавиши окну worktree: worktrees.switch переводит gitone
-// на выбранное дерево, list.search открывает поиск, list.close закрывает.
-// Выбор текущего ничего не делает, а каталог выбранного проверяется до
-// переключения (worktreeChecked).
+// worktreeActions это действия окна worktree: worktrees.switch переводит gitone
+// на выбранное дерево. Выбор текущего ничего не делает, а каталог выбранного
+// проверяется до переключения (worktreeChecked).
+var worktreeActions = []windowAction[git.Worktree]{
+	{action: keymap.WorktreesSwitch, changesRepo: true, run: func(m Model, worktree git.Worktree) (tea.Model, tea.Cmd) {
+		m.active = noWindow
+		if worktree.Current {
+			return m, nil
+		}
+		return m, checkWorktreeCmd(worktree.Path)
+	}},
+}
+
+var worktreeHint = actionsOf(worktreeActions, keymap.ListSearch)
+
 func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -76,20 +87,7 @@ func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd
 	}
-	if !m.keys.Is(keymap.WorktreesSwitch, key.String()) || len(shown) == 0 {
-		return m, nil
-	}
-	if next, refused := m.refuseWhileRemote(); refused {
-		return next, nil
-	}
-
-	worktree := shown[m.cursor]
-	m.active = noWindow
-	if worktree.Current {
-		return m, nil
-	}
-
-	return m, checkWorktreeCmd(worktree.Path)
+	return dispatch(m, worktreeActions, key.String(), shown)
 }
 
 // worktreesShown это деревья под фильтром поиска по ветке и пути, имя
@@ -116,7 +114,7 @@ func worktreeBox(p paint, worktrees []git.Worktree, cursor int, query string, ty
 		close:  p.close(keymap.ListClose),
 		width:  90,
 		cursor: cursor,
-		hint:   p.hint(keymap.WorktreesSwitch, keymap.ListSearch),
+		hint:   p.hint(worktreeHint...),
 	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 
 	panel, muted := p.panel(), p.muted()

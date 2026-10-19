@@ -41,20 +41,21 @@ func (m Model) submodulesArrived(msg submodulesMsg) Model {
 	return m
 }
 
-// submoduleKey отдаёт клавиши окну подмодулей (#244): submodules.update
+// submoduleActions это действия окна подмодулей (#244): submodules.update
 // клонирует подмодуль, если его нет, и ставит записанный коммит.
+var submoduleActions = []windowAction[git.Submodule]{
+	{action: keymap.SubmodulesUpdate, changesRepo: true, run: func(m Model, submodule git.Submodule) (tea.Model, tea.Cmd) {
+		return m.startSubmoduleUpdate(submodule.Path)
+	}},
+}
+
+var submoduleHint = actionsOf(submoduleActions)
+
 func (m Model) submoduleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.submodules)); handled {
 		return next, cmd
 	}
-	if !m.keys.Is(keymap.SubmodulesUpdate, key.String()) || len(m.submodules) == 0 {
-		return m, nil
-	}
-	if next, refused := m.refuseWhileRemote(); refused {
-		return next, nil
-	}
-
-	return m.startSubmoduleUpdate(m.submodules[m.cursor].Path)
+	return dispatch(m, submoduleActions, key.String(), m.submodules)
 }
 
 // startSubmoduleUpdate обновляет подмодуль тем же фоновым путём, что push:
@@ -79,7 +80,7 @@ func submoduleBox(p paint, submodules []git.Submodule, cursor int, screenWidth, 
 		width:  100,
 		cursor: cursor,
 		empty:  []string{p.text.Text("submodules.empty", nil)},
-		hint:   p.hint(keymap.SubmodulesUpdate),
+		hint:   p.hint(submoduleHint...),
 	}
 
 	panel, muted := p.panel(), p.muted()
