@@ -103,13 +103,20 @@ func SetUpstream(dir, branch, upstream string) error {
 
 // Merge сливает ветку name в текущую (#229): перемоткой, если можно, иначе
 // merge-коммитом с сообщением по умолчанию, редактор не открывается. Конфликт
-// останавливает слияние, ошибка тогда git.stoppedOnConflict.
+// останавливает слияние, ошибка тогда git.stoppedOnConflict. Тег с тем же
+// именем git предпочёл бы ветке, тогда ветка называется полной ссылкой, а
+// сообщение задаётся явно: по полной ссылке git написал бы «refs/heads/» в нём.
 func Merge(dir, name string) error {
-	return failed("merge", stopping(dir, "merge", "merge", "--no-edit", name))
+	args := []string{"merge", "--no-edit", name}
+	if _, err := inRoot(dir, "rev-parse", "--verify", "-q", "refs/tags/"+name); err == nil {
+		args = []string{"merge", "--no-edit", "-m", "Merge branch '" + name + "'", "refs/heads/" + name}
+	}
+	return failed("merge", stopping(dir, "merge", args...))
 }
 
 // Rebase перестраивает текущую ветку поверх name (#229). Грязное дерево git
-// отвергает, конфликт останавливает rebase на первом спорном коммите.
+// отвергает, конфликт останавливает rebase на первом спорном коммите. Ветка
+// называется полной ссылкой: одноимённый тег git предпочёл бы ей.
 func Rebase(dir, name string) error {
-	return failed("rebase", stopping(dir, "rebase", "rebase", name))
+	return failed("rebase", stopping(dir, "rebase", "rebase", "refs/heads/"+name))
 }

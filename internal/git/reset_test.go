@@ -71,9 +71,22 @@ func TestResetTarget(t *testing.T) {
 	if err != nil || target != "origin/main" || drops != 1 {
 		t.Fatalf("ResetTarget(main) = %q, %d, %v; ожидались origin/main и 1", target, drops, err)
 	}
-	if target, drops, err = git.ResetTarget(local, "other", false); err != nil || target != "other" || drops != 1 {
-		t.Fatalf("ResetTarget(other) = %q, %d, %v; ожидались other и 1", target, drops, err)
+	if target, drops, err = git.ResetTarget(local, "other", false); err != nil || target != "refs/heads/other" || drops != 1 {
+		t.Fatalf("ResetTarget(other) = %q, %d, %v; ожидались refs/heads/other и 1", target, drops, err)
 	}
+
+	// тег с именем ветки на другом коммите не подменяет её (#291, случай 2)
+	runGit(t, local, "tag", "other", "HEAD")
+	if target, drops, err = git.ResetTarget(local, "other", false); err != nil || drops != 1 {
+		t.Fatalf("ResetTarget(other) при теге other = %q, %d, %v; ожидался 1", target, drops, err)
+	}
+	if _, err := git.Reset(local, target, git.ResetHard); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if got, want := revision(t, local, "HEAD"), revision(t, local, "refs/heads/other"); got != want {
+		t.Fatalf("HEAD %s, ожидалась ветка other %s", got, want)
+	}
+	runGit(t, local, "reset", "-q", "--hard", "HEAD@{1}")
 
 	runGit(t, local, "switch", "-q", "other")
 	_, _, err = git.ResetTarget(local, "other", true)

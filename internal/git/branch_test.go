@@ -105,6 +105,31 @@ func TestRebaseMakesLinearHistory(t *testing.T) {
 	}
 }
 
+// Тег с именем ветки на другом коммите не подменяет ветку: merge сливает её с
+// обычным сообщением, rebase идёт поверх неё (#291, случаи 1 и 2).
+func TestMergeAndRebaseTakeBranchOverTag(t *testing.T) {
+	repo := divergedRepo(t)
+	runGit(t, repo, "tag", "feature", "main~1")
+
+	if err := git.Merge(repo, "feature"); err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if parents := strings.Fields(runGit(t, repo, "log", "-1", "--format=%P")); len(parents) != 2 || parents[1] != revision(t, repo, "refs/heads/feature") {
+		t.Fatalf("родители HEAD %q, ожидалась вершина ветки feature", parents)
+	}
+	if got := lastSubject(t, repo); got != "Merge branch 'feature'" {
+		t.Fatalf("сообщение %q, ожидалось по умолчанию", got)
+	}
+
+	runGit(t, repo, "reset", "-q", "--hard", "HEAD~1")
+	if err := git.Rebase(repo, "feature"); err != nil {
+		t.Fatalf("Rebase: %v", err)
+	}
+	if got, want := revision(t, repo, "HEAD~1"), revision(t, repo, "refs/heads/feature"); got != want {
+		t.Fatalf("родитель HEAD %s, ожидалась вершина ветки feature %s", got, want)
+	}
+}
+
 // Правка, которую затронет операция, останавливает её до начала одной строкой
 // git (случай 4), а конфликт останавливает её посредине: ошибка говорит, что
 // операция не закончена (случай 5).

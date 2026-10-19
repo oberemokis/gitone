@@ -42,9 +42,10 @@ func reset(dir, target string, mode ResetMode) (bool, error) {
 }
 
 // ResetTarget это цель reset из окна веток (#231): у текущей ветки её upstream,
-// у другой ветки она сама. drops это коммиты HEAD, которых нет в цели: их
-// снимет reset, а hard не оставит и правок. Текущая ветка без upstream
-// отвергается ошибкой из словаря.
+// у другой ветки она сама полной ссылкой, иначе одноимённый тег git предпочёл
+// бы ей. drops это коммиты HEAD, которых нет в цели: их снимет reset, а hard
+// не оставит и правок. Текущая ветка без upstream отвергается ошибкой из
+// словаря.
 func ResetTarget(dir, branch string, current bool) (target string, drops int, err error) {
 	target, drops, err = resetTarget(dir, branch, current)
 	return target, drops, failed("rev-list", err)
@@ -56,7 +57,7 @@ func resetTarget(dir, branch string, current bool) (string, int, error) {
 		return "", 0, err
 	}
 
-	target := branch
+	target := "refs/heads/" + branch
 	if current {
 		upstream, err := run(call{dir: root}, "rev-parse", "--abbrev-ref", "@{upstream}")
 		if err != nil {
