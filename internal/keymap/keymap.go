@@ -384,9 +384,10 @@ func decode(data []byte) (Keymap, error) {
 // клавишу, занятую глобальным действием или другой командой: команда
 // работает на главном экране, где клавиша значит одно. ctrl+c зашит.
 func checkCommands(commands []Command, bindings []Binding) error {
+	// list.up и list.down листают справку на главном экране раньше команды
 	owner := make(map[string]string)
 	for _, binding := range bindings {
-		if !inWindow(binding.Action) {
+		if !inWindow(binding.Action) || binding.Action == ListUp || binding.Action == ListDown {
 			for _, key := range binding.Keys {
 				owner[key] = string(binding.Action)
 			}
@@ -416,8 +417,9 @@ func checkCommands(commands []Command, bindings []Binding) error {
 }
 
 // editorKeys это клавиши правки описания коммита: стрелки, home, end, delete и
-// enter (новая строка). Они зашиты, как backspace, и в описании сильнее
-// переключения поля, поэтому commit.field их не достаются.
+// enter (новая строка). Они зашиты, как backspace, поэтому commit.field и
+// commit.close их не достаются: окно проверяет их раньше редактора, и ↑ в
+// описании закрыло бы окно со всем набранным.
 var editorKeys = []string{"left", "right", "up", "down", "home", "end", "delete", "enter"}
 
 // checkBindingKeys ловит при загрузке окно-ловушку и поле, которое теряет
@@ -446,7 +448,8 @@ func checkBindingKeys(binding Binding) error {
 	for _, key := range binding.Keys {
 		args := i18n.Args{"action": action, "key": key}
 		switch {
-		case key == "ctrl+c", inField(action) && key == "backspace", action == CommitField && slices.Contains(editorKeys, key):
+		case key == "ctrl+c", inField(action) && key == "backspace",
+			(action == CommitField || action == CommitClose) && slices.Contains(editorKeys, key):
 			return i18n.New("keymap.reserved", args)
 		case inField(action) && printable(key):
 			return i18n.New("keymap.typesText", args)
@@ -555,7 +558,17 @@ func checkKey(key string) error {
 		return i18n.New("keymap.unknownKey", i18n.Args{"key": key})
 	}
 
+	// клавиши цифрового блока и shift с цифрой или знаком Bubble Tea присылает
+	// набранным символом: «+», «!», а не plus и shift+1
+	shiftOnly := slices.Equal(mods, []string{"shift"})
+	if char, typed := keypadChars[base]; typed && (len(mods) == 0 || shiftOnly) {
+		return i18n.New("keymap.keypadName", i18n.Args{"key": key, "char": char})
+	}
 	letter, size := utf8.DecodeRuneInString(base)
+	if shiftOnly && symbol(base) && (size != len(base) || !unicode.IsLetter(letter)) {
+		return i18n.New("keymap.shiftSymbol", i18n.Args{"key": key})
+	}
+
 	if len(mods) == 0 || size != len(base) || !unicode.IsLetter(letter) {
 		return nil
 	}
@@ -570,6 +583,9 @@ func checkKey(key string) error {
 
 	return nil
 }
+
+// keypadChars это символы, которые набирают клавиши цифрового блока из keyNames.
+var keypadChars = map[string]string{"equal": "=", "mul": "*", "plus": "+", "comma": ",", "minus": "-", "period": ".", "div": "/"}
 
 func keyName(base string) bool {
 	if slices.Contains(strings.Fields(keyNames), base) {
