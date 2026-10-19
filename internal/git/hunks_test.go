@@ -87,6 +87,46 @@ func TestApplyPatchStagesLines(t *testing.T) {
 	}
 }
 
+// Строка без перевода в конце файла не склеивается со следующей: пометка
+// «No newline» в патче стоит только за последней строкой своей стороны
+// (#288, случаи 1–3).
+func TestApplyPatchNoNewline(t *testing.T) {
+	cases := []struct {
+		name     string
+		index    string
+		worktree string
+		selected diff.LineRef
+		reverse  bool
+		want     string
+	}{
+		{"добавленная за строкой без перевода", "a\nb", "a\nb\nc", diff.LineRef{Kind: diff.LineAdded, Number: 3}, false, "a\nb\nc"},
+		{"замена без перевода", "a\nb", "a\nB", diff.LineRef{Kind: diff.LineAdded, Number: 2}, false, "a\nb\nB"},
+		{"отмена удалённой без перевода", "a\nb", "a\nB", diff.LineRef{Kind: diff.LineRemoved, Number: 2}, true, "a\nb\nB"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", tc.index)
+			commitAll(t, repo)
+			write(t, repo, "a.txt", tc.worktree)
+
+			text, _ := git.UnstagedDiff(repo, "a.txt")
+			patch := diff.Patch(text, selectRefs(tc.selected), tc.reverse)
+			if err := git.ApplyPatch(repo, patch, !tc.reverse, tc.reverse); err != nil {
+				t.Fatalf("ApplyPatch: %v\n%s", err, patch)
+			}
+
+			got := runGit(t, repo, "show", ":a.txt")
+			if tc.reverse {
+				got = readFile(t, filepath.Join(repo, "a.txt"))
+			}
+			if got != tc.want {
+				t.Fatalf("результат %q, ожидалось %q\n%s", got, tc.want, patch)
+			}
+		})
+	}
+}
+
 // Обратный патч хунка возвращает его в рабочем дереве к индексу, второй хунк
 // остаётся (#213, случай 1); обратный патч строки трогает только её (случай 2).
 func TestApplyPatchDiscards(t *testing.T) {

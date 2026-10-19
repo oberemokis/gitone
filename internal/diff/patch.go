@@ -66,7 +66,7 @@ type patchBuilder struct {
 	reverse    bool
 	header     []string
 	hunks      []string
-	lines      []string
+	lines      []patchLine
 	oldStart   int
 	newStart   int
 	oldNumber  int
@@ -133,17 +133,58 @@ func (p *patchBuilder) line(line string, selected map[LineRef]bool) {
 	}
 }
 
+// patchLine это строка патча и пометка «нет перевода строки», которая шла за
+// ней в диффе.
+type patchLine struct {
+	text   string
+	marker string
+}
+
 func (p *patchBuilder) keep(line string) {
-	p.lines = append(p.lines, line)
+	p.lines = append(p.lines, patchLine{text: line})
 	p.lastKept = true
 }
 
-// noNewline оставляет пометку «нет перевода строки» за строкой, которая
-// осталась в патче.
+// noNewline запоминает пометку «нет перевода строки» за строкой, которая
+// осталась в патче. Где она встанет, решает render.
 func (p *patchBuilder) noNewline(line string) {
 	if p.inProgress && p.lastKept {
-		p.lines = append(p.lines, line)
+		p.lines[len(p.lines)-1].marker = line
 	}
+}
+
+// render пишет строки хунка. Пометка верна только за последней строкой своей
+// стороны: если за строкой без перевода на той же стороне патча идут другие
+// (невыбранная удалённая стала контекстом, а за ней добавленные), git apply
+// склеил бы их. Тогда на этой стороне строка получает перевод, а контекст,
+// чьи стороны теперь кончаются по-разному, делится на удалённую и добавленную.
+func (p *patchBuilder) render() []string {
+	var out []string
+	for index, line := range p.lines {
+		if line.marker == "" {
+			out = append(out, line.text)
+			continue
+		}
+
+		laterOld, laterNew := false, false
+		for _, later := range p.lines[index+1:] {
+			laterOld = laterOld || !strings.HasPrefix(later.text, "+")
+			laterNew = laterNew || !strings.HasPrefix(later.text, "-")
+		}
+		body := line.text[1:]
+		switch {
+		case strings.HasPrefix(line.text, "-") && laterOld, strings.HasPrefix(line.text, "+") && laterNew,
+			strings.HasPrefix(line.text, " ") && laterOld && laterNew:
+			out = append(out, line.text)
+		case strings.HasPrefix(line.text, " ") && laterNew:
+			out = append(out, "-"+body, line.marker, "+"+body)
+		case strings.HasPrefix(line.text, " ") && laterOld:
+			out = append(out, "-"+body, "+"+body, line.marker)
+		default:
+			out = append(out, line.text, line.marker)
+		}
+	}
+	return out
 }
 
 // flush кладёт хунк в патч, если в нём есть выбранные строки. Начало на той
@@ -162,6 +203,6 @@ func (p *patchBuilder) flush() {
 	p.shift += p.newCount - p.oldCount
 
 	p.hunks = append(p.hunks, fmt.Sprintf("@@ -%d,%d +%d,%d @@", oldStart, p.oldCount, newStart, p.newCount))
-	p.hunks = append(p.hunks, p.lines...)
+	p.hunks = append(p.hunks, p.render()...)
 	p.inProgress = false
 }
