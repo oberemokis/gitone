@@ -15,9 +15,10 @@ import (
 type tickMsg struct{}
 
 // polledMsg несёт итог опроса: тот же ответ, что у перечитывания, но экран его
-// принимает тихо.
+// принимает тихо. load это номер перечитывания, при котором опрос начался.
 type polledMsg struct {
 	reloadMsg
+	load int
 }
 
 // waitTick ждёт один тик. Без таймера ждать нечего, и команды нет. Ожидание
@@ -50,19 +51,20 @@ func (m Model) poll() (Model, tea.Cmd) {
 	}
 
 	m.polling = true
-	dir, args, flags := m.dir, m.args, m.diffFlags()
+	dir, args, flags, load := m.dir, m.args, m.diffFlags(), m.load
 	return m, func() tea.Msg {
-		return polledMsg{readDiff(dir, args, flags)}
+		return polledMsg{reloadMsg: readDiff(dir, args, flags), load: load}
 	}
 }
 
 // polled ставит итог опроса. Ошибку покажет r: опрос повторял бы её каждые
 // две секунды. Опрос со старым каталогом или аргументами (пока он шёл,
 // переключили worktree или открыли коммит из лога) и одинаковый дифф экран не
-// трогают, подсветка не пересчитывается впустую.
+// трогают, подсветка не пересчитывается впустую. Опрос, начатый до
+// перечитывания, тоже: он прочёл индекс до правки, а перечитывание уже после.
 func (m Model) polled(msg polledMsg) (Model, tea.Cmd) {
 	m.polling = false
-	if msg.err != nil || m.loading || !msg.fits(m) {
+	if msg.err != nil || m.loading || !msg.fits(m) || msg.load != m.load {
 		return m, nil
 	}
 

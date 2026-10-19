@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"gitone/internal/git"
 	"gitone/internal/layout"
 )
 
@@ -47,5 +48,31 @@ func TestLateNoticeKeepsDiscardQuestion(t *testing.T) {
 
 	if footer := footerOf(model); !strings.Contains(footer, "Discard changes") {
 		t.Fatalf("подвал %q, вопрос discard не виден", footer)
+	}
+}
+
+// Опрос прочёл дифф до space, а пришёл после перечитывания: на экране индекс
+// после правки, второй space убирает файл из индекса (случай 3).
+func TestPollStartedBeforeReloadIsDropped(t *testing.T) {
+	repo, model := editedRepo(t, oneTick(), layout.Focus())
+
+	model, polling := model.Update(model.Init()())
+	var late []tea.Msg
+	for _, cmd := range polling().(tea.BatchMsg) {
+		if cmd == nil {
+			continue
+		}
+		if msg := cmd(); msg != nil {
+			late = append(late, msg)
+		}
+	}
+	model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	for _, msg := range late {
+		model, _ = model.Update(msg)
+	}
+	pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+
+	if staged, err := git.StagedPaths(repo); err != nil || len(staged) != 0 {
+		t.Fatalf("в индексе %q, ошибка %v, второй space должен был убрать файл", staged, err)
 	}
 }
