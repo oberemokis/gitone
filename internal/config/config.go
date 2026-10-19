@@ -101,11 +101,12 @@ func decode(data []byte) (Config, error) {
 // readFile читает файл настроек. found false без ошибки значит, что файла нет.
 // ErrNotExist приходит и от битой символической ссылки (dotfiles через stow,
 // перенесённый репозиторий), но тогда настройки есть и не читаются: молча
-// подменять их встроенными нельзя. Ссылкой может быть сам файл или каталог, в
-// котором он лежит: Lstat файла в каталоге-ссылке тоже отвечает ErrNotExist.
+// подменять их встроенными нельзя. Ссылкой может быть сам файл или любой
+// каталог над ним, до $XDG_CONFIG_HOME и ~/.config: Lstat файла под
+// каталогом-ссылкой тоже отвечает ErrNotExist.
 func readFile(path string) (data []byte, found bool, err error) {
 	data, err = os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) && !dangling(path) && !dangling(filepath.Dir(path)) {
+	if errors.Is(err, fs.ErrNotExist) && !brokenLink(path) {
 		return nil, false, nil
 	}
 	if err != nil {
@@ -115,13 +116,21 @@ func readFile(path string) (data []byte, found bool, err error) {
 	return data, true, nil
 }
 
-// dangling говорит, что путь существует как символическая ссылка, но ведёт в
-// никуда: Lstat видит ссылку, Stat уже нет.
-func dangling(path string) bool {
-	_, linkErr := os.Lstat(path)
-	_, targetErr := os.Stat(path)
-
-	return linkErr == nil && errors.Is(targetErr, fs.ErrNotExist)
+// brokenLink говорит, что путь не находится из-за ссылки в никуда: первая
+// часть пути вверх от него, которая есть на диске, это символическая ссылка,
+// а её цели нет.
+func brokenLink(path string) bool {
+	for {
+		if _, err := os.Lstat(path); err == nil {
+			_, err := os.Stat(path)
+			return errors.Is(err, fs.ErrNotExist)
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return false
+		}
+		path = parent
+	}
 }
 
 // readNamed читает <sub>/<name>.json из каталога настроек, например тему или

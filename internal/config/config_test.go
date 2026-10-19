@@ -161,6 +161,12 @@ func TestBrokenDirectorySymlinkIsError(t *testing.T) {
 			_, _, err := config.ReadTheme(dir, "midnight")
 			return err
 		}},
+		// ссылкой в никуда стал $XDG_CONFIG_HOME над каталогом gitone (#310,
+		// случай 1)
+		{name: "каталог над настройками", link: "", prefix: "config.json", read: func(dir string) error {
+			_, err := config.Load(filepath.Join(dir, "gitone"))
+			return err
+		}},
 	}
 
 	for _, tc := range tests {

@@ -111,11 +111,13 @@ func TestLoadCommands(t *testing.T) {
 func TestLoadBrokenSymlinkIsError(t *testing.T) {
 	tests := []struct {
 		name string
-		// ссылка от корня временного каталога, каталог настроек это settings
+		// ссылка от корня временного каталога, каталог настроек это xdg/settings
 		link string
 	}{
-		{name: "файл", link: "settings/keybinds.json"},
-		{name: "каталог настроек", link: "settings"},
+		{name: "файл", link: "xdg/settings/keybinds.json"},
+		{name: "каталог настроек", link: "xdg/settings"},
+		// ссылкой в никуда стал $XDG_CONFIG_HOME (#310, случай 1)
+		{name: "каталог над настройками", link: "xdg"},
 	}
 
 	for _, tc := range tests {
@@ -129,7 +131,7 @@ func TestLoadBrokenSymlinkIsError(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err := keymap.Load(filepath.Join(root, "settings"))
+			_, err := keymap.Load(filepath.Join(root, "xdg", "settings"))
 
 			if err == nil || !strings.HasPrefix(err.Error(), "keybinds.json") {
 				t.Errorf("Load(ссылка %s на то, чего нет) error = %v, want error starting with keybinds.json", tc.link, err)
