@@ -54,9 +54,8 @@ type Model struct {
 	// active окно, которое получает клавиши; cursor курсор открытого списка
 	active window
 	cursor int
-	// данные окон: пути под вопросом discard, тема и описание коммита и поле, в
-	// которое они набираются, записи списков
-	confirm     []string
+	// данные окон: вопрос, тема и описание коммита и поле, в которое они
+	// набираются, записи списков
 	question    question
 	prompt      prompt
 	menu        menu
@@ -251,15 +250,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		m = m.paste(msg.Content)
 	// окно лежит поверх диффа: крутить то, что закрыто, нечем и незачем (#150).
-	// Вопрос discard окна не рисует, под ним дифф виден и крутится. Колесо в
-	// окне-списке двигает его курсор (#197).
+	// Вопрос с главного экрана окна не рисует, под ним дифф виден и крутится.
+	// Колесо в окне-списке двигает его курсор (#197).
 	case tea.MouseWheelMsg:
 		switch {
 		case m.helpOverflow() > 0:
 			m = m.wheelHelp(msg.Button)
 		case m.active == commitWindow:
 			m = m.wheelCommit(msg.Button)
-		case m.active == noWindow || m.active == discardWindow:
+		case m.active == noWindow || m.footerQuestion():
 			m.view = m.wheel(msg)
 		default:
 			m = m.wheelList(msg.Button)
@@ -423,13 +422,9 @@ func (m Model) sayCalm(text string) Model {
 // dropQuestion отменяет вопрос, который стоит в подвале. Вопрос в окне заметка
 // не затирает, он остаётся.
 func (m Model) dropQuestion() Model {
-	if m.active == discardWindow {
-		m.active = noWindow
-	}
-	if m.active == questionWindow && m.question.back == noWindow {
+	if m.footerQuestion() {
 		m.active, m.question = noWindow, question{}
 	}
-	m.confirm = nil
 	return m
 }
 
@@ -850,7 +845,7 @@ func (m Model) footerLine() string {
 	center := ""
 	switch {
 	// вопрос с главного экрана стоит в подвале, пока на него не ответили
-	case m.active == questionWindow && m.question.back == noWindow:
+	case m.footerQuestion():
 		center = lipgloss.NewStyle().Foreground(m.colors.Error).Render(visible(m.question.text))
 	case m.remote.running() && m.notice == "":
 		center = spinner(m.remote.spin, m.colors, m.text.Text(m.remote.labelKey(), nil))

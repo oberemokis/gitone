@@ -116,33 +116,20 @@ func (m Model) ignoreFile() (tea.Model, tea.Cmd) {
 	}
 }
 
-// askDiscard спрашивает в подвале, прежде чем отменять правки файла.
+// askDiscard спрашивает в подвале, прежде чем отменять правки файла. Вопрос
+// общий (ask): его текст рисуется из вопроса, и запоздавшая заметка его не
+// затрёт, пока вопрос висит.
 func (m Model) askDiscard() Model {
 	paths, note := m.target()
 	if len(paths) == 0 {
 		return m.putNotice(note, true)
 	}
 
-	file := m.files[m.current]
-	m.active = discardWindow
-	m.confirm = paths
 	args := questionArgs(m.keys)
-	args["file"] = fileTitle(file, m.text)
-	return m.putNotice(m.text.Text("discard.question", args), false)
-}
-
-// answerDiscard разбирает ответ на вопрос. Выполняет только question.yes:
-// любая другая клавиша отменяет вопрос и не выполняет действие.
-func (m Model) answerDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	paths := m.confirm
-	m.active = noWindow
-	m.confirm = nil
-	m.notice = ""
-
-	if !m.keys.Is(keymap.QuestionYes, key.String()) {
-		return m, nil
-	}
-	return m, discardCmd(m.dir, paths)
+	args["file"] = fileTitle(m.files[m.current], m.text)
+	return m.ask(m.text.Text("discard.question", args), func(m Model) (tea.Model, tea.Cmd) {
+		return m, discardCmd(m.dir, paths)
+	})
 }
 
 // actionDone после правки перечитывает дифф и индекс, даже если правка не
