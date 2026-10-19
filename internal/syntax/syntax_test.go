@@ -357,6 +357,24 @@ func TestEmbeddedUnquotedLang(t *testing.T) {
 	})
 }
 
+// variable.builtin красится константой, script lang="tsx" разбирается TSX, а
+// пробел перед } в выражении Svelte не сдвигает разбор (#316).
+func TestEmbeddedEdgeCases(t *testing.T) {
+	ts := []string{"this.count = 1"}
+	vue := []string{
+		`<script setup lang="tsx">`,
+		"const card = <Card title={pick(item)} />",
+		"</script>",
+	}
+	svelte := []string{"<p>{ format(count) }</p>"}
+
+	checkKinds(t, []kindCase{
+		{name: "ts: this это variable.builtin", path: "a.ts", lines: ts, line: 0, text: "this", want: syntax.Constant},
+		{name: "vue: вызов в JSX под lang=tsx", path: "App.vue", lines: vue, line: 1, text: "pick", want: syntax.Function},
+		{name: "svelte: вызов в { … } с пробелами", path: "App.svelte", lines: svelte, line: 0, text: "format", want: syntax.Function},
+	})
+}
+
 // В {#each items as item (item.id)} после as стоит привязка и ключ, а не
 // выражение: как вызов функции item красить нельзя. Выражение слева от as и
 // ключ в скобках остаются кодом (#161).
