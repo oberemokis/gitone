@@ -157,7 +157,6 @@ func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 		m = m.sayCalm(msg.note)
 	}
 
-	m.stale = true
 	next, reload := m.startReload()
 	// ответ мог прийти, пока над логом висит вопрос: лог под ним тоже устарел
 	if next.beneath() != logWindow {
