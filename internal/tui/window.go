@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -267,8 +268,7 @@ func (m Model) typeSearch(key tea.KeyPressMsg) (Model, tea.Cmd) {
 // остальные поля первая строка: перевод строки сработал бы как enter и отправил
 // коммит. Без открытого поля вставка ничего не делает (#153).
 func (m Model) paste(content string) Model {
-	line, _, _ := strings.Cut(content, "\n")
-	line = strings.TrimSuffix(line, "\r")
+	line := pastedLine(content)
 
 	switch {
 	case m.active == commitWindow && m.commitField == descriptionField:
@@ -284,6 +284,20 @@ func (m Model) paste(content string) Model {
 		m.cursor = 0
 	}
 	return m
+}
+
+// pastedLine готовит вставку для однострочного поля, как поле описания: строка
+// до первого `\r` или `\n`, таб четырьмя пробелами, управляющие символы
+// отбрасываются: ESC из буфера ушёл бы в тему коммита кодом терминала.
+func pastedLine(content string) string {
+	line, _, _ := strings.Cut(strings.ReplaceAll(content, "\r", "\n"), "\n")
+	line = strings.ReplaceAll(line, "\t", "    ")
+	return strings.Map(func(char rune) rune {
+		if unicode.IsControl(char) {
+			return -1
+		}
+		return char
+	}, line)
 }
 
 // matching оставляет элементы, в тексте которых есть запрос без учёта

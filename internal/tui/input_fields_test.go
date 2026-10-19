@@ -65,6 +65,24 @@ func TestPickerMatchesAcrossNormalization(t *testing.T) {
 	}
 }
 
+// Вставка в однострочное поле: строка до первого \r или \n, таб пробелами,
+// управляющие символы отброшены (случаи 3 и 4).
+func TestPasteIntoLineFieldsIsCleaned(t *testing.T) {
+	_, model := threeFileRepo(t)
+
+	subject, _ := model.Update(key('c'))
+	subject, _ = paste(subject, "a\tb\x1b[31mc")
+	if body := screenText(subject); !strings.Contains(body, "> a    b[31mc_") {
+		t.Fatalf("тема не очищена:\n%q", body)
+	}
+
+	search, _ := model.Update(ctrlP)
+	search, _ = paste(search, "a.txt\rb.txt")
+	if body := screenText(search); !strings.Contains(body, "/ a.txt") || strings.Contains(body, "/ a.txtb") {
+		t.Fatalf("поиск взял не первую строку:\n%s", body)
+	}
+}
+
 // Поиск файлов: регистр не важен, backspace стирает руну целиком, а набор
 // после down возвращает выделение на первое найденное (случай 5).
 func TestPickerQueryEditing(t *testing.T) {
