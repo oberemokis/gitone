@@ -149,7 +149,7 @@ func (m Model) rewrite(hash string, change git.Rewrite, message string, follow g
 func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.err != nil:
-		m = m.say(m.text.Error(msg.err))
+		m = m.say(m.text.ErrorWith(msg.err, m.conflictKeys()))
 		msg.at, msg.follow = -1, git.LogEntry{}
 	case msg.published:
 		m = m.say(m.text.Text("rewrite.published", nil))

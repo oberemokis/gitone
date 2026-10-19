@@ -132,12 +132,18 @@ func (m Model) askDiscard() Model {
 	})
 }
 
+// conflictKeys это клавиши для совета при остановке на конфликте
+// (git.stoppedOnConflict): git их не знает, их подставляет корень.
+func (m Model) conflictKeys() i18n.Args {
+	return i18n.Args{"select": firstKey(m.keys, keymap.DiffSelect), "next": firstKey(m.keys, keymap.GitOperation)}
+}
+
 // actionDone после правки перечитывает дифф и индекс, даже если правка не
 // удалась: так видно, что на самом деле осталось.
 func (m Model) actionDone(msg actionDoneMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.err != nil:
-		m = m.say(m.text.Error(msg.err))
+		m = m.say(m.text.ErrorWith(msg.err, m.conflictKeys()))
 	case msg.warning != "":
 		m = m.say(msg.warning)
 	case msg.note != "":

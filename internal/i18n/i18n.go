@@ -131,8 +131,20 @@ func (e *Error) Error() string {
 // переводится. Чужие ошибки (git, json, os) и обёртки, где внутренняя ошибка
 // стоит не в конце, идут как есть.
 func (d Dictionary) Error(err error) string {
+	return d.ErrorWith(err, nil)
+}
+
+// ErrorWith это Error, где в текст ошибки из словаря подставляется и extra:
+// то, чего не знает место, где ошибка родилась, например клавиши интерфейса.
+// Своё значение ошибки сильнее extra.
+func (d Dictionary) ErrorWith(err error, extra Args) string {
 	if own, ok := err.(*Error); ok {
-		return d.Text(own.Key, own.Args)
+		args := maps.Clone(extra)
+		if args == nil {
+			args = Args{}
+		}
+		maps.Copy(args, own.Args)
+		return d.Text(own.Key, args)
 	}
 
 	inner := errors.Unwrap(err)
@@ -145,7 +157,7 @@ func (d Dictionary) Error(err error) string {
 		return err.Error()
 	}
 
-	return prefix + d.Error(inner)
+	return prefix + d.ErrorWith(inner, extra)
 }
 
 // Choose выбирает словарь: язык из настроек, иначе язык системы, иначе
