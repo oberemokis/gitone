@@ -75,6 +75,20 @@ func TestBuildOverlaysDark(t *testing.T) {
 			},
 		},
 		{
+			name: "255 последний цвет палитры",
+			file: config.ThemeFile{Colors: map[string]config.Color{"textMuted": "255"}},
+			check: func(t *testing.T, got theme.Theme) {
+				if got.TextMuted != lipgloss.Color("255") {
+					t.Errorf("Build(file).TextMuted = %v, want ANSI 255", got.TextMuted)
+				}
+			},
+		},
+		{
+			name:    "256 за палитрой",
+			file:    config.ThemeFile{Colors: map[string]config.Color{"textMuted": "256"}},
+			wantErr: "256",
+		},
+		{
 			name: "none это цвет терминала",
 			file: config.ThemeFile{Colors: map[string]config.Color{"backgroundPanel": "none"}},
 			check: func(t *testing.T, got theme.Theme) {
