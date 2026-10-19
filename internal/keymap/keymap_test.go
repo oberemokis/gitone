@@ -81,6 +81,10 @@ func TestLoadCommands(t *testing.T) {
 		{name: "две команды", content: `{"commands":[{"key":"o","command":"a","name":"one"},{"key":"o","command":"b","name":"two"}]}`, wantErr: "one and two"},
 		{name: "пустая команда", content: `{"commands":[{"key":"o","command":" ","name":"blank"}]}`, wantErr: "blank: the command is empty"},
 		{name: "неверная клавиша", content: `{"commands":[{"key":"shift+o","command":"true"}]}`, wantErr: "commands[0]"},
+		// list.down листает справку раньше команды (#309, случай 2)
+		{name: "клавиша list.down", content: `{"keybinds":{"list.down":["j","down","ctrl+n"]},"commands":[{"key":"ctrl+n","command":"true","name":"mine"}]}`, wantErr: "list.down and mine"},
+		// ctrl+c зашит, даже если app.quit его не держит (случай 4)
+		{name: "ctrl+c", content: `{"keybinds":{"app.quit":"Q"},"commands":[{"key":"ctrl+c","command":"true","name":"mine"}]}`, wantErr: `"ctrl+c" always quits`},
 	}
 
 	for _, tc := range tests {
@@ -172,6 +176,9 @@ func TestLoadRejectsUnsendableKeys(t *testing.T) {
 		{name: "модификатор без клавиши", content: `{"keybinds":{"files.pick":"ctrl+"}}`, wantErr: []string{"files.pick", `"ctrl+"`}},
 		{name: "заглавная с модификатором", content: `{"keybinds":{"files.pick":"ctrl+P"}}`, wantErr: []string{"files.pick", `"ctrl+P"`, "lowercase"}},
 		{name: "два символа", content: `{"keybinds":{"files.pick":"ab"}}`, wantErr: []string{"files.pick", `"ab"`}},
+		// Bubble Tea присылает набранный символ (#309, случай 3)
+		{name: "shift и цифра", content: `{"keybinds":{"files.next":"shift+1"}}`, wantErr: []string{"files.next", `"shift+1"`, "shift types"}},
+		{name: "имя клавиши цифрового блока", content: `{"keybinds":{"files.next":"plus"}}`, wantErr: []string{"files.next", `"plus"`, `write "+"`}},
 	}
 
 	for _, tc := range tests {
@@ -261,6 +268,8 @@ func TestLoadWindowKeys(t *testing.T) {
 		{name: "переключение поля заняло клавишу закрытия", content: `{"keybinds":{"commit.field":"esc"}}`, wantErr: []string{"bound to both", "commit.field", "commit.close"}},
 		{name: "переключение поля заняло стрелку редактора", content: `{"keybinds":{"commit.field":"up"}}`, wantErr: []string{"reserved", "commit.field"}},
 		{name: "переключение поля заняло enter редактора", content: `{"keybinds":{"commit.field":"enter"}}`, wantErr: []string{"reserved", "commit.field"}},
+		// ↑ в описании закрыл бы окно со всем набранным (#309, случай 1)
+		{name: "закрытие коммита заняло стрелку редактора", content: `{"keybinds":{"commit.close":["esc","up"]}}`, wantErr: []string{"reserved", "commit.close"}},
 		{name: "пробел в поле коммита", content: `{"keybinds":{"commit.submit":"space"}}`, wantErr: []string{"types text", "commit.submit"}},
 		{name: "shift+space в поле коммита", content: `{"keybinds":{"commit.submit":"shift+space"}}`, wantErr: []string{"types text", "commit.submit"}},
 		{name: "заглавная в поле поиска", content: `{"keybinds":{"search.choose":"J"}}`, wantErr: []string{"types text", "search.choose"}},
