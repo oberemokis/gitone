@@ -34,11 +34,12 @@ func TestTags(t *testing.T) {
 	for _, tag := range tags {
 		byName[tag.Name] = tag
 	}
-	if tag := byName["v1"]; !tag.Annotated || tag.Commit != head || tag.Subject != "first release" {
-		t.Fatalf("v1 = %+v, ожидался аннотированный на HEAD", tag)
+	// HEAD это первый коммит: у тегов на нём нет родителя (#297)
+	if tag := byName["v1"]; !tag.Annotated || tag.Commit != head || tag.Subject != "first release" || !tag.Root {
+		t.Fatalf("v1 = %+v, ожидался аннотированный на первом коммите", tag)
 	}
-	if tag := byName["light"]; tag.Annotated || tag.Commit != head {
-		t.Fatalf("light = %+v, ожидался лёгкий на HEAD", tag)
+	if tag := byName["light"]; tag.Annotated || tag.Commit != head || !tag.Root {
+		t.Fatalf("light = %+v, ожидался лёгкий на первом коммите", tag)
 	}
 
 	if err := git.DeleteTag(repo, "light"); err != nil {

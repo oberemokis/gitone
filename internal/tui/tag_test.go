@@ -48,6 +48,30 @@ func TestTagsListShowsBothKinds(t *testing.T) {
 	}
 }
 
+// enter на теге первого коммита не показывает дифф до рабочего дерева, подвал
+// объясняет почему; на обычном коммите дифф коммита (#297, случаи 1 и 2).
+func TestTagsDiffOfFirstCommit(t *testing.T) {
+	repo, _ := tagRepo(t)
+	write(t, repo, "a.txt", "worktree\n")
+	model := openAsync(resize(open(t, options(repo, layout.Focus())), 120, 24), key('t'))
+
+	model, _ = model.Update(key('j'))
+	model = enterKey(model)
+	if footer := footerOf(model); !strings.Contains(footer, "the first commit is not shown") {
+		t.Fatalf("подвал %q, ожидалось объяснение", footer)
+	}
+	// дифф от первого коммита до рабочего дерева показал бы и b.txt второго
+	if body := screenText(toggleFiles(model)); strings.Contains(body, "b.txt") {
+		t.Fatalf("показан дифф до рабочего дерева:\n%s", body)
+	}
+
+	model = openAsync(model, key('t'))
+	model = enterKey(model)
+	if body := screenText(model); !strings.Contains(body, "b.txt") || strings.Contains(body, "worktree") {
+		t.Fatalf("дифф release не дифф его коммита:\n%s", body)
+	}
+}
+
 // n спрашивает имя, потом сообщение: с сообщением тег аннотированный, пустое
 // сообщение даёт лёгкий тег (случай 2).
 func TestTagsNew(t *testing.T) {

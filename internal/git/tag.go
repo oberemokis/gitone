@@ -7,34 +7,37 @@ import (
 
 // Tag это тег (#238): имя, коммит, на который он указывает, сообщение
 // аннотированного или тема коммита лёгкого и время создания. Annotated
-// отличает аннотированный тег от лёгкого.
+// отличает аннотированный тег от лёгкого. Root значит, что у коммита тега нет
+// родителя, как у LogEntry.
 type Tag struct {
 	Name      string
 	Commit    string
 	Subject   string
 	When      string
 	Annotated bool
+	Root      bool
 }
 
-// Tags возвращает теги от новых к старым. Коммит аннотированного тега берётся
-// через %(*objectname): сам тег это отдельный объект.
+// Tags возвращает теги от новых к старым. Коммит аннотированного тега и его
+// родители берутся через %(*objectname) и %(*parent): сам тег это отдельный
+// объект.
 func Tags(dir string) ([]Tag, error) {
 	out, err := inRoot(dir, "for-each-ref", "--sort=-creatordate",
-		"--format=%(refname:lstrip=2)%1f%(objecttype)%1f%(objectname)%1f%(*objectname)%1f%(creatordate:relative)%1f%(contents:subject)", "refs/tags")
+		"--format=%(refname:lstrip=2)%1f%(objecttype)%1f%(objectname)%1f%(*objectname)%1f%(parent)%1f%(*parent)%1f%(creatordate:relative)%1f%(contents:subject)", "refs/tags")
 	if err != nil {
 		return nil, failed("tag", err)
 	}
 
 	var tags []Tag
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		fields := strings.SplitN(line, "\x1f", 6)
-		if len(fields) != 6 {
+		fields := strings.SplitN(line, "\x1f", 8)
+		if len(fields) != 8 {
 			continue
 		}
 
-		tag := Tag{Name: fields[0], Commit: fields[2], When: fields[4], Subject: fields[5], Annotated: fields[1] == "tag"}
+		tag := Tag{Name: fields[0], Commit: fields[2], When: fields[6], Subject: fields[7], Annotated: fields[1] == "tag", Root: fields[4] == ""}
 		if tag.Annotated {
-			tag.Commit = fields[3]
+			tag.Commit, tag.Root = fields[3], fields[5] == ""
 		}
 		tags = append(tags, tag)
 	}
