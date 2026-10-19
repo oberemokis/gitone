@@ -332,73 +332,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.actionDone(msg)
 	case stashTreeMsg:
 		return m.openStashDiff(msg)
-	// Списки приходят асинхронно. Если за это время открыли другое окно, список
-	// отбрасывается: иначе на экране одно окно, а клавиши уходят другому.
-	// Ошибка доходит до подвала при любом окне. Ответ правки (edit) окно не
-	// открывает: если его закрыли, остаются итог и перечитывание диффа.
+	// списки приходят асинхронно, общее у всех окон-списков делает arrived
 	case stashesMsg:
-		switch {
-		case msg.err != nil:
-			m = m.say(m.text.Error(msg.err))
-		// список после нового stash или переименования: окно остаётся, курсор
-		// на новой или переименованной записи, а дифф перечитывается, правки
-		// могли уйти из дерева
-		case msg.edit && m.beneath() == stashWindow:
-			m.stashes = msg.stashes
-			m.cursor = 0
-			m = m.moveCursor(msg.at, len(m.stashes))
-			return m.startReload()
-		case msg.edit:
-			return m.startReload()
-		case m.active == noWindow:
-			m.stashes, m.cursor, m.active = msg.stashes, 0, stashWindow
-		}
+		return m.stashesArrived(msg)
 	case branchesMsg:
-		switch {
-		case msg.err != nil:
-			m = m.say(m.text.Error(msg.err))
-		// список после удаления или переименования: окно остаётся, курсор не
-		// уходит за край, а подвал перечитывается, ведь имя текущей могло смениться
-		case msg.edit && m.beneath() == branchWindow:
-			m.branches = msg.branches
-			m = m.moveCursor(0, len(m.branchesShown()))
-			if msg.note != "" {
-				m = m.sayCalm(msg.note)
-			}
-			return m.startReload()
-		case msg.edit:
-			if msg.note != "" {
-				m = m.sayCalm(msg.note)
-			}
-			return m.startReload()
-		case m.active == noWindow:
-			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
-			m.query, m.searching = "", false
-		}
+		return m.branchesArrived(msg)
 	case worktreesMsg:
-		switch {
-		case msg.err != nil:
-			m = m.say(m.text.Error(msg.err))
-		case m.active == noWindow:
-			m.worktrees, m.cursor, m.active = msg.worktrees, currentWorktree(msg.worktrees), worktreeWindow
-			m.query, m.searching = "", false
-		}
+		m = m.worktreesArrived(msg)
 	case logMsg:
-		switch {
-		case msg.err != nil:
-			m = m.say(m.text.Error(msg.err))
-		// у нового файла истории нет: пустое окно сказало бы меньше подвала (#241)
-		// в открытой истории файла пустой список это фильтр автора без совпадений
-		case msg.filter.File && len(msg.entries) == 0 && m.active == noWindow:
-			m = m.putNotice(m.text.Text("history.empty", i18n.Args{"path": visible(msg.filter.Path)}), true)
-		case m.active == noWindow:
-			m.logEntries, m.logFilter, m.cursor, m.active = msg.entries, msg.filter, 0, logWindow
-			m.query, m.searching = "", false
-		// список под новым фильтром или после правки истории в открытый лог
-		// (#226), и под вопросом над ним тоже
-		case m.beneath() == logWindow:
-			m = m.refilterLog(msg)
-		}
+		m = m.logArrived(msg)
 	}
 
 	return m, nil

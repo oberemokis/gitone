@@ -37,6 +37,21 @@ func logCmd(dir string, filter git.LogFilter) tea.Cmd {
 	}
 }
 
+// logArrived открывает окно лога (arrived). Список под новым фильтром или
+// после правки истории ложится в открытый лог (#226), и под вопросом над ним
+// тоже. У нового файла истории нет: пустое окно сказало бы меньше подвала
+// (#241), а в открытой истории файла пустой список это фильтр автора без
+// совпадений.
+func (m Model) logArrived(msg logMsg) Model {
+	switch {
+	case msg.err == nil && msg.filter.File && len(msg.entries) == 0 && m.active == noWindow:
+		return m.putNotice(m.text.Text("history.empty", i18n.Args{"path": visible(msg.filter.Path)}), true)
+	case msg.err == nil && m.beneath() == logWindow:
+		return m.refilterLog(msg)
+	}
+	return m.arrived(listArrival{shown: logWindow, err: msg.err, set: func(m *Model) { m.logEntries, m.logFilter = msg.entries, msg.filter }})
+}
+
 // fileHistory открывает лог коммитов, которые трогали открытый файл (#241):
 // фильтр по файлу из диффа, буквальный путь и история за переименованием
 // (`--follow`). Работает на любом диффе, путь у файла тот же.

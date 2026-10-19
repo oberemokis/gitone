@@ -40,22 +40,12 @@ func thenTags(dir, note string, change func() error) tea.Cmd {
 	}
 }
 
-// tagsArrived открывает окно тегов или обновляет открытое: курсор не уходит
-// за край, подвал говорит итог правки. Ответ правки (с note) окно не
-// открывает: если его закрыли, остаётся итог.
+// tagsArrived открывает окно тегов или обновляет открытое (arrived), подвал
+// говорит итог правки. Ответ правки это ответ с note.
 func (m Model) tagsArrived(msg tagsMsg) Model {
-	switch {
-	case msg.err != nil:
-		return m.say(m.text.Error(msg.err))
-	case msg.note != "" && m.beneath() == tagWindow:
-		m.tags = msg.tags
-		m = m.moveCursor(0, len(m.tagsShown()))
-		return m.sayCalm(msg.note)
-	case msg.note != "":
-		return m.sayCalm(msg.note)
-	case m.active == noWindow:
-		m.tags, m.cursor, m.active = msg.tags, 0, tagWindow
-		m.query, m.searching = "", false
+	m = m.arrived(listArrival{shown: tagWindow, err: msg.err, edit: msg.note != "", set: func(m *Model) { m.tags = msg.tags }})
+	if msg.err == nil && msg.note != "" {
+		m = m.sayCalm(msg.note)
 	}
 	return m
 }

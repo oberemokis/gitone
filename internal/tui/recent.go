@@ -57,11 +57,7 @@ func rememberRepoCmd(stateDir, dir string) tea.Cmd {
 
 // recentArrived открывает окно недавних репозиториев.
 func (m Model) recentArrived(msg recentMsg) Model {
-	if m.active != noWindow {
-		return m
-	}
-	m.recent, m.cursor, m.active = msg.repos, 0, recentWindow
-	return m
+	return m.arrived(listArrival{shown: recentWindow, set: func(m *Model) { m.recent = msg.repos }})
 }
 
 // recentActions это действия окна недавних: recent.open открывает выбранный

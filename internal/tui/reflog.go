@@ -25,16 +25,7 @@ func reflogCmd(dir string) tea.Cmd {
 
 // reflogArrived открывает окно reflog с курсором на последней записи.
 func (m Model) reflogArrived(msg reflogMsg) Model {
-	if msg.err != nil {
-		return m.say(m.text.Error(msg.err))
-	}
-	if m.active != noWindow {
-		return m
-	}
-
-	m.reflog, m.cursor, m.active = msg.entries, 0, reflogWindow
-	m.query, m.searching = "", false
-	return m
+	return m.arrived(listArrival{shown: reflogWindow, err: msg.err, set: func(m *Model) { m.reflog = msg.entries }})
 }
 
 // reflogActions это действия окна reflog (#240). Клавиши те же, что у лога:
