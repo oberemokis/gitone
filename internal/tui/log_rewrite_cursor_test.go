@@ -69,6 +69,25 @@ func TestFixupThenAutosquashKeepsCommit(t *testing.T) {
 	}
 }
 
+// Reword возвращает в лог и после отправки, и после esc (случай 3).
+func TestRewordReturnsToLog(t *testing.T) {
+	_, model := subjectsRepo(t, "one", "two")
+	model, _ = model.Update(key('j'))
+
+	model = pressAndSettle(model, key('r'))
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if row := markedRow(model); !strings.Contains(row, "one") {
+		t.Fatalf("esc не вернул в лог:\n%s", screenText(model))
+	}
+
+	model = pressAndSettle(model, key('r'))
+	model = enterKey(typeText(eraseText(model, len("one")), "first"))
+	model = settle(model, nil, 4)
+	if row := markedRow(model); !strings.Contains(row, "first") {
+		t.Fatalf("после reword курсор не на переписанном коммите:\n%s", screenText(model))
+	}
+}
+
 // ctrl+j дважды уводит коммит на две строки вниз, курсор идёт с ним
 // (случай 5).
 func TestMoveDownTwiceFollowsCommit(t *testing.T) {
