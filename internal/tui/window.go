@@ -71,16 +71,18 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // windowBox это окно, которое лежит поверх диффа, или пустая строка. Вопрос
 // discard своего рисунка не имеет: он стоит в подвале, а справка остаётся видна.
 // Общий вопрос рисуется последней строкой окна, над которым задан (asking).
-func (m Model) windowBox() string {
+// modal говорит, что это окно, а не справка: под окном экран гаснет, и клик
+// мимо него окно закрывает (#367).
+func (m Model) windowBox() (box string, modal bool) {
 	shown, question := m.asking()
 	if kind := windowKinds[shown]; kind.box != nil {
-		return kind.box(m, m.paint(), question)
+		return kind.box(m, m.paint(), question), true
 	}
 
 	if m.helpOpen {
-		return helpBox(m.paint(), m.width, m.bodyHeight(), m.helpTop)
+		return helpBox(m.paint(), m.width, m.bodyHeight(), m.helpTop), false
 	}
-	return ""
+	return "", false
 }
 
 // navigate разбирает клавиши, общие для списков: выход, закрытие и курсор.

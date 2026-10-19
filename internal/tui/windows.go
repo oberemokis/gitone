@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"cmp"
+
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/keymap"
@@ -26,6 +28,9 @@ type windowKind struct {
 	// значит, что на строке нечего выбрать
 	move func(m Model, delta int) Model
 	pick func(m Model, index int) (Model, bool)
+	// close это клавиша закрытия: её жмёт клик мимо окна, как кнопку закрытия
+	// в заголовке (#367). Пусто у окон-списков и меню, их закрывает list.close
+	close keymap.Action
 }
 
 var windowKinds = map[window]windowKind{
@@ -39,6 +44,7 @@ var windowKinds = map[window]windowKind{
 			return pickerBox(p, m.picker, len(m.files) == 0, m.width, m.bodyHeight())
 		},
 		enter: keymap.SearchChoose,
+		close: keymap.SearchClose,
 		move: func(m Model, delta int) Model {
 			m.picker = m.picker.Move(delta)
 			return m
@@ -53,6 +59,7 @@ var windowKinds = map[window]windowKind{
 		box: func(m Model, p paint, _ string) string {
 			return commitBox(p, m.commitTitle(), m.subject, m.description, m.commitField, m.width)
 		},
+		close: keymap.CommitClose,
 	},
 	logWindow: {
 		key: Model.logKey,
@@ -152,8 +159,9 @@ var windowKinds = map[window]windowKind{
 		enter: keymap.RecentOpen,
 	},
 	promptWindow: {
-		key: Model.typePrompt,
-		box: func(m Model, p paint, _ string) string { return promptBox(p, m.prompt, m.width) },
+		key:   Model.typePrompt,
+		box:   func(m Model, p paint, _ string) string { return promptBox(p, m.prompt, m.width) },
+		close: keymap.PromptClose,
 	},
 	menuWindow: {
 		key: Model.menuKey,
@@ -192,6 +200,11 @@ func (k windowKind) moveBy(m Model, delta int) Model {
 		return m.moveCursor(delta, k.rows(m))
 	}
 	return m
+}
+
+// closeAction это клавиша закрытия окна (windowKind.close).
+func (k windowKind) closeAction() keymap.Action {
+	return cmp.Or(k.close, keymap.ListClose)
 }
 
 // pickRow ставит курсор на строку index: своим pick или общим курсором.

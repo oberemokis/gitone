@@ -136,18 +136,16 @@ func TestClickBranchLabelOpensBranches(t *testing.T) {
 	}
 }
 
-// Клик по пустому месту окна, мимо окна и по диффу ничего не меняет.
+// Клик по пустому месту окна и по диффу ничего не меняет. Клик мимо окна его
+// закрывает (backdrop_test.go).
 func TestClickEmptyPlaceDoesNothing(t *testing.T) {
 	model := searchLog(t, "base", "subject-one")
 	before := screenText(model)
 	screen := screenOf(model)
 	title := slices.IndexFunc(screen, func(line string) bool { return strings.Contains(line, "Log") })
 
-	for _, point := range [][2]int{{column(screen[title], "Log") + 10, title}, {1, title}} {
-		model = clickAt(model, point[0], point[1])
-		if after := screenText(model); after != before {
-			t.Fatalf("клик в (%d, %d) изменил экран:\n%s", point[0], point[1], after)
-		}
+	if after := screenText(clickAt(model, column(screen[title], "Log")+10, title)); after != before {
+		t.Fatalf("клик по пустому месту окна изменил экран:\n%s", after)
 	}
 
 	_, diff := threeFileRepo(t)

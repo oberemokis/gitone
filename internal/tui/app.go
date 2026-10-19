@@ -119,10 +119,13 @@ type Model struct {
 	// helpTop первая показанная строка справки, когда она выше тела (help.go)
 	helpTop int
 	colors  theme.Theme
-	text    i18n.Dictionary
-	files   []diff.File
-	current int
-	view    diffview.Model
+	// terminal цвета терминала по умолчанию для подложки под окнами
+	// (backdrop.go)
+	terminal terminalColors
+	text     i18n.Dictionary
+	files    []diff.File
+	current  int
+	view     diffview.Model
 	// вид диффа (diffflags.go, #217): без пробелов и строки контекста, -1
 	// значит число git по умолчанию
 	ignoreSpace bool
@@ -251,9 +254,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	// с первым размером экрана gitone спрашивает цвета терминала для подложки
+	// под окнами (backdrop.go)
 	case tea.WindowSizeMsg:
+		first := m.width == 0
 		m.width, m.height = msg.Width, msg.Height
 		m = m.resize()
+		if first {
+			return m, tea.Batch(tea.RequestForegroundColor, tea.RequestBackgroundColor)
+		}
 	case tea.KeyPressMsg:
 		return m.keyPress(msg)
 	case tea.PasteMsg:
@@ -283,6 +292,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.ticks != nil {
 			return m.poll()
 		}
+	case tea.ForegroundColorMsg:
+		m.terminal.fg = msg.Color
+	case tea.BackgroundColorMsg:
+		m.terminal.bg = msg.Color
 	}
 
 	return m, nil
@@ -579,7 +592,8 @@ func (m Model) View() tea.View {
 // с каждой части до того, как окно ляжет поверх панелей: слой Lip Gloss их не
 // переносит. Окно идёт в списке мест первым и целиком, клик по пустому месту в
 // нём не доходит до панели под ним. Пока открыто окно, клик работает только в
-// нём, как клавиши, поэтому места панелей и подвала не собираются.
+// нём, как клавиши, поэтому места панелей и подвала не собираются, а экран
+// под окном гаснет (backdrop.go).
 func (m Model) screen() (string, []zone.Zone) {
 	var zones []zone.Zone
 	scan := func(content string, x, y int, collect bool) string {
@@ -595,11 +609,15 @@ func (m Model) screen() (string, []zone.Zone) {
 	free := m.active == noWindow
 	top, height := m.titleHeight(), m.bodyHeight()
 
-	box := m.windowBox()
+	box, modal := m.windowBox()
+	x, y := centered(box, m.width, height)
 	if box != "" {
-		x, y := centered(box, m.width, height)
 		box = scan(box, x, top+y, true)
 		zones = append(zones, zone.Zone{Area: image.Rect(x, top+y, x+lipgloss.Width(box), top+y+lipgloss.Height(box))})
+	}
+	// подложка под окном ловит клик мимо него (#367)
+	if modal {
+		zones = append(zones, zone.Zone{Target: backdropTarget, Area: image.Rect(0, 0, m.width, m.height)})
 	}
 	// стык панелей лежит поверх строк панели: за край берутся и по строке
 	if free {
@@ -607,8 +625,8 @@ func (m Model) screen() (string, []zone.Zone) {
 	}
 
 	body := scan(lipgloss.Place(m.width, height, lipgloss.Left, lipgloss.Top, m.panes(m.placement())), 0, top, free)
-	if box != "" {
-		body = overlay(body, box, m.width, height)
+	if box != "" && !modal {
+		body = overlay(body, box, x, y)
 	}
 
 	var rows []string
@@ -621,7 +639,11 @@ func (m Model) screen() (string, []zone.Zone) {
 	}
 	rows = append(rows, body, "", scan(m.footerLine(), 0, top+height+1, free), "")
 
-	return lipgloss.JoinVertical(lipgloss.Left, rows...), zones
+	screen := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	if modal {
+		screen = backdrop(screen, box, x, top+y, m.terminal)
+	}
+	return screen, zones
 }
 
 // footerLine собирает подвал: ветку слева, статус по центру, подсказки справа.
@@ -738,11 +760,9 @@ func (m Model) titleHeight() int {
 	return 0
 }
 
-// overlay ставит окно по центру поверх base, как opencode: дифф остаётся
-// виден по краям.
-func overlay(base, window string, width, height int) string {
-	x, y := centered(window, width, height)
-
+// overlay ставит справку в клетку x, y поверх base: дифф остаётся виден по
+// краям и не гаснет, справка клавиш не забирает (#152).
+func overlay(base, window string, x, y int) string {
 	return lipgloss.NewCompositor(
 		lipgloss.NewLayer(base),
 		lipgloss.NewLayer(window).X(x).Y(y).Z(1),
