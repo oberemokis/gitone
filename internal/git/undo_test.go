@@ -184,3 +184,41 @@ func TestUndoRebase(t *testing.T) {
 		t.Fatalf("HEAD %s после отката rebase, ожидался %s", got, before)
 	}
 }
+
+// Pull с rebase откатывается одним шагом к коммиту до pull, и с --rebase, и
+// с pull.rebase=true; pull перемоткой как раньше (#296, случаи 1–3).
+func TestUndoPullRebase(t *testing.T) {
+	cases := []struct {
+		name string
+		pull []string
+	}{
+		{"--rebase", []string{"pull", "-q", "--rebase"}},
+		{"pull.rebase=true", []string{"-c", "pull.rebase=true", "pull", "-q"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			origin, local := remotePair(t)
+			for _, name := range []string{"b.txt", "c.txt"} {
+				write(t, local, name, name+"\n")
+				commitAll(t, local)
+			}
+			before := revision(t, local, "HEAD")
+			publish(t, origin, "d.txt", "peer\n")
+			runGit(t, local, tc.pull...)
+
+			undo(t, local)
+			if got := revision(t, local, "HEAD"); got != before {
+				t.Fatalf("HEAD %s после отката pull, ожидался %s", got, before)
+			}
+		})
+	}
+
+	origin, local := remotePair(t)
+	before := revision(t, local, "HEAD")
+	publish(t, origin, "d.txt", "peer\n")
+	runGit(t, local, "pull", "-q", "--ff-only")
+	undo(t, local)
+	if got := revision(t, local, "HEAD"); got != before {
+		t.Fatalf("HEAD %s после отката перемотки, ожидался %s", got, before)
+	}
+}

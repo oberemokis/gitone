@@ -135,8 +135,10 @@ func walk(entries []ReflogEntry, visit func(counter int, found move) (bool, erro
 	return nil
 }
 
+// rebaseStep узнаёт стадию rebase в записи reflog. pull с rebase пишет свои:
+// «pull --rebase (start)», а при pull.rebase=true «pull (start)».
 func rebaseStep(action, stage string) bool {
-	return strings.HasPrefix(action, "rebase") && strings.HasSuffix(action, stage)
+	return (strings.HasPrefix(action, "rebase") || strings.HasPrefix(action, "pull")) && strings.HasSuffix(action, stage)
 }
 
 // checkoutTargets разбирает «moving from main to feature».
