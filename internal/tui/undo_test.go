@@ -40,6 +40,9 @@ func TestUndoRedoKeys(t *testing.T) {
 	if got := runGit(t, repo, "rev-parse", "HEAD"); got != second {
 		t.Fatalf("HEAD %s после повтора, ожидался %s", got, second)
 	}
+	if footer := footerOf(model); !strings.Contains(footer, "Redone, HEAD is at "+second[:7]) {
+		t.Fatalf("подвал %q, ожидался итог повтора", footer)
+	}
 }
 
 // Отказ git, например после stash, идёт причиной в подвал (случай 5).

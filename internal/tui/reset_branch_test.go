@@ -62,7 +62,7 @@ func TestResetToOtherBranch(t *testing.T) {
 	model, _ = model.Update(key('j'))
 	model, _ = model.Update(key('j'))
 	model = pressAndSettle(model, key('g'))
-	model = enterKey(model)
+	enterKey(model)
 
 	if got, want := runGit(t, repo, "rev-parse", "main"), runGit(t, repo, "rev-parse", "unmerged"); got != want {
 		t.Fatalf("main %s, ожидалась вершина unmerged %s", got, want)

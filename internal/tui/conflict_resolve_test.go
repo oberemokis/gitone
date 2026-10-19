@@ -249,7 +249,7 @@ func TestResolveBinaryConflictWhole(t *testing.T) {
 
 	model = pressAndSettle(model, key(']'))
 	model = pressAndSettle(model, key('v'))
-	model = chooseMenu(t, model, "Whole file: theirs")
+	chooseMenu(t, model, "Whole file: theirs")
 
 	if got := readText(t, filepath.Join(repo, "b.bin")); got != "topic\x00\n" {
 		t.Fatalf("b.bin = %q, ожидалась их сторона", got)
