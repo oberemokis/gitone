@@ -14,6 +14,8 @@ type undoStepMsg struct {
 	err  error
 }
 
+func (msg undoStepMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.askUndo(msg), nil }
+
 // undoStepCmd ищет шаг по reflog в команде: чтение reflog это IO, ему не место
 // в Update.
 func undoStepCmd(dir string, redo bool) tea.Cmd {

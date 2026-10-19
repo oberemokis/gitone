@@ -14,12 +14,18 @@ import (
 // tickMsg приходит от таймера опроса.
 type tickMsg struct{}
 
+func (tickMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.ticked() }
+
 // polledMsg несёт итог опроса: тот же ответ, что у перечитывания, но экран его
 // принимает тихо. load это номер перечитывания, при котором опрос начался.
+// Свой apply обязателен: без него сообщение взяло бы apply встроенного
+// reloadMsg и легло бы громко.
 type polledMsg struct {
 	reloadMsg
 	load int
 }
+
+func (msg polledMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.polled(msg) }
 
 // waitTick ждёт один тик. Без таймера ждать нечего, и команды нет. Ожидание
 // возобновляется после каждого тика, иначе второй тик не дошёл бы до модели.

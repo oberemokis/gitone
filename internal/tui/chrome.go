@@ -235,6 +235,14 @@ type spinMsg struct {
 	load int
 }
 
+func (msg spinMsg) apply(m Model) (tea.Model, tea.Cmd) {
+	if !m.loading || msg.load != m.load {
+		return m, nil
+	}
+	m.spin++
+	return m, spinTick(m.load)
+}
+
 func spinTick(load int) tea.Cmd {
 	return tea.Tick(spinnerStep, func(time.Time) tea.Msg { return spinMsg{load: load} })
 }

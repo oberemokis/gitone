@@ -17,6 +17,8 @@ type journalMsg struct {
 	entries []git.JournalEntry
 }
 
+func (msg journalMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.journalArrived(msg), nil }
+
 // journalCmd читает журнал в команде: журнал общий для горутин команд git и
 // живёт под мьютексом, в Update ему не место.
 func journalCmd() tea.Cmd {

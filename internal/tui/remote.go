@@ -76,11 +76,21 @@ type remoteDoneMsg struct {
 	err     error
 }
 
+func (msg remoteDoneMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.remoteDone(msg) }
+
 // remoteSpinMsg это шаг спиннера операции id. У pull и push своя цепочка шагов:
 // перечитывание диффа во время операции крутит свой спиннер, и её цепочка не
 // должна на нём оборваться.
 type remoteSpinMsg struct {
 	id int
+}
+
+func (msg remoteSpinMsg) apply(m Model) (tea.Model, tea.Cmd) {
+	if !m.remote.running() || msg.id != m.remote.id {
+		return m, nil
+	}
+	m.remote.spin++
+	return m, remoteSpinTick(msg.id)
 }
 
 func remoteSpinTick(id int) tea.Cmd {

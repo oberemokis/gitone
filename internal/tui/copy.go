@@ -15,6 +15,8 @@ type patchMsg struct {
 	err   error
 }
 
+func (msg patchMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.patchSaved(msg) }
+
 // askCopy открывает меню копирования коммита (#224), как y в lazygit: хэш в
 // буфер обмена, патч в буфер и в файл. Буфер это OSC 52: терминал не отвечает,
 // принял ли он текст, поэтому патч сохраняется файлом всегда.

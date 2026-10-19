@@ -18,6 +18,8 @@ type remotesMsg struct {
 	note    string
 }
 
+func (msg remotesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.remotesArrived(msg), nil }
+
 func remotesCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		remotes, err := git.Remotes(dir)

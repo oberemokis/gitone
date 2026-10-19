@@ -22,6 +22,8 @@ type rewrittenMsg struct {
 	at        int
 }
 
+func (msg rewrittenMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.rewritten(msg) }
+
 // rewriteAction это правка истории в логе, как в lazygit: squash и fixup в
 // предыдущий коммит, drop после вопроса, reword через окно коммита, перенос
 // вверх и вниз. Клавиши стоят в таблице logActions.
@@ -146,6 +148,8 @@ type rewordMsg struct {
 	description string
 	err         error
 }
+
+func (msg rewordMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.openReword(msg), nil }
 
 func rewordMessageCmd(dir, hash string) tea.Cmd {
 	return func() tea.Msg {

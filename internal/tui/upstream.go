@@ -16,6 +16,8 @@ type remoteBranchesMsg struct {
 	err     error
 }
 
+func (msg remoteBranchesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.chooseUpstream(msg), nil }
+
 func remoteBranchesCmd(dir, branch string) tea.Cmd {
 	return func() tea.Msg {
 		remotes, err := git.RemoteBranches(dir)

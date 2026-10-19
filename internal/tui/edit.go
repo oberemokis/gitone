@@ -23,6 +23,8 @@ type editorMsg struct {
 	err     error
 }
 
+func (msg editorMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.startEditor(msg) }
+
 // editFile открывает текущий файл в редакторе (#215), как e в lazygit: на
 // любом диффе, ведь правится файл рабочего дерева. Запись без пути редактору
 // отдать нечего.

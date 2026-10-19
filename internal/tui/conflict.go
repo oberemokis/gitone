@@ -66,6 +66,8 @@ type conflictLabelsMsg struct {
 	ours, theirs string
 }
 
+func (msg conflictLabelsMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.sidesArrived(msg), nil }
+
 // sidesArrived открывает меню сторон, если файл ещё открыт и выбор идёт.
 func (m Model) sidesArrived(msg conflictLabelsMsg) Model {
 	if len(m.files) == 0 || stagedKey(m.files[m.current]) != msg.path || !m.view.SelectingConflicts() || m.active != noWindow {

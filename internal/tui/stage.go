@@ -23,6 +23,8 @@ type actionDoneMsg struct {
 	warning string
 }
 
+func (msg actionDoneMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.actionDone(msg) }
+
 // stageCmd ставит пути в индекс или убирает их оттуда. Команда, а не Update:
 // правка идёт через git и не должна блокировать экран.
 func stageCmd(dir string, paths []string, unstage bool) tea.Cmd {
