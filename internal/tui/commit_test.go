@@ -8,7 +8,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/git"
 	"gitone/internal/layout"
 )
 
@@ -29,7 +28,7 @@ func TestCommitFromApp(t *testing.T) {
 	if body := strings.Join(screenOf(model), "\n"); strings.Contains(body, "> fix") {
 		t.Fatalf("поле не закрылось после коммита:\n%s", body)
 	}
-	if subject, err := git.StagedPaths(repo); err != nil || len(subject) != 0 {
+	if subject, err := openedRepo(t, repo).StagedPaths(); err != nil || len(subject) != 0 {
 		t.Fatalf("индекс не пуст после коммита: %q, %v", subject, err)
 	}
 	if got := runGit(t, repo, "log", "-1", "--format=%s"); got != "fix text" {

@@ -18,9 +18,9 @@ type remoteBranchesMsg struct {
 
 func (msg remoteBranchesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.chooseUpstream(msg), nil }
 
-func remoteBranchesCmd(dir, branch string) tea.Cmd {
+func remoteBranchesCmd(repo git.Repo, branch string) tea.Cmd {
 	return func() tea.Msg {
-		remotes, err := git.RemoteBranches(dir)
+		remotes, err := repo.RemoteBranches()
 		return remoteBranchesMsg{branch: branch, remotes: remotes, err: err}
 	}
 }
@@ -43,7 +43,7 @@ func (m Model) chooseUpstream(msg remoteBranchesMsg) Model {
 	for index, remote := range msg.remotes {
 		items[index] = menuItem{label: visible(remote), run: func(m Model) (tea.Model, tea.Cmd) {
 			note := m.text.Text("upstream.set", i18n.Args{"branch": visible(msg.branch), "upstream": visible(remote)})
-			return m, setUpstreamCmd(m.dir, msg.branch, remote, note)
+			return m, setUpstreamCmd(m.repo, msg.branch, remote, note)
 		}}
 	}
 	return m.openMenu(m.text.Text("upstream.title", i18n.Args{"branch": visible(msg.branch)}), items)
@@ -51,9 +51,9 @@ func (m Model) chooseUpstream(msg remoteBranchesMsg) Model {
 
 // setUpstreamCmd привязывает ветку к upstream и отвечает новым списком веток:
 // окно веток остаётся открытым, подвал говорит итог.
-func setUpstreamCmd(dir, branch, upstream, note string) tea.Cmd {
+func setUpstreamCmd(repo git.Repo, branch, upstream, note string) tea.Cmd {
 	return func() tea.Msg {
-		msg := thenBranches(dir, func() error { return git.SetUpstream(dir, branch, upstream) })().(branchesMsg)
+		msg := thenBranches(repo, func() error { return repo.SetUpstream(branch, upstream) })().(branchesMsg)
 		if msg.err == nil {
 			msg.note = note
 		}

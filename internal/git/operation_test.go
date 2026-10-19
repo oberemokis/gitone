@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"gitone/internal/git"
 )
 
 // conflictBranches это main и topic, которые правят a.txt по-разному, и
@@ -31,7 +29,7 @@ func conflictBranches(t *testing.T) string {
 func operationOf(t *testing.T, repo string) string {
 	t.Helper()
 
-	location, err := git.Locate(repo)
+	location, err := open(t, repo).Locate()
 	if err != nil {
 		t.Fatalf("Locate: %v", err)
 	}
@@ -47,7 +45,7 @@ func TestAbortMerge(t *testing.T) {
 	if got := operationOf(t, repo); got != "merge" {
 		t.Fatalf("Operation = %q, ожидался merge", got)
 	}
-	if err := git.Abort(repo); err != nil {
+	if err := open(t, repo).Abort(); err != nil {
 		t.Fatalf("Abort: %v", err)
 	}
 	if got := revision(t, repo, "HEAD"); got != before {
@@ -71,13 +69,13 @@ func TestContinueRebase(t *testing.T) {
 	if got := operationOf(t, repo); got != "rebase" {
 		t.Fatalf("Operation = %q, ожидался rebase", got)
 	}
-	if err := git.Continue(repo); err == nil || !strings.HasPrefix(err.Error(), "rebase: ") {
+	if err := open(t, repo).Continue(); err == nil || !strings.HasPrefix(err.Error(), "rebase: ") {
 		t.Fatalf("Continue с конфликтом = %v, ожидался отказ git", err)
 	}
 
 	write(t, repo, "a.txt", "resolved\n")
 	runGit(t, repo, "add", "a.txt")
-	if err := git.Continue(repo); err != nil {
+	if err := open(t, repo).Continue(); err != nil {
 		t.Fatalf("Continue: %v", err)
 	}
 	if got := operationOf(t, repo); got != "" {
@@ -107,19 +105,19 @@ func TestContinueStopsOnNextConflict(t *testing.T) {
 
 	write(t, repo, "a.txt", "resolved\n")
 	runGit(t, repo, "add", "a.txt")
-	refusedWith(t, git.Continue(repo), "git.stoppedOnConflict")
+	refusedWith(t, open(t, repo).Continue(), "git.stoppedOnConflict")
 }
 
 // У bisect нет continue и abort: оба отказывают ошибкой из словаря (#300,
 // случай 2).
 func TestContinueRefusesBisect(t *testing.T) {
 	repo := eightCommits(t)
-	if _, err := git.BisectMark(repo, "HEAD", false); err != nil {
+	if _, err := open(t, repo).BisectMark("HEAD", false); err != nil {
 		t.Fatalf("BisectMark: %v", err)
 	}
 
-	refusedWith(t, git.Continue(repo), "git.bisectNoContinue")
-	refusedWith(t, git.Abort(repo), "git.bisectNoContinue")
+	refusedWith(t, open(t, repo).Continue(), "git.bisectNoContinue")
+	refusedWith(t, open(t, repo).Abort(), "git.bisectNoContinue")
 }
 
 // Упавший хук при продолжении слияния виден своим текстом, а не остановкой
@@ -134,7 +132,7 @@ func TestContinueShowsHookFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := git.Continue(repo); err == nil || !strings.Contains(err.Error(), "hook says no") {
+	if err := open(t, repo).Continue(); err == nil || !strings.Contains(err.Error(), "hook says no") {
 		t.Fatalf("Continue = %v, ожидался текст хука", err)
 	}
 }
@@ -150,7 +148,7 @@ func TestAmOperation(t *testing.T) {
 	if got := operationOf(t, repo); got != "am" {
 		t.Fatalf("Operation = %q, ожидался am", got)
 	}
-	if err := git.Abort(repo); err != nil {
+	if err := open(t, repo).Abort(); err != nil {
 		t.Fatalf("Abort: %v", err)
 	}
 	if got := operationOf(t, repo); got != "" {
@@ -166,11 +164,11 @@ func TestAbortRebase(t *testing.T) {
 	before := revision(t, repo, "HEAD")
 	stopsOnConflict(t, repo, "rebase", "main")
 
-	if err := git.Abort(repo); err != nil {
+	if err := open(t, repo).Abort(); err != nil {
 		t.Fatalf("Abort: %v", err)
 	}
 	if got := revision(t, repo, "topic"); got != before {
 		t.Fatalf("topic на %s, ожидался %s", got, before)
 	}
-	refusedWith(t, git.Abort(repo), "git.noOperation")
+	refusedWith(t, open(t, repo).Abort(), "git.noOperation")
 }

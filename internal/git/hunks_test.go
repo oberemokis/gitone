@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"gitone/internal/diff"
-	"gitone/internal/git"
 )
 
 // hunkRepo это файл из десяти строк, в котором правлены первая и девятая:
@@ -36,12 +35,12 @@ func selectRefs(refs ...diff.LineRef) map[diff.LineRef]bool {
 func TestApplyPatchStagesHunk(t *testing.T) {
 	repo := hunkRepo(t)
 
-	text, err := git.UnstagedDiff(repo, "a.txt")
+	text, err := open(t, repo).UnstagedDiff("a.txt")
 	if err != nil {
 		t.Fatalf("UnstagedDiff: %v", err)
 	}
 	patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineRemoved, Number: 9, Text: "nine"}, diff.LineRef{Kind: diff.LineAdded, Number: 9, Text: "NINE"}), false)
-	if err := git.ApplyPatch(repo, patch, true, false); err != nil {
+	if err := open(t, repo).ApplyPatch(patch, true, false); err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
 	}
 
@@ -53,10 +52,10 @@ func TestApplyPatchStagesHunk(t *testing.T) {
 		t.Fatalf("в рабочем дереве не только первый хунк:\n%s", unstaged)
 	}
 
-	if err := git.ApplyPatch(repo, patch, true, false); err == nil || !strings.HasPrefix(err.Error(), "apply: ") {
+	if err := open(t, repo).ApplyPatch(patch, true, false); err == nil || !strings.HasPrefix(err.Error(), "apply: ") {
 		t.Fatalf("повторный патч = %v, ожидался отказ git", err)
 	}
-	if paths, _ := git.UnstagedPaths(repo); len(paths) != 1 || paths[0] != "a.txt" {
+	if paths, _ := open(t, repo).UnstagedPaths(); len(paths) != 1 || paths[0] != "a.txt" {
 		t.Fatalf("UnstagedPaths = %q", paths)
 	}
 }
@@ -71,9 +70,9 @@ func TestApplyPatchStagesLines(t *testing.T) {
 
 	lines := map[int]string{2: "first", 3: "second"}
 	for _, number := range []int{3, 2} {
-		text, _ := git.UnstagedDiff(repo, "a.txt")
+		text, _ := open(t, repo).UnstagedDiff("a.txt")
 		patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineAdded, Number: number, Text: lines[number]}), false)
-		if err := git.ApplyPatch(repo, patch, true, false); err != nil {
+		if err := open(t, repo).ApplyPatch(patch, true, false); err != nil {
 			t.Fatalf("строка %d: %v", number, err)
 		}
 		if number == 3 {
@@ -111,9 +110,9 @@ func TestApplyPatchNoNewline(t *testing.T) {
 			commitAll(t, repo)
 			write(t, repo, "a.txt", tc.worktree)
 
-			text, _ := git.UnstagedDiff(repo, "a.txt")
+			text, _ := open(t, repo).UnstagedDiff("a.txt")
 			patch := diff.Patch(text, selectRefs(tc.selected), tc.reverse)
-			if err := git.ApplyPatch(repo, patch, !tc.reverse, tc.reverse); err != nil {
+			if err := open(t, repo).ApplyPatch(patch, !tc.reverse, tc.reverse); err != nil {
 				t.Fatalf("ApplyPatch: %v\n%s", err, patch)
 			}
 
@@ -133,9 +132,9 @@ func TestApplyPatchNoNewline(t *testing.T) {
 func TestApplyPatchDiscards(t *testing.T) {
 	repo := hunkRepo(t)
 
-	text, _ := git.UnstagedDiff(repo, "a.txt")
+	text, _ := open(t, repo).UnstagedDiff("a.txt")
 	patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineRemoved, Number: 1, Text: "one"}, diff.LineRef{Kind: diff.LineAdded, Number: 1, Text: "ONE"}), true)
-	if err := git.ApplyPatch(repo, patch, false, true); err != nil {
+	if err := open(t, repo).ApplyPatch(patch, false, true); err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); !strings.HasPrefix(got, "one\n") || !strings.Contains(got, "NINE\n") {
@@ -145,9 +144,9 @@ func TestApplyPatchDiscards(t *testing.T) {
 	write(t, repo, "a.txt", "one\nfirst\nsecond\n")
 	runGit(t, repo, "add", "a.txt")
 	write(t, repo, "a.txt", "one\nfirst\nextra\nsecond\nmore\n")
-	text, _ = git.UnstagedDiff(repo, "a.txt")
+	text, _ = open(t, repo).UnstagedDiff("a.txt")
 	patch = diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineAdded, Number: 3, Text: "extra"}), true)
-	if err := git.ApplyPatch(repo, patch, false, true); err != nil {
+	if err := open(t, repo).ApplyPatch(patch, false, true); err != nil {
 		t.Fatalf("ApplyPatch строки: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\nfirst\nsecond\nmore\n" {

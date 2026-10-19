@@ -1,6 +1,7 @@
 package git
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 )
@@ -58,18 +59,19 @@ func (f LogFilter) call(root string) call {
 // NUL git в этих полях не допускает. log.showSignature из конфига пользователя
 // вставил бы между графом и форматом строку проверки подписи. filter
 // оставляет коммиты автора и коммиты, которые трогали путь (#226).
-func Log(dir string, limit int, filter LogFilter) ([]LogEntry, error) {
-	root, err := topLevel(dir)
-	if err != nil {
+func (r Repo) Log(limit int, filter LogFilter) ([]LogEntry, error) {
+	// без HEAD rev-parse выходит с кодом 1, а если репозитория больше нет
+	// (каталог .git удалили) с другим кодом: это ошибка, а не пустой лог
+	if _, err := r.inRoot("rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
+		var refusal *gitError
+		if errors.As(err, &refusal) && refusal.exit.ExitCode() == 1 {
+			return nil, nil
+		}
 		return nil, failed("log", err)
 	}
 
-	if _, err := run(call{dir: root}, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
-		return nil, nil
-	}
-
 	args := []string{"log", "--graph", "--no-color", "--no-show-signature", "-n", strconv.Itoa(limit), "--format=%x00%H%x00%P%x00%an%x00%cr%x00%s"}
-	out, err := run(filter.call(root), append(args, filter.args()...)...)
+	out, err := run(filter.call(r.root), append(args, filter.args()...)...)
 	if err != nil {
 		return nil, failed("log", err)
 	}

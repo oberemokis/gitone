@@ -28,9 +28,9 @@ func (m Model) askCopy(entry git.LogEntry) Model {
 			return m, tea.SetClipboard(entry.Hash)
 		}},
 		{label: m.text.Text("copy.patch", nil), run: func(m Model) (tea.Model, tea.Cmd) {
-			dir := m.dir
+			repo := m.repo
 			return m, func() tea.Msg {
-				name, patch, err := git.Patch(dir, entry.Hash)
+				name, patch, err := repo.Patch(entry.Hash)
 				return patchMsg{name: name, patch: patch, err: err}
 			}
 		}},

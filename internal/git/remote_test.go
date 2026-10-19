@@ -55,7 +55,7 @@ func TestFetchMovesRemoteBranchOnly(t *testing.T) {
 	before := revision(t, local, "HEAD")
 	publish(t, origin, "b.txt", "two\n")
 
-	if err := git.Fetch(context.Background(), local); err != nil {
+	if err := open(t, local).Fetch(context.Background()); err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
 	if got := revision(t, local, "origin/main"); got != revision(t, origin, "main") {
@@ -74,12 +74,12 @@ func TestFetchRefusesWithoutRemoteOrNetwork(t *testing.T) {
 	commitAll(t, repo)
 
 	var refusal *i18n.Error
-	if err := git.Fetch(context.Background(), repo); !errors.As(err, &refusal) || refusal.Key != "git.noRemote" {
+	if err := open(t, repo).Fetch(context.Background()); !errors.As(err, &refusal) || refusal.Key != "git.noRemote" {
 		t.Fatalf("Fetch без remote = %v, ожидался отказ git.noRemote", err)
 	}
 
 	runGit(t, repo, "remote", "add", "origin", filepath.Join(t.TempDir(), "missing.git"))
-	if err := git.Fetch(context.Background(), repo); err == nil || !strings.Contains(err.Error(), "fetch: ") {
+	if err := open(t, repo).Fetch(context.Background()); err == nil || !strings.Contains(err.Error(), "fetch: ") {
 		t.Fatalf("Fetch с недоступным remote = %v, ожидалась ошибка git", err)
 	}
 }
@@ -88,7 +88,7 @@ func TestPullFastForwardsBehindBranch(t *testing.T) {
 	origin, local := remotePair(t)
 	publish(t, origin, "b.txt", "two\n")
 
-	updated, err := git.Pull(context.Background(), local)
+	updated, err := open(t, local).Pull(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pull: %v", err)
@@ -108,7 +108,7 @@ func TestPullReportsUpToDateBranch(t *testing.T) {
 	_, local := remotePair(t)
 	before := revision(t, local, "HEAD")
 
-	updated, err := git.Pull(context.Background(), local)
+	updated, err := open(t, local).Pull(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pull: %v", err)
@@ -143,7 +143,7 @@ func TestPullRefusesDivergedBranches(t *testing.T) {
 			}
 			before := revision(t, local, "HEAD")
 
-			_, err := git.Pull(context.Background(), local)
+			_, err := open(t, local).Pull(context.Background())
 
 			if err == nil || err.Error() != "pull: fatal: Not possible to fast-forward, aborting." {
 				t.Fatalf("ошибка %v, ожидалась строка отказа git без отчёта о fetch и подсказок", err)
@@ -163,13 +163,13 @@ func TestPullRefusesDivergedBranches(t *testing.T) {
 
 // При detached HEAD отказ приходит из словаря: git не запускается.
 func TestPullAndPushRefuseDetachedHead(t *testing.T) {
-	cases := map[string]func(repo string) error{
-		"pull": func(repo string) error {
-			_, err := git.Pull(context.Background(), repo)
+	cases := map[string]func(repo git.Repo) error{
+		"pull": func(repo git.Repo) error {
+			_, err := repo.Pull(context.Background())
 			return err
 		},
-		"push": func(repo string) error {
-			_, err := git.Push(context.Background(), repo)
+		"push": func(repo git.Repo) error {
+			_, err := repo.Push(context.Background())
 			return err
 		},
 	}
@@ -179,7 +179,7 @@ func TestPullAndPushRefuseDetachedHead(t *testing.T) {
 			_, local := remotePair(t)
 			runGit(t, local, "checkout", "-q", "--detach")
 
-			err := call(local)
+			err := call(open(t, local))
 
 			var refusal *i18n.Error
 			if !errors.As(err, &refusal) || refusal.Key != "git.detachedHead" {
@@ -197,7 +197,7 @@ func TestPushSendsAheadCommits(t *testing.T) {
 	write(t, local, "b.txt", "two\n")
 	commitAll(t, local)
 
-	target, err := git.Push(context.Background(), local)
+	target, err := open(t, local).Push(context.Background())
 
 	if err != nil {
 		t.Fatalf("Push: %v", err)
@@ -217,7 +217,7 @@ func TestPushCreatesUpstreamForNewBranch(t *testing.T) {
 	write(t, local, "b.txt", "two\n")
 	commitAll(t, local)
 
-	target, err := git.Push(context.Background(), local)
+	target, err := open(t, local).Push(context.Background())
 
 	if err != nil {
 		t.Fatalf("Push: %v", err)
@@ -238,7 +238,7 @@ func TestPushWithoutOriginShowsGitError(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	_, err := git.Push(context.Background(), repo)
+	_, err := open(t, repo).Push(context.Background())
 
 	if err == nil || !strings.Contains(err.Error(), "'origin' does not appear to be a git repository") {
 		t.Fatalf("ошибка %v, ожидался отказ git про origin", err)
@@ -255,7 +255,7 @@ func TestPushNeverOverwritesRemoteCommits(t *testing.T) {
 	write(t, local, "c.txt", "local\n")
 	commitAll(t, local)
 
-	_, err := git.Push(context.Background(), local)
+	_, err := open(t, local).Push(context.Background())
 
 	if err == nil || !strings.HasPrefix(err.Error(), "push: error: failed to push some refs") || strings.Contains(err.Error(), "\n") {
 		t.Fatalf("ошибка %q, ожидалась одна строка отказа git «error: failed to push some refs»", err)
@@ -271,10 +271,10 @@ func TestPushForceLeaseSendsRewrittenBranch(t *testing.T) {
 	origin, local := remotePair(t)
 	runGit(t, local, "commit", "-q", "--amend", "-m", "rewritten")
 
-	_, err := git.Push(context.Background(), local)
+	_, err := open(t, local).Push(context.Background())
 	refusedWith(t, err, "git.pushDiverged")
 
-	target, err := git.PushForceLease(context.Background(), local)
+	target, err := open(t, local).PushForceLease(context.Background())
 	if err != nil || target != "origin/main" {
 		t.Fatalf("PushForceLease = %q, %v", target, err)
 	}
@@ -302,7 +302,7 @@ func TestPushForceLeaseSendsCurrentBranchOnly(t *testing.T) {
 	runGit(t, local, "fetch", "-q", "origin")
 	runGit(t, local, "commit", "-q", "--amend", "-m", "rewritten")
 
-	if _, err := git.PushForceLease(context.Background(), local); err != nil {
+	if _, err := open(t, local).PushForceLease(context.Background()); err != nil {
 		t.Fatalf("PushForceLease: %v", err)
 	}
 	if got, want := revision(t, origin, "main"), revision(t, local, "HEAD"); got != want {
@@ -321,7 +321,7 @@ func TestPushForceLeaseKeepsUnseenRemoteCommits(t *testing.T) {
 	peerHead := revision(t, origin, "main")
 	runGit(t, local, "commit", "-q", "--amend", "-m", "rewritten")
 
-	if _, err := git.PushForceLease(context.Background(), local); err == nil || !strings.HasPrefix(err.Error(), "push: ") {
+	if _, err := open(t, local).PushForceLease(context.Background()); err == nil || !strings.HasPrefix(err.Error(), "push: ") {
 		t.Fatalf("PushForceLease = %v, ожидался отказ git", err)
 	}
 	if got := revision(t, origin, "main"); got != peerHead {
@@ -339,7 +339,7 @@ func TestPullDoesNotPromptForPassword(t *testing.T) {
 	_, local := remotePair(t)
 	runGit(t, local, "remote", "set-url", "origin", server.URL+"/repo.git")
 
-	_, err := git.Pull(context.Background(), local)
+	_, err := open(t, local).Pull(context.Background())
 
 	if err == nil || !strings.Contains(err.Error(), "terminal prompts disabled") {
 		t.Fatalf("ошибка %v, ожидался отказ git «terminal prompts disabled»", err)
@@ -385,7 +385,7 @@ func TestSSHRunsInBatchModeUnlessUserChoseCommand(t *testing.T) {
 			runGit(t, local, "remote", "set-url", "origin", "ssh://git@example.invalid/repo.git")
 			tc.setup(t, local, program)
 
-			_, err := git.Pull(context.Background(), local)
+			_, err := open(t, local).Pull(context.Background())
 
 			if err == nil || !strings.Contains(err.Error(), "Permission denied (publickey)") {
 				t.Fatalf("ошибка %v, ожидался отказ по ключу", err)

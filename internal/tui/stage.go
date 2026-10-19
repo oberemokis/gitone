@@ -27,18 +27,18 @@ func (msg actionDoneMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.actionDo
 
 // stageCmd ставит пути в индекс или убирает их оттуда. Команда, а не Update:
 // правка идёт через git и не должна блокировать экран.
-func stageCmd(dir string, paths []string, unstage bool) tea.Cmd {
+func stageCmd(repo git.Repo, paths []string, unstage bool) tea.Cmd {
 	return func() tea.Msg {
 		if unstage {
-			return actionDoneMsg{err: git.Unstage(dir, paths)}
+			return actionDoneMsg{err: repo.Unstage(paths)}
 		}
-		return actionDoneMsg{err: git.Stage(dir, paths)}
+		return actionDoneMsg{err: repo.Stage(paths)}
 	}
 }
 
-func discardCmd(dir string, paths []string) tea.Cmd {
+func discardCmd(repo git.Repo, paths []string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.Discard(dir, paths)}
+		return actionDoneMsg{err: repo.Discard(paths)}
 	}
 }
 
@@ -98,7 +98,7 @@ func (m Model) toggleStage() (tea.Model, tea.Cmd) {
 		return m.putNotice(note, true), nil
 	}
 
-	return m, stageCmd(m.dir, paths, m.index.Staged[stagedKey(m.files[m.current])])
+	return m, stageCmd(m.repo, paths, m.index.Staged[stagedKey(m.files[m.current])])
 }
 
 // ignoreFile дописывает текущий файл в корневой .gitignore (#214), как i в
@@ -111,10 +111,10 @@ func (m Model) ignoreFile() (tea.Model, tea.Cmd) {
 		return m.putNotice(note, true), nil
 	}
 
-	dir, path := m.dir, stagedKey(m.files[m.current])
+	repo, path := m.repo, stagedKey(m.files[m.current])
 	done := m.text.Text("stage.ignored", i18n.Args{"path": visible(path)})
 	return m, func() tea.Msg {
-		return actionDoneMsg{err: git.Ignore(dir, path), note: done}
+		return actionDoneMsg{err: repo.Ignore(path), note: done}
 	}
 }
 
@@ -130,7 +130,7 @@ func (m Model) askDiscard() Model {
 	args := questionArgs(m.keys)
 	args["file"] = fileTitle(m.files[m.current], m.text)
 	return m.ask(m.text.Text("discard.question", args), func(m Model) (tea.Model, tea.Cmd) {
-		return m, discardCmd(m.dir, paths)
+		return m, discardCmd(m.repo, paths)
 	})
 }
 

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"gitone/internal/git"
 	"gitone/internal/i18n"
 )
 
@@ -30,7 +29,7 @@ func TestRevert(t *testing.T) {
 	commitAll(t, repo)
 	target := revision(t, repo, "HEAD")
 
-	if err := git.Revert(repo, target); err != nil {
+	if err := open(t, repo).Revert(target); err != nil {
 		t.Fatalf("Revert: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\n" {
@@ -41,7 +40,7 @@ func TestRevert(t *testing.T) {
 	}
 
 	head := revision(t, repo, "HEAD")
-	refusedWith(t, git.Revert(repo, target), "git.alreadyReverted")
+	refusedWith(t, open(t, repo).Revert(target), "git.alreadyReverted")
 	if got := revision(t, repo, "HEAD"); got != head {
 		t.Fatal("повторный revert создал коммит")
 	}
@@ -53,7 +52,7 @@ func TestCherryPick(t *testing.T) {
 	repo := divergedRepo(t)
 	feature := revision(t, repo, "feature")
 
-	if err := git.CherryPick(repo, feature); err != nil {
+	if err := open(t, repo).CherryPick(feature); err != nil {
 		t.Fatalf("CherryPick: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "f.txt")); got != "feature\n" {
@@ -64,7 +63,7 @@ func TestCherryPick(t *testing.T) {
 	}
 
 	head := revision(t, repo, "HEAD")
-	refusedWith(t, git.CherryPick(repo, feature), "git.alreadyPicked")
+	refusedWith(t, open(t, repo).CherryPick(feature), "git.alreadyPicked")
 	if got := revision(t, repo, "HEAD"); got != head {
 		t.Fatal("повторный cherry-pick создал коммит")
 	}
@@ -74,7 +73,7 @@ func TestCherryPick(t *testing.T) {
 	commitAll(t, repo)
 	conflicting := revision(t, repo, "HEAD")
 	runGit(t, repo, "switch", "-q", "main")
-	refusedWith(t, git.CherryPick(repo, conflicting), "git.stoppedOnConflict")
+	refusedWith(t, open(t, repo).CherryPick(conflicting), "git.stoppedOnConflict")
 }
 
 // Merge-коммит не отменяется: номер родителя не спрашиваем (случай 2).
@@ -82,11 +81,11 @@ func TestCherryPick(t *testing.T) {
 func TestRevertRefusals(t *testing.T) {
 	repo := divergedRepo(t)
 	runGit(t, repo, "merge", "-q", "--no-edit", "feature")
-	refusedWith(t, git.Revert(repo, revision(t, repo, "HEAD")), "git.revertMerge")
+	refusedWith(t, open(t, repo).Revert(revision(t, repo, "HEAD")), "git.revertMerge")
 
 	write(t, repo, "f.txt", "changed later\n")
 	commitAll(t, repo)
-	err := git.Revert(repo, revision(t, repo, "feature"))
+	err := open(t, repo).Revert(revision(t, repo, "feature"))
 	refusedWith(t, err, "git.stoppedOnConflict")
 	if !strings.Contains(runGit(t, repo, "status"), "revert") {
 		t.Fatal("revert не остался незавершённым")

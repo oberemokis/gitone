@@ -30,13 +30,9 @@ var (
 // отметка начинает bisect. Когда отмечены обе стороны, git переходит на
 // следующий коммит для проверки: грязное дерево он не трогает и отказывает
 // той же причиной, что checkout.
-func BisectMark(dir, hash string, good bool) (BisectStep, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return BisectStep{}, failed("bisect", err)
-	}
-	if !bisecting(root) {
-		if _, err := run(call{dir: root}, "bisect", "start"); err != nil {
+func (r Repo) BisectMark(hash string, good bool) (BisectStep, error) {
+	if !bisecting(r.root) {
+		if _, err := r.inRoot("bisect", "start"); err != nil {
 			return BisectStep{}, failed("bisect", headline(err))
 		}
 	}
@@ -47,11 +43,11 @@ func BisectMark(dir, hash string, good bool) (BisectStep, error) {
 	}
 	// вывод разбирается по-английски: перевод git сломал бы bisectLeft, а
 	// итог для человека пишет gitone. При локали C git не смотрит и LANGUAGE.
-	out, err := run(call{dir: root, env: []string{"LC_ALL=C"}}, "bisect", term, hash)
+	out, err := run(call{dir: r.root, env: []string{"LC_ALL=C"}}, "bisect", term, hash)
 	if err != nil {
 		return BisectStep{}, failed("bisect", headline(err))
 	}
-	return bisectStep(root, out), nil
+	return bisectStep(r.root, out), nil
 }
 
 // bisectStep разбирает вывод git bisect good и bad.
@@ -72,12 +68,8 @@ func bisectStep(root, out string) BisectStep {
 }
 
 // BisectReset заканчивает bisect: HEAD возвращается туда, где был до старта.
-func BisectReset(dir string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return failed("bisect", err)
-	}
-	_, err = run(call{dir: root}, "bisect", "reset")
+func (r Repo) BisectReset() error {
+	_, err := r.inRoot("bisect", "reset")
 	return failed("bisect", headline(err))
 }
 

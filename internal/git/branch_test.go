@@ -24,18 +24,18 @@ func TestSetUpstream(t *testing.T) {
 		return strings.TrimSpace(runGit(t, local, "rev-parse", "--abbrev-ref", "topic@{upstream}"))
 	}
 
-	remotes, err := git.RemoteBranches(local)
+	remotes, err := open(t, local).RemoteBranches()
 	if want := []string{"origin/main", "origin/other"}; err != nil || !slices.Equal(remotes, want) {
 		t.Fatalf("RemoteBranches = %q, %v; ожидались %q", remotes, err, want)
 	}
 
-	if err := git.SetUpstream(local, "topic", "origin/other"); err != nil || upstream() != "origin/other" {
+	if err := open(t, local).SetUpstream("topic", "origin/other"); err != nil || upstream() != "origin/other" {
 		t.Fatalf("SetUpstream = %v, upstream %q", err, upstream())
 	}
-	if err := git.SetUpstream(local, "topic", "origin/main"); err != nil || upstream() != "origin/main" {
+	if err := open(t, local).SetUpstream("topic", "origin/main"); err != nil || upstream() != "origin/main" {
 		t.Fatalf("замена upstream = %v, upstream %q", err, upstream())
 	}
-	if err := git.SetUpstream(local, "topic", "origin/missing"); err == nil || !strings.HasPrefix(err.Error(), "branch: ") {
+	if err := open(t, local).SetUpstream("topic", "origin/missing"); err == nil || !strings.HasPrefix(err.Error(), "branch: ") {
 		t.Fatalf("SetUpstream к отсутствующей = %v, ожидался отказ git", err)
 	}
 }
@@ -67,7 +67,7 @@ func TestMergeFastForwards(t *testing.T) {
 	commitAll(t, repo)
 	runGit(t, repo, "switch", "-q", "main")
 
-	if err := git.Merge(repo, "feature"); err != nil {
+	if err := open(t, repo).Merge("feature"); err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
 	if got, want := revision(t, repo, "main"), revision(t, repo, "feature"); got != want {
@@ -79,7 +79,7 @@ func TestMergeFastForwards(t *testing.T) {
 func TestMergeCreatesMergeCommit(t *testing.T) {
 	repo := divergedRepo(t)
 
-	if err := git.Merge(repo, "feature"); err != nil {
+	if err := open(t, repo).Merge("feature"); err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
 	if parents := strings.Fields(runGit(t, repo, "log", "-1", "--format=%P")); len(parents) != 2 {
@@ -94,7 +94,7 @@ func TestMergeCreatesMergeCommit(t *testing.T) {
 func TestRebaseMakesLinearHistory(t *testing.T) {
 	repo := divergedRepo(t)
 
-	if err := git.Rebase(repo, "feature"); err != nil {
+	if err := open(t, repo).Rebase("feature"); err != nil {
 		t.Fatalf("Rebase: %v", err)
 	}
 	if got, want := revision(t, repo, "HEAD~1"), revision(t, repo, "feature"); got != want {
@@ -111,7 +111,7 @@ func TestMergeAndRebaseTakeBranchOverTag(t *testing.T) {
 	repo := divergedRepo(t)
 	runGit(t, repo, "tag", "feature", "main~1")
 
-	if err := git.Merge(repo, "feature"); err != nil {
+	if err := open(t, repo).Merge("feature"); err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
 	if parents := strings.Fields(runGit(t, repo, "log", "-1", "--format=%P")); len(parents) != 2 || parents[1] != revision(t, repo, "refs/heads/feature") {
@@ -122,7 +122,7 @@ func TestMergeAndRebaseTakeBranchOverTag(t *testing.T) {
 	}
 
 	runGit(t, repo, "reset", "-q", "--hard", "HEAD~1")
-	if err := git.Rebase(repo, "feature"); err != nil {
+	if err := open(t, repo).Rebase("feature"); err != nil {
 		t.Fatalf("Rebase: %v", err)
 	}
 	if got, want := revision(t, repo, "HEAD~1"), revision(t, repo, "refs/heads/feature"); got != want {
@@ -136,7 +136,7 @@ func TestMergeAndRebaseTakeBranchOverTag(t *testing.T) {
 func TestMergeAndRebaseRefusals(t *testing.T) {
 	repo := divergedRepo(t)
 	write(t, repo, "a.txt", "dirty\n")
-	err := git.Rebase(repo, "feature")
+	err := open(t, repo).Rebase("feature")
 	if err == nil || !strings.HasPrefix(err.Error(), "rebase: error:") || strings.ContainsAny(err.Error(), "\r\n") {
 		t.Fatalf("Rebase на грязном дереве = %q, ожидалась одна строка error:", err)
 	}
@@ -148,7 +148,7 @@ func TestMergeAndRebaseRefusals(t *testing.T) {
 	runGit(t, repo, "switch", "-q", "main")
 
 	var stopped *i18n.Error
-	if err := git.Merge(repo, "feature"); !errors.As(err, &stopped) || stopped.Key != "git.stoppedOnConflict" {
+	if err := open(t, repo).Merge("feature"); !errors.As(err, &stopped) || stopped.Key != "git.stoppedOnConflict" {
 		t.Fatalf("Merge с конфликтом = %v, ожидалась git.stoppedOnConflict", err)
 	}
 	if _, statErr := os.Stat(filepath.Join(repo, ".git", "MERGE_HEAD")); statErr != nil {
@@ -156,7 +156,7 @@ func TestMergeAndRebaseRefusals(t *testing.T) {
 	}
 
 	runGit(t, repo, "merge", "--abort")
-	if err := git.Rebase(repo, "feature"); !errors.As(err, &stopped) || stopped.Key != "git.stoppedOnConflict" {
+	if err := open(t, repo).Rebase("feature"); !errors.As(err, &stopped) || stopped.Key != "git.stoppedOnConflict" {
 		t.Fatalf("Rebase с конфликтом = %v, ожидалась git.stoppedOnConflict", err)
 	}
 }
@@ -167,7 +167,7 @@ func TestRenameBranch(t *testing.T) {
 	_, local := remotePair(t)
 	runGit(t, local, "branch", "taken")
 
-	if err := git.RenameBranch(local, "main", "trunk"); err != nil {
+	if err := open(t, local).RenameBranch("main", "trunk"); err != nil {
 		t.Fatalf("RenameBranch: %v", err)
 	}
 	if got := strings.TrimSpace(runGit(t, local, "branch", "--show-current")); got != "trunk" {
@@ -177,7 +177,7 @@ func TestRenameBranch(t *testing.T) {
 		t.Fatalf("upstream %q, ожидался origin/main", got)
 	}
 
-	err := git.RenameBranch(local, "trunk", "taken")
+	err := open(t, local).RenameBranch("trunk", "taken")
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("RenameBranch в занятое имя = %v, ожидался отказ «already exists»", err)
 	}
@@ -206,7 +206,7 @@ func TestBranchesListsLocalWithCurrent(t *testing.T) {
 	commitAll(t, repo)
 	runGit(t, repo, "branch", "feature")
 
-	branches, err := git.Branches(repo)
+	branches, err := open(t, repo).Branches()
 	if err != nil {
 		t.Fatalf("Branches: %v", err)
 	}
@@ -229,12 +229,12 @@ func TestCheckoutCommit(t *testing.T) {
 	commitAll(t, repo)
 
 	write(t, repo, "a.txt", "dirty\n")
-	if err := git.CheckoutCommit(repo, first); err == nil || !strings.HasPrefix(err.Error(), "switch: error:") {
+	if err := open(t, repo).CheckoutCommit(first); err == nil || !strings.HasPrefix(err.Error(), "switch: error:") {
 		t.Fatalf("CheckoutCommit на грязном дереве = %v, ожидался отказ git", err)
 	}
 	runGit(t, repo, "checkout", "--", "a.txt")
 
-	if err := git.CheckoutCommit(repo, first); err != nil {
+	if err := open(t, repo).CheckoutCommit(first); err != nil {
 		t.Fatalf("CheckoutCommit: %v", err)
 	}
 	if got := revision(t, repo, "HEAD"); got != first {
@@ -254,17 +254,17 @@ func TestBranchesKeepNameWhenTagSharesIt(t *testing.T) {
 	runGit(t, repo, "branch", "v1")
 	runGit(t, repo, "tag", "v1")
 
-	branches, err := git.Branches(repo)
+	branches, err := open(t, repo).Branches()
 	if err != nil {
 		t.Fatalf("Branches: %v", err)
 	}
 	if want := []string{"main", "v1"}; !slices.Equal(branchNames(branches), want) {
 		t.Fatalf("ветки %q, ожидались %q", branchNames(branches), want)
 	}
-	if err := git.Switch(repo, branches[1].Name); err != nil {
+	if err := open(t, repo).Switch(branches[1].Name); err != nil {
 		t.Fatalf("Switch(%q): %v", branches[1].Name, err)
 	}
-	after, _ := git.Branches(repo)
+	after, _ := open(t, repo).Branches()
 	if got := currentBranch(after); got != "v1" {
 		t.Fatalf("текущая %q, ожидалась v1", got)
 	}
@@ -279,7 +279,7 @@ func TestBranchesKeepNameOfBranchLikeRemote(t *testing.T) {
 	runGit(t, repo, "branch", "origin/x")
 	runGit(t, repo, "update-ref", "refs/remotes/origin/x", "HEAD")
 
-	branches, err := git.Branches(repo)
+	branches, err := open(t, repo).Branches()
 	if err != nil {
 		t.Fatalf("Branches: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestBranchesCarryLastCommit(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	commitAll(t, repo)
 
-	branches, err := git.Branches(repo)
+	branches, err := open(t, repo).Branches()
 	if err != nil {
 		t.Fatalf("Branches: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestBranchesKeepBranchWithSeparatorInAuthor(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	branches, err := git.Branches(repo)
+	branches, err := open(t, repo).Branches()
 	if err != nil {
 		t.Fatalf("Branches: %v", err)
 	}
@@ -342,10 +342,10 @@ func TestSwitchChangesCurrentBranch(t *testing.T) {
 	commitAll(t, repo)
 	runGit(t, repo, "branch", "feature")
 
-	if err := git.Switch(repo, "feature"); err != nil {
+	if err := open(t, repo).Switch("feature"); err != nil {
 		t.Fatalf("Switch: %v", err)
 	}
-	branches, _ := git.Branches(repo)
+	branches, _ := open(t, repo).Branches()
 	if got := currentBranch(branches); got != "feature" {
 		t.Fatalf("текущая %q, ожидалась feature", got)
 	}
@@ -360,7 +360,7 @@ func TestCreateBranchSwitchesToIt(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	commitAll(t, repo)
 
-	if err := git.CreateBranch(repo, "feature", base); err != nil {
+	if err := open(t, repo).CreateBranch("feature", base); err != nil {
 		t.Fatalf("CreateBranch: %v", err)
 	}
 	if got := strings.TrimSpace(runGit(t, repo, "branch", "--show-current")); got != "feature" {
@@ -379,7 +379,7 @@ func TestCreateBranchRefusesBadOrTakenName(t *testing.T) {
 	runGit(t, repo, "branch", "taken")
 
 	for name, reason := range map[string]string{"a b": "not a valid branch name", "taken": "already exists"} {
-		err := git.CreateBranch(repo, name, "main")
+		err := open(t, repo).CreateBranch(name, "main")
 		if err == nil || !strings.Contains(err.Error(), reason) {
 			t.Errorf("CreateBranch(%q) = %v, ожидался отказ «%s»", name, err, reason)
 		}
@@ -400,17 +400,17 @@ func TestDeleteBranch(t *testing.T) {
 	commitAll(t, repo)
 	runGit(t, repo, "switch", "-q", "main")
 
-	if err := git.DeleteBranch(repo, "merged"); err != nil {
+	if err := open(t, repo).DeleteBranch("merged"); err != nil {
 		t.Fatalf("DeleteBranch(merged): %v", err)
 	}
-	if err := git.DeleteBranch(repo, "unmerged"); err == nil || !strings.Contains(err.Error(), "not fully merged") {
+	if err := open(t, repo).DeleteBranch("unmerged"); err == nil || !strings.Contains(err.Error(), "not fully merged") {
 		t.Fatalf("DeleteBranch(unmerged) = %v, ожидался отказ «not fully merged»", err)
 	}
-	if err := git.DeleteBranch(repo, "main"); err == nil {
+	if err := open(t, repo).DeleteBranch("main"); err == nil {
 		t.Fatal("DeleteBranch(main) удалил текущую ветку")
 	}
 
-	branches, _ := git.Branches(repo)
+	branches, _ := open(t, repo).Branches()
 	if want := []string{"main", "unmerged"}; !slices.Equal(branchNames(branches), want) {
 		t.Fatalf("ветки %q, ожидались %q", branchNames(branches), want)
 	}
@@ -427,11 +427,11 @@ func TestSwitchRefusedKeepsBranch(t *testing.T) {
 	runGit(t, repo, "checkout", "-q", "main")
 	write(t, repo, "a.txt", "local\n")
 
-	err := git.Switch(repo, "feature")
+	err := open(t, repo).Switch("feature")
 	if err == nil || !strings.Contains(err.Error(), "local changes") {
 		t.Fatalf("ошибка %v, ожидался отказ из-за локальных правок", err)
 	}
-	branches, _ := git.Branches(repo)
+	branches, _ := open(t, repo).Branches()
 	if got := currentBranch(branches); got != "main" {
 		t.Fatalf("текущая %q, ожидалась main", got)
 	}

@@ -7,7 +7,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/git"
 	"gitone/internal/layout"
 	"gitone/internal/tui"
 )
@@ -24,7 +23,7 @@ func TestSpaceStagesCurrentFile(t *testing.T) {
 	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	model = settle(model, cmd, 4)
 
-	if staged, err := git.StagedPaths(repo); err != nil || len(staged) != 1 || staged[0] != "a.txt" {
+	if staged, err := openedRepo(t, repo).StagedPaths(); err != nil || len(staged) != 1 || staged[0] != "a.txt" {
 		t.Fatalf("в индексе %q, ошибка %v", staged, err)
 	}
 	if body := strings.Join(screenOf(model), "\n"); strings.Contains(body, "●") {

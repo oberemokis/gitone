@@ -7,7 +7,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/git"
 	"gitone/internal/layout"
 )
 
@@ -72,7 +71,7 @@ func TestPollStartedBeforeReloadIsDropped(t *testing.T) {
 	}
 	pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 
-	if staged, err := git.StagedPaths(repo); err != nil || len(staged) != 0 {
+	if staged, err := openedRepo(t, repo).StagedPaths(); err != nil || len(staged) != 0 {
 		t.Fatalf("в индексе %q, ошибка %v, второй space должен был убрать файл", staged, err)
 	}
 }

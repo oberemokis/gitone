@@ -19,31 +19,31 @@ func TestStashPushApplyDrop(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
 
-	if err := git.StashPush(repo, git.StashOptions{}); err != nil {
+	if err := open(t, repo).StashPush(git.StashOptions{}); err != nil {
 		t.Fatalf("StashPush: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\n" {
 		t.Fatalf("после stash файл %q, ожидался возврат к HEAD", got)
 	}
-	stashes, err := git.Stashes(repo)
+	stashes, err := open(t, repo).Stashes()
 	if err != nil || len(stashes) != 1 {
 		t.Fatalf("stash %v, ошибка %v; ожидался один", stashes, err)
 	}
 
-	if err := git.StashApply(repo, stashes[0]); err != nil {
+	if err := open(t, repo).StashApply(stashes[0]); err != nil {
 		t.Fatalf("StashApply: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "two\n" {
 		t.Fatalf("после apply файл %q, ожидалась правка", got)
 	}
-	if again, _ := git.Stashes(repo); len(again) != 1 {
+	if again, _ := open(t, repo).Stashes(); len(again) != 1 {
 		t.Fatalf("apply удалил stash: %v", again)
 	}
 
-	if err := git.StashDrop(repo, stashes[0]); err != nil {
+	if err := open(t, repo).StashDrop(stashes[0]); err != nil {
 		t.Fatalf("StashDrop: %v", err)
 	}
-	if left, _ := git.Stashes(repo); len(left) != 0 {
+	if left, _ := open(t, repo).Stashes(); len(left) != 0 {
 		t.Fatalf("drop оставил stash: %v", left)
 	}
 }
@@ -71,16 +71,16 @@ func TestStashApplyErrorNamesReason(t *testing.T) {
 			write(t, repo, "a.txt", "one\n")
 			commitAll(t, repo)
 			write(t, repo, "a.txt", "two\n")
-			if err := git.StashPush(repo, git.StashOptions{}); err != nil {
+			if err := open(t, repo).StashPush(git.StashOptions{}); err != nil {
 				t.Fatalf("StashPush: %v", err)
 			}
 			tc.prepare(t, repo)
-			stashes, err := git.Stashes(repo)
+			stashes, err := open(t, repo).Stashes()
 			if err != nil || len(stashes) != 1 {
 				t.Fatalf("stash %v, ошибка %v; ожидался один", stashes, err)
 			}
 
-			err = git.StashApply(repo, stashes[0])
+			err = open(t, repo).StashApply(stashes[0])
 
 			if err == nil || err.Error() != tc.want {
 				t.Fatalf("StashApply = %v, want %q", err, tc.want)
@@ -115,13 +115,13 @@ func TestStashPop(t *testing.T) {
 			write(t, repo, "a.txt", "one\n")
 			commitAll(t, repo)
 			write(t, repo, "a.txt", "two\n")
-			if err := git.StashPush(repo, git.StashOptions{}); err != nil {
+			if err := open(t, repo).StashPush(git.StashOptions{}); err != nil {
 				t.Fatalf("StashPush: %v", err)
 			}
 			tc.prepare(t, repo)
-			stashes, _ := git.Stashes(repo)
+			stashes, _ := open(t, repo).Stashes()
 
-			err := git.StashPop(repo, stashes[0])
+			err := open(t, repo).StashPop(stashes[0])
 
 			if got := ""; err != nil {
 				got = err.Error()
@@ -131,7 +131,7 @@ func TestStashPop(t *testing.T) {
 			} else if tc.want != "" {
 				t.Fatalf("StashPop = nil, want %q", tc.want)
 			}
-			if after, _ := git.Stashes(repo); len(after) != tc.left {
+			if after, _ := open(t, repo).Stashes(); len(after) != tc.left {
 				t.Fatalf("stash осталось %d, ожидалось %d", len(after), tc.left)
 			}
 			if tc.left == 0 && readFile(t, filepath.Join(repo, "a.txt")) != "two\n" {
@@ -149,17 +149,17 @@ func TestStashRenameKeepsOrder(t *testing.T) {
 	commitAll(t, repo)
 	for _, message := range []string{"first", "second", "third"} {
 		write(t, repo, "a.txt", message+"\n")
-		if err := git.StashPush(repo, git.StashOptions{Message: message}); err != nil {
+		if err := open(t, repo).StashPush(git.StashOptions{Message: message}); err != nil {
 			t.Fatalf("StashPush(%s): %v", message, err)
 		}
 	}
-	before, _ := git.Stashes(repo)
+	before, _ := open(t, repo).Stashes()
 
-	if err := git.StashRename(repo, before[1], "renamed"); err != nil {
+	if err := open(t, repo).StashRename(before[1], "renamed"); err != nil {
 		t.Fatalf("StashRename: %v", err)
 	}
 
-	after, _ := git.Stashes(repo)
+	after, _ := open(t, repo).Stashes()
 	if len(after) != 3 {
 		t.Fatalf("stash %+v, ожидалось три записи", after)
 	}
@@ -170,10 +170,10 @@ func TestStashRenameKeepsOrder(t *testing.T) {
 	}
 
 	var refusal *i18n.Error
-	if err := git.StashRename(repo, after[0], "  "); !errors.As(err, &refusal) || refusal.Key != "git.emptyStashMessage" {
+	if err := open(t, repo).StashRename(after[0], "  "); !errors.As(err, &refusal) || refusal.Key != "git.emptyStashMessage" {
 		t.Fatalf("StashRename с пустым сообщением = %v, ожидался отказ", err)
 	}
-	if err := git.StashRename(repo, before[1], "stale"); !errors.As(err, &refusal) || refusal.Key != "git.stashChanged" {
+	if err := open(t, repo).StashRename(before[1], "stale"); !errors.As(err, &refusal) || refusal.Key != "git.stashChanged" {
 		t.Fatalf("StashRename устаревшей записи = %v, ожидался отказ git.stashChanged", err)
 	}
 }
@@ -186,10 +186,10 @@ func TestStashPushOptions(t *testing.T) {
 	commitAll(t, repo)
 
 	write(t, repo, "new.txt", "new\n")
-	if err := git.StashPush(repo, git.StashOptions{}); err == nil {
+	if err := open(t, repo).StashPush(git.StashOptions{}); err == nil {
 		t.Fatal("stash без отслеженных правок прошёл без Untracked")
 	}
-	if err := git.StashPush(repo, git.StashOptions{Message: "черновик", Untracked: true}); err != nil {
+	if err := open(t, repo).StashPush(git.StashOptions{Message: "черновик", Untracked: true}); err != nil {
 		t.Fatalf("StashPush с untracked: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(repo, "new.txt")); !errors.Is(err, os.ErrNotExist) {
@@ -198,14 +198,14 @@ func TestStashPushOptions(t *testing.T) {
 
 	write(t, repo, "a.txt", "staged\n")
 	runGit(t, repo, "add", "a.txt")
-	if err := git.StashPush(repo, git.StashOptions{KeepIndex: true}); err != nil {
+	if err := open(t, repo).StashPush(git.StashOptions{KeepIndex: true}); err != nil {
 		t.Fatalf("StashPush с keep-index: %v", err)
 	}
 	if staged := runGit(t, repo, "diff", "--cached", "--name-only"); staged != "a.txt\n" {
 		t.Fatalf("индекс %q, ожидался a.txt на месте", staged)
 	}
 
-	stashes, _ := git.Stashes(repo)
+	stashes, _ := open(t, repo).Stashes()
 	if len(stashes) != 2 || !strings.HasPrefix(stashes[0].Subject, "WIP on main") || stashes[1].Subject != "On main: черновик" {
 		t.Fatalf("stash %+v, ожидались WIP и «черновик»", stashes)
 	}
@@ -216,7 +216,7 @@ func TestStashPushWithNothingFails(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	if err := git.StashPush(repo, git.StashOptions{}); err == nil {
+	if err := open(t, repo).StashPush(git.StashOptions{}); err == nil {
 		t.Fatal("stash без правок прошёл")
 	}
 }
@@ -237,7 +237,7 @@ func TestStashPushIgnoresSubmodulePointer(t *testing.T) {
 	write(t, sub, "lib.txt", "two\n")
 	runGit(t, sub, "commit", "-q", "-a", "-m", "next")
 
-	err := git.StashPush(repo, git.StashOptions{})
+	err := open(t, repo).StashPush(git.StashOptions{})
 
 	var refusal *i18n.Error
 	if !errors.As(err, &refusal) || refusal.Key != "git.nothingToStash" {

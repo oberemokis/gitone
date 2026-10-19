@@ -22,9 +22,9 @@ type submodulesMsg struct {
 
 func (msg submodulesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.submodulesArrived(msg), nil }
 
-func submodulesCmd(dir string) tea.Cmd {
+func submodulesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		submodules, err := git.Submodules(dir)
+		submodules, err := repo.Submodules()
 		return submodulesMsg{submodules: submodules, err: err}
 	}
 }
@@ -57,9 +57,9 @@ func (m Model) startSubmoduleUpdate(path string) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.remote = remote{kind: updatingSubmodule, id: m.remote.id + 1, cancel: cancel}
 
-	dir, id := m.dir, m.remote.id
+	repo, id := m.repo, m.remote.id
 	return m, tea.Batch(remoteSpinTick(id), func() tea.Msg {
-		return remoteDoneMsg{id: id, kind: updatingSubmodule, target: path, err: git.UpdateSubmodule(ctx, dir, path)}
+		return remoteDoneMsg{id: id, kind: updatingSubmodule, target: path, err: repo.UpdateSubmodule(ctx, path)}
 	})
 }
 

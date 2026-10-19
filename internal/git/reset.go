@@ -23,19 +23,14 @@ const (
 // что среди снятых коммитов есть коммиты upstream ветки: ветка теперь
 // разошлась с remote, и обычный push её не отправит. Без upstream published
 // всегда false.
-func Reset(dir, target string, mode ResetMode) (published bool, err error) {
-	published, err = reset(dir, target, mode)
+func (r Repo) Reset(target string, mode ResetMode) (published bool, err error) {
+	published, err = r.reset(target, mode)
 	return published, failed("reset", err)
 }
 
-func reset(dir, target string, mode ResetMode) (bool, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return false, err
-	}
-
-	published := dropsPublished(root, target)
-	if _, err := run(call{dir: root}, "reset", "--"+string(mode), target, "--"); err != nil {
+func (r Repo) reset(target string, mode ResetMode) (bool, error) {
+	published := dropsPublished(r.root, target)
+	if _, err := r.inRoot("reset", "--"+string(mode), target, "--"); err != nil {
 		return false, headline(err)
 	}
 	return published, nil
@@ -46,27 +41,22 @@ func reset(dir, target string, mode ResetMode) (bool, error) {
 // бы ей. drops это коммиты HEAD, которых нет в цели: их снимет reset, а hard
 // не оставит и правок. Текущая ветка без upstream отвергается ошибкой из
 // словаря.
-func ResetTarget(dir, branch string, current bool) (target string, drops int, err error) {
-	target, drops, err = resetTarget(dir, branch, current)
+func (r Repo) ResetTarget(branch string, current bool) (target string, drops int, err error) {
+	target, drops, err = r.resetTarget(branch, current)
 	return target, drops, failed("rev-list", err)
 }
 
-func resetTarget(dir, branch string, current bool) (string, int, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return "", 0, err
-	}
-
+func (r Repo) resetTarget(branch string, current bool) (string, int, error) {
 	target := "refs/heads/" + branch
 	if current {
-		upstream, err := run(call{dir: root}, "rev-parse", "--abbrev-ref", "@{upstream}")
+		upstream, err := r.inRoot("rev-parse", "--abbrev-ref", "@{upstream}")
 		if err != nil {
 			return "", 0, i18n.New("git.noUpstream", nil)
 		}
 		target = strings.TrimSpace(upstream)
 	}
 
-	count, err := run(call{dir: root}, "rev-list", "--count", target+"..HEAD")
+	count, err := r.inRoot("rev-list", "--count", target+"..HEAD")
 	if err != nil {
 		return "", 0, err
 	}

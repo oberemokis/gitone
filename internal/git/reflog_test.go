@@ -2,8 +2,6 @@ package git_test
 
 import (
 	"testing"
-
-	"gitone/internal/git"
 )
 
 // Reflog отдаёт записи от новых к старым с коммитом, действием и описанием
@@ -17,7 +15,7 @@ func TestReflog(t *testing.T) {
 	commitAll(t, repo)
 	runGit(t, repo, "checkout", "-q", first)
 
-	entries, err := git.Reflog(repo)
+	entries, err := open(t, repo).Reflog()
 	if err != nil || len(entries) != 3 {
 		t.Fatalf("Reflog = %+v, %v", entries, err)
 	}
@@ -31,7 +29,7 @@ func TestReflog(t *testing.T) {
 
 // Репозиторий без коммитов даёт пустой reflog, а не ошибку.
 func TestReflogEmpty(t *testing.T) {
-	if entries, err := git.Reflog(newRepo(t)); err != nil || len(entries) != 0 {
+	if entries, err := open(t, newRepo(t)).Reflog(); err != nil || len(entries) != 0 {
 		t.Fatalf("Reflog = %+v, %v", entries, err)
 	}
 }

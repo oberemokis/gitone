@@ -16,10 +16,10 @@ type ReflogEntry struct {
 // Reflog возвращает записи reflog HEAD от новых к старым. Время записи, а не
 // коммита, git отдаёт только в селекторе: HEAD@{5 minutes ago}. Репозиторий
 // без коммитов reflog не имеет, это пустой список.
-func Reflog(dir string) ([]ReflogEntry, error) {
-	out, err := inRoot(dir, "reflog", "show", "--date=relative", "--format=%H%x1f%P%x1f%gd%x1f%gs", "HEAD", "--")
+func (r Repo) Reflog() ([]ReflogEntry, error) {
+	out, err := r.inRoot("reflog", "show", "--date=relative", "--format=%H%x1f%P%x1f%gd%x1f%gs", "HEAD", "--")
 	if err != nil {
-		if _, headErr := run(call{dir: dir}, "rev-parse", "--verify", "-q", "HEAD"); headErr != nil {
+		if !hasCommits(r.root) {
 			return nil, nil
 		}
 		return nil, failed("reflog", err)

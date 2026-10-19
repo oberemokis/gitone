@@ -10,10 +10,16 @@ import (
 	"gitone/internal/git"
 )
 
-// Load читает дифф каталога: cmd/gitone при запуске, а по r reload одним и тем
-// же путём. flags это флаги вида (#217), при запуске их нет.
-func Load(dir string, args []string, flags ...string) ([]diff.File, error) {
-	text, err := git.Diff(dir, args, flags...)
+// Open открывает репозиторий каталога запуска для cmd/gitone: по графу
+// пакетов он не знает git (#356).
+func Open(dir string) (git.Repo, error) {
+	return git.Open(dir)
+}
+
+// Load читает дифф репозитория: cmd/gitone при запуске, а по r reload одним и
+// тем же путём. flags это флаги вида (#217), при запуске их нет.
+func Load(repo git.Repo, args []string, flags ...string) ([]diff.File, error) {
+	text, err := repo.Diff(args, flags...)
 	if err != nil {
 		return nil, err
 	}
@@ -55,16 +61,16 @@ type Index struct {
 }
 
 // ReadIndex читает состояние индекса.
-func ReadIndex(dir string) (Index, error) {
-	staged, err := git.StagedPaths(dir)
+func ReadIndex(repo git.Repo) (Index, error) {
+	staged, err := repo.StagedPaths()
 	if err != nil {
 		return Index{}, err
 	}
-	unstaged, err := git.UnstagedPaths(dir)
+	unstaged, err := repo.UnstagedPaths()
 	if err != nil {
 		return Index{}, err
 	}
-	conflicted, err := git.ConflictedPaths(dir)
+	conflicted, err := repo.ConflictedPaths()
 	if err != nil {
 		return Index{}, err
 	}
@@ -87,8 +93,8 @@ func pathSet(paths []string) map[string]bool {
 }
 
 // Locate называет ветку и worktree для подвала.
-func Locate(dir string) (git.Location, error) {
-	return git.Locate(dir)
+func Locate(repo git.Repo) (git.Location, error) {
+	return repo.Locate()
 }
 
 // Printable готовит текст ошибки к печати в stderr, когда интерфейс ещё не
@@ -105,10 +111,10 @@ func Printable(text string) string {
 	return strings.Join(lines, "\n")
 }
 
-// reloadMsg несёт итог перечитывания: каталог, аргументы и флаги вида, с
+// reloadMsg несёт итог перечитывания: репозиторий, аргументы и флаги вида, с
 // которыми читали, новый дифф, индекс, ветку или ошибку git.
 type reloadMsg struct {
-	dir      string
+	repo     git.Repo
 	args     []string
 	flags    []string
 	files    []diff.File
@@ -120,36 +126,36 @@ type reloadMsg struct {
 func (msg reloadMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.reloaded(msg) }
 
 // fits говорит, что ответ прочитан для диффа, который открыт сейчас: пока git
-// читал, W, лог, stash или b могли сменить каталог или аргументы, а клавиши
-// вида флаги.
+// читал, W, лог, stash или b могли сменить репозиторий или аргументы, а
+// клавиши вида флаги.
 func (msg reloadMsg) fits(m Model) bool {
-	return msg.dir == m.dir && slices.Equal(msg.args, m.args) && slices.Equal(msg.flags, m.diffFlags())
+	return msg.repo == m.repo && slices.Equal(msg.args, m.args) && slices.Equal(msg.flags, m.diffFlags())
 }
 
 // reload читает дифф и индекс в команде, а не в Update, чтобы модель оставалась
 // без ввода-вывода.
-func reload(dir string, args, flags []string) tea.Cmd {
+func reload(repo git.Repo, args, flags []string) tea.Cmd {
 	return func() tea.Msg {
-		return readDiff(dir, args, flags)
+		return readDiff(repo, args, flags)
 	}
 }
 
 // readDiff читает дифф, индекс и ветку: по r и при опросе одним путём. Ветку
 // могли переключить в другом терминале, поэтому она читается вместе с диффом.
-func readDiff(dir string, args, flags []string) reloadMsg {
-	msg := reloadMsg{dir: dir, args: args, flags: flags}
+func readDiff(repo git.Repo, args, flags []string) reloadMsg {
+	msg := reloadMsg{repo: repo, args: args, flags: flags}
 
-	msg.files, msg.err = Load(dir, args, flags...)
+	msg.files, msg.err = Load(repo, args, flags...)
 	if msg.err != nil {
 		return msg
 	}
-	msg.index, msg.err = ReadIndex(dir)
+	msg.index, msg.err = ReadIndex(repo)
 	if msg.err != nil {
 		return msg
 	}
 	msg.files = withConflicts(msg.files, args, msg.index.Conflicted)
 
-	msg.location, msg.err = Locate(dir)
+	msg.location, msg.err = repo.Locate()
 	return msg
 }
 

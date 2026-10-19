@@ -37,7 +37,7 @@ func rewriteAction(change git.Rewrite) func(Model, git.LogEntry) (tea.Model, tea
 				return m, m.rewrite(entry.Hash, git.RewriteDrop, "", git.LogEntry{}, m.cursor)
 			}), nil
 		case git.RewriteReword:
-			return m, rewordMessageCmd(m.dir, entry.Hash)
+			return m, rewordMessageCmd(m.repo, entry.Hash)
 		}
 
 		// git двигает коммит по всей истории, а не по строкам под поиском:
@@ -86,28 +86,28 @@ func (m Model) parentEntry(hash string) git.LogEntry {
 // коммите, его тема не меняется; строкой он сдвигается и после F (сверху новый
 // коммит), и после S (fixup-коммиты над ним пропали).
 func (m Model) fixupCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
-	dir, at := m.dir, m.cursor
+	repo, at := m.repo, m.cursor
 	note := m.text.Text("rewrite.fixupCreated", i18n.Args{"hash": entry.Hash[:7]})
 	return m, func() tea.Msg {
-		return rewrittenMsg{err: git.Fixup(dir, entry.Hash), note: note, follow: entry, at: at + 1}
+		return rewrittenMsg{err: repo.Fixup(entry.Hash), note: note, follow: entry, at: at + 1}
 	}
 }
 
 func (m Model) autosquash(entry git.LogEntry) (tea.Model, tea.Cmd) {
-	dir, at := m.dir, m.cursor
+	repo, at := m.repo, m.cursor
 	note := m.text.Text("rewrite.autosquashed", i18n.Args{"hash": entry.Hash[:7]})
 	return m, func() tea.Msg {
-		published, err := git.Autosquash(dir, entry.Hash)
+		published, err := repo.Autosquash(entry.Hash)
 		return rewrittenMsg{err: err, published: published, note: note, follow: entry, at: at}
 	}
 }
 
 // rewrite запускает правку истории в команде: итог придёт rewrittenMsg.
 func (m Model) rewrite(hash string, change git.Rewrite, message string, follow git.LogEntry, at int) tea.Cmd {
-	dir := m.dir
+	repo := m.repo
 	note := m.text.Text("rewrite.done."+string(change), i18n.Args{"hash": hash[:7]})
 	return func() tea.Msg {
-		published, err := git.RewriteHistory(dir, hash, change, message)
+		published, err := repo.RewriteHistory(hash, change, message)
 		return rewrittenMsg{err: err, published: published, note: note, follow: follow, at: at}
 	}
 }
@@ -134,9 +134,9 @@ func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 		return next, reload
 	}
 
-	filter, dir := next.logFilter, next.dir
+	filter, repo := next.logFilter, next.repo
 	return next, tea.Batch(reload, func() tea.Msg {
-		entries, err := git.Log(dir, logLimit, filter)
+		entries, err := repo.Log(logLimit, filter)
 		return logMsg{entries: entries, filter: filter, err: err, follow: msg.follow, at: msg.at}
 	})
 }
@@ -151,9 +151,9 @@ type rewordMsg struct {
 
 func (msg rewordMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.openReword(msg), nil }
 
-func rewordMessageCmd(dir, hash string) tea.Cmd {
+func rewordMessageCmd(repo git.Repo, hash string) tea.Cmd {
 	return func() tea.Msg {
-		subject, description, err := git.Message(dir, hash)
+		subject, description, err := repo.Message(hash)
 		return rewordMsg{hash: hash, subject: subject, description: description, err: err}
 	}
 }

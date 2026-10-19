@@ -14,8 +14,8 @@ type Remote struct {
 
 // Remotes возвращает remote по имени из `git remote -v`: строка на адрес
 // fetch и строка на адрес push, имя и адрес разделены табуляцией.
-func Remotes(dir string) ([]Remote, error) {
-	out, err := inRoot(dir, "remote", "-v")
+func (r Repo) Remotes() ([]Remote, error) {
+	out, err := r.inRoot("remote", "-v")
 	if err != nil {
 		return nil, failed("remote", err)
 	}
@@ -38,7 +38,7 @@ func Remotes(dir string) ([]Remote, error) {
 		}
 	}
 
-	upstream := upstreamRemote(dir)
+	upstream := r.upstreamRemote()
 	for index := range remotes {
 		remotes[index].Upstream = remotes[index].Name == upstream
 	}
@@ -47,13 +47,13 @@ func Remotes(dir string) ([]Remote, error) {
 
 // upstreamRemote это имя remote, на котором стоит upstream текущей ветки, или
 // пустая строка: при detached HEAD и без upstream.
-func upstreamRemote(dir string) string {
-	branch, err := currentBranch(dir)
+func (r Repo) upstreamRemote() string {
+	branch, err := r.currentBranch()
 	if err != nil {
 		return ""
 	}
 
-	out, err := run(call{dir: dir}, "config", "--get", "branch."+branch+".remote")
+	out, err := r.inDir("config", "--get", "branch."+branch+".remote")
 	if err != nil {
 		return ""
 	}
@@ -62,14 +62,14 @@ func upstreamRemote(dir string) string {
 
 // AddRemote добавляет remote name с адресом url для fetch и push. Занятое имя
 // git отвергает.
-func AddRemote(dir, name, url string) error {
-	_, err := inRoot(dir, "remote", "add", "--", name, url)
+func (r Repo) AddRemote(name, url string) error {
+	_, err := r.inRoot("remote", "add", "--", name, url)
 	return failed("remote", headline(err))
 }
 
 // RemoveRemote удаляет remote вместе с его удалёнными ветками и upstream
 // локальных веток, которые на него указывали.
-func RemoveRemote(dir, name string) error {
-	_, err := inRoot(dir, "remote", "remove", "--", name)
+func (r Repo) RemoveRemote(name string) error {
+	_, err := r.inRoot("remote", "remove", "--", name)
 	return failed("remote", headline(err))
 }

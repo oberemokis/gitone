@@ -29,14 +29,14 @@ func TestJournal(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	if err := git.CreateBranch(repo, "journal-branch", "HEAD"); err != nil {
+	if err := open(t, repo).CreateBranch("journal-branch", "HEAD"); err != nil {
 		t.Fatalf("CreateBranch: %v", err)
 	}
 	if entry := lastJournal(t, "switch", "journal-branch"); entry.Exit != 0 || entry.When.IsZero() {
 		t.Fatalf("запись %+v, ожидался успех со временем", entry)
 	}
 
-	if err := git.DeleteBranch(repo, "journal-missing"); err == nil {
+	if err := open(t, repo).DeleteBranch("journal-missing"); err == nil {
 		t.Fatal("удаление несуществующей ветки прошло")
 	}
 	if entry := lastJournal(t, "branch", "journal-missing"); entry.Exit == 0 {
@@ -45,11 +45,11 @@ func TestJournal(t *testing.T) {
 
 	// -w это флаг вида, а не запись (#290, случай 2); неотслеженный файл
 	// заставляет Diff собрать временный индекс через git add (случай 1)
-	if _, err := git.Diff(repo, []string{"HEAD"}, "-w"); err != nil {
+	if _, err := open(t, repo).Diff([]string{"HEAD"}, "-w"); err != nil {
 		t.Fatalf("Diff -w: %v", err)
 	}
 	write(t, repo, "new.txt", "new\n")
-	if _, err := git.Diff(repo, nil); err != nil {
+	if _, err := open(t, repo).Diff(nil); err != nil {
 		t.Fatalf("Diff: %v", err)
 	}
 	for _, entry := range git.Journal() {
@@ -66,7 +66,7 @@ func TestJournalMasksAndLimits(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	if err := git.AddRemote(repo, "secret", "https://user:token@example.com/repo.git"); err != nil {
+	if err := open(t, repo).AddRemote("secret", "https://user:token@example.com/repo.git"); err != nil {
 		t.Fatalf("AddRemote: %v", err)
 	}
 	entry := lastJournal(t, "remote", "secret")
@@ -75,7 +75,7 @@ func TestJournalMasksAndLimits(t *testing.T) {
 	}
 
 	for range 210 {
-		_ = git.DeleteTag(repo, "journal-limit")
+		_ = open(t, repo).DeleteTag("journal-limit")
 	}
 	if got := len(git.Journal()); got != 200 {
 		t.Fatalf("в журнале %d записей, ожидалось 200", got)

@@ -18,8 +18,8 @@ type Branch struct {
 // веткой того же имени git отдаёт неоднозначное heads/v1. Автор стоит в формате
 // последним и режется по первым трём разделителям: в имени автора разделитель
 // допустим, и такая ветка не должна пропадать.
-func Branches(dir string) ([]Branch, error) {
-	out, err := inRoot(dir, "for-each-ref", "--format=%(refname:lstrip=2)%1f%(HEAD)%1f%(committerdate:relative)%1f%(authorname)", "refs/heads")
+func (r Repo) Branches() ([]Branch, error) {
+	out, err := r.inRoot("for-each-ref", "--format=%(refname:lstrip=2)%1f%(HEAD)%1f%(committerdate:relative)%1f%(authorname)", "refs/heads")
 	if err != nil {
 		return nil, failed("branch", err)
 	}
@@ -41,45 +41,45 @@ func Branches(dir string) ([]Branch, error) {
 // Switch переключает рабочее дерево на ветку. Правки, которым переключение
 // мешает, git отвергает сам: тогда ветка остаётся прежней, а текст отказа
 // возвращается ошибкой.
-func Switch(dir string, name string) error {
-	_, err := inRoot(dir, "switch", "--", name)
+func (r Repo) Switch(name string) error {
+	_, err := r.inRoot("switch", "--", name)
 	return failed("switch", err)
 }
 
 // CreateBranch создаёт ветку name на base и переключается на неё, как
 // `git switch -c` (#227). Имя проверяет git: занятое или недопустимое он
 // отвергает своим текстом, и ветка остаётся прежней.
-func CreateBranch(dir, name, base string) error {
-	_, err := inRoot(dir, "switch", "-c", name, base)
+func (r Repo) CreateBranch(name, base string) error {
+	_, err := r.inRoot("switch", "-c", name, base)
 	return failed("switch", err)
 }
 
 // CheckoutCommit переводит HEAD на коммит без ветки, `git switch --detach`
 // (#223). Правки, которым переход мешает, git отвергает сам, и HEAD остаётся.
-func CheckoutCommit(dir, hash string) error {
-	_, err := inRoot(dir, "switch", "--detach", hash)
+func (r Repo) CheckoutCommit(hash string) error {
+	_, err := r.inRoot("switch", "--detach", hash)
 	return failed("switch", headline(err))
 }
 
 // DeleteBranch удаляет ветку через `git branch -d`: неслитую git отвергает, а
 // принудительного удаления нет, как и удаления на remote (#227).
-func DeleteBranch(dir, name string) error {
-	_, err := inRoot(dir, "branch", "-d", "--", name)
+func (r Repo) DeleteBranch(name string) error {
+	_, err := r.inRoot("branch", "-d", "--", name)
 	return failed("branch", err)
 }
 
 // RenameBranch переименовывает ветку только локально, `git branch -m` (#228).
 // Связь с upstream git переносит сам, занятое имя отвергает: принудительного
 // переименования нет.
-func RenameBranch(dir, from, to string) error {
-	_, err := inRoot(dir, "branch", "-m", "--", from, to)
+func (r Repo) RenameBranch(from, to string) error {
+	_, err := r.inRoot("branch", "-m", "--", from, to)
 	return failed("branch", err)
 }
 
 // RemoteBranches возвращает удалённые ветки из локальных ссылок, `origin/main`,
 // по имени (#230). Символическая `origin/HEAD` не ветка, её нет.
-func RemoteBranches(dir string) ([]string, error) {
-	out, err := inRoot(dir, "for-each-ref", "--format=%(refname:lstrip=2)%1f%(symref)", "refs/remotes")
+func (r Repo) RemoteBranches() ([]string, error) {
+	out, err := r.inRoot("for-each-ref", "--format=%(refname:lstrip=2)%1f%(symref)", "refs/remotes")
 	if err != nil {
 		return nil, failed("branch", err)
 	}
@@ -96,8 +96,8 @@ func RemoteBranches(dir string) ([]string, error) {
 
 // SetUpstream привязывает ветку к удалённой upstream (#230), заменяя прежнюю.
 // Удалённой ветки нет в локальных ссылках, и git отказывает своим текстом.
-func SetUpstream(dir, branch, upstream string) error {
-	_, err := inRoot(dir, "branch", "--set-upstream-to="+upstream, branch)
+func (r Repo) SetUpstream(branch, upstream string) error {
+	_, err := r.inRoot("branch", "--set-upstream-to="+upstream, branch)
 	return failed("branch", err)
 }
 
@@ -106,17 +106,17 @@ func SetUpstream(dir, branch, upstream string) error {
 // останавливает слияние, ошибка тогда git.stoppedOnConflict. Тег с тем же
 // именем git предпочёл бы ветке, тогда ветка называется полной ссылкой, а
 // сообщение задаётся явно: по полной ссылке git написал бы «refs/heads/» в нём.
-func Merge(dir, name string) error {
+func (r Repo) Merge(name string) error {
 	args := []string{"merge", "--no-edit", name}
-	if _, err := inRoot(dir, "rev-parse", "--verify", "-q", "refs/tags/"+name); err == nil {
+	if _, err := r.inRoot("rev-parse", "--verify", "-q", "refs/tags/"+name); err == nil {
 		args = []string{"merge", "--no-edit", "-m", "Merge branch '" + name + "'", "refs/heads/" + name}
 	}
-	return failed("merge", stopping(dir, "merge", args...))
+	return failed("merge", r.stopping("merge", args...))
 }
 
 // Rebase перестраивает текущую ветку поверх name (#229). Грязное дерево git
 // отвергает, конфликт останавливает rebase на первом спорном коммите. Ветка
 // называется полной ссылкой: одноимённый тег git предпочёл бы ей.
-func Rebase(dir, name string) error {
-	return failed("rebase", stopping(dir, "rebase", "rebase", "refs/heads/"+name))
+func (r Repo) Rebase(name string) error {
+	return failed("rebase", r.stopping("rebase", "rebase", "refs/heads/"+name))
 }

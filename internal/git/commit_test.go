@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"gitone/internal/git"
 	"gitone/internal/i18n"
 )
 
@@ -39,12 +38,12 @@ func TestAmend(t *testing.T) {
 	runGit(t, repo, "commit", "-q", "-m", "tpyo", "-m", "body")
 	parent := revision(t, repo, "HEAD")
 
-	subject, description, err := git.LastMessage(repo)
+	subject, description, err := open(t, repo).LastMessage()
 	if err != nil || subject != "tpyo" || description != "body" {
 		t.Fatalf("LastMessage = %q, %q, %v", subject, description, err)
 	}
 
-	if published, err := git.Amend(repo, "typo", "body"); err != nil || published {
+	if published, err := open(t, repo).Amend("typo", "body"); err != nil || published {
 		t.Fatalf("Amend = %v, %v", published, err)
 	}
 	if got := lastMessage(t, repo); got != "typo\n\nbody" {
@@ -56,7 +55,7 @@ func TestAmend(t *testing.T) {
 
 	write(t, repo, "b.txt", "two\n")
 	runGit(t, repo, "add", "b.txt")
-	if _, err := git.Amend(repo, "typo", ""); err != nil {
+	if _, err := open(t, repo).Amend("typo", ""); err != nil {
 		t.Fatalf("Amend с индексом: %v", err)
 	}
 	if staged := runGit(t, repo, "diff", "--cached", "--name-only"); staged != "" {
@@ -76,11 +75,11 @@ func TestMessageRoundTrip(t *testing.T) {
 	message := "Fix parser\nAlso handle CRLF\n\n\tindented"
 	runGit(t, repo, "commit", "-q", "--cleanup=verbatim", "-m", message)
 
-	subject, description, err := git.LastMessage(repo)
+	subject, description, err := open(t, repo).LastMessage()
 	if err != nil || subject != "Fix parser" || description != "Also handle CRLF\n\n\tindented" {
 		t.Fatalf("LastMessage = %q, %q, %v", subject, description, err)
 	}
-	if _, err := git.Amend(repo, "", ""); err != nil {
+	if _, err := open(t, repo).Amend("", ""); err != nil {
 		t.Fatalf("Amend без правки: %v", err)
 	}
 	if got := runGit(t, repo, "log", "-1", "--format=%B"); got != message+"\n\n" {
@@ -93,12 +92,12 @@ func TestMessageRoundTrip(t *testing.T) {
 func TestAmendRefusalsAndPublished(t *testing.T) {
 	repo := newRepo(t)
 	var refusal *i18n.Error
-	if _, _, err := git.LastMessage(repo); !errors.As(err, &refusal) || refusal.Key != "git.noCommits" {
+	if _, _, err := open(t, repo).LastMessage(); !errors.As(err, &refusal) || refusal.Key != "git.noCommits" {
 		t.Fatalf("LastMessage без коммитов = %v, ожидался отказ git.noCommits", err)
 	}
 
 	_, local := remotePair(t)
-	if published, err := git.Amend(local, "rewritten", ""); err != nil || !published {
+	if published, err := open(t, local).Amend("rewritten", ""); err != nil || !published {
 		t.Fatalf("Amend опубликованного = %v, %v; ожидалось расхождение", published, err)
 	}
 }
@@ -110,7 +109,7 @@ func TestCommitRecordsSubject(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Commit(repo, "поправить текст", ""); err != nil {
+	if err := open(t, repo).Commit("поправить текст", ""); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 	if got := lastSubject(t, repo); got != "поправить текст" {
@@ -142,7 +141,7 @@ func stagedRepo(t *testing.T) string {
 func TestCommitRecordsDescription(t *testing.T) {
 	repo := stagedRepo(t)
 
-	if err := git.Commit(repo, "fix", "line 1\nline 2"); err != nil {
+	if err := open(t, repo).Commit("fix", "line 1\nline 2"); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 
@@ -167,7 +166,7 @@ func TestCommitTrimsDescription(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := stagedRepo(t)
 
-			if err := git.Commit(repo, "fix", tc.description); err != nil {
+			if err := open(t, repo).Commit("fix", tc.description); err != nil {
 				t.Fatalf("Commit: %v", err)
 			}
 
@@ -184,7 +183,7 @@ func TestCommitWithNothingStagedFails(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	err := git.Commit(repo, "пусто", "")
+	err := open(t, repo).Commit("пусто", "")
 
 	var refusal *i18n.Error
 	if !errors.As(err, &refusal) || refusal.Key != "git.nothingToCommit" {
@@ -207,7 +206,7 @@ func TestCommitFinishesMergeWithTreeEqualToHead(t *testing.T) {
 	runGit(t, repo, "switch", "-q", "main")
 	runGit(t, repo, "merge", "-q", "--no-commit", "-s", "ours", "other")
 
-	if err := git.Commit(repo, "слияние", ""); err != nil {
+	if err := open(t, repo).Commit("слияние", ""); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 	if got := lastSubject(t, repo); got != "слияние" {
@@ -257,7 +256,7 @@ func TestCommitDuringCherryPickAndRevertLeavesDecisionToGit(t *testing.T) {
 			runGit(t, repo, "checkout", "-q", "--ours", "a.txt")
 			runGit(t, repo, "add", "a.txt")
 
-			err := git.Commit(repo, "после остановки", "")
+			err := open(t, repo).Commit("после остановки", "")
 
 			var refusal *i18n.Error
 			if err == nil || errors.As(err, &refusal) {
@@ -273,7 +272,7 @@ func TestCommitFirstCommit(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Commit(repo, "первый", ""); err != nil {
+	if err := open(t, repo).Commit("первый", ""); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 	if got := lastSubject(t, repo); got != "первый" {
@@ -295,7 +294,7 @@ func TestFailingHookKeepsHead(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Commit(repo, "с хуком", ""); err == nil || !strings.Contains(err.Error(), "отказ хука") {
+	if err := open(t, repo).Commit("с хуком", ""); err == nil || !strings.Contains(err.Error(), "отказ хука") {
 		t.Fatalf("Commit = %v, ожидался отказ с текстом хука", err)
 	}
 	if after := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD")); after != before {

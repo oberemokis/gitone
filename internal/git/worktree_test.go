@@ -50,7 +50,7 @@ func TestWorktrees(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			worktrees, err := git.Worktrees(tc.dir)
+			worktrees, err := open(t, tc.dir).Worktrees()
 			if err != nil {
 				t.Fatalf("Worktrees: %v", err)
 			}

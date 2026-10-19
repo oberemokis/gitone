@@ -41,7 +41,7 @@ func TestResetModes(t *testing.T) {
 		t.Run(string(tc.mode), func(t *testing.T) {
 			repo, first := resetRepo(t)
 
-			published, err := git.Reset(repo, first, tc.mode)
+			published, err := open(t, repo).Reset(first, tc.mode)
 			if err != nil || published {
 				t.Fatalf("Reset = %v, %v; ожидался успех без upstream", published, err)
 			}
@@ -67,20 +67,20 @@ func TestResetTarget(t *testing.T) {
 	write(t, local, "b.txt", "local\n")
 	commitAll(t, local)
 
-	target, drops, err := git.ResetTarget(local, "main", true)
+	target, drops, err := open(t, local).ResetTarget("main", true)
 	if err != nil || target != "origin/main" || drops != 1 {
 		t.Fatalf("ResetTarget(main) = %q, %d, %v; ожидались origin/main и 1", target, drops, err)
 	}
-	if target, drops, err = git.ResetTarget(local, "other", false); err != nil || target != "refs/heads/other" || drops != 1 {
+	if target, drops, err = open(t, local).ResetTarget("other", false); err != nil || target != "refs/heads/other" || drops != 1 {
 		t.Fatalf("ResetTarget(other) = %q, %d, %v; ожидались refs/heads/other и 1", target, drops, err)
 	}
 
 	// тег с именем ветки на другом коммите не подменяет её (#291, случай 2)
 	runGit(t, local, "tag", "other", "HEAD")
-	if target, drops, err = git.ResetTarget(local, "other", false); err != nil || drops != 1 {
+	if target, drops, err = open(t, local).ResetTarget("other", false); err != nil || drops != 1 {
 		t.Fatalf("ResetTarget(other) при теге other = %q, %d, %v; ожидался 1", target, drops, err)
 	}
-	if _, err := git.Reset(local, target, git.ResetHard); err != nil {
+	if _, err := open(t, local).Reset(target, git.ResetHard); err != nil {
 		t.Fatalf("Reset: %v", err)
 	}
 	if got, want := revision(t, local, "HEAD"), revision(t, local, "refs/heads/other"); got != want {
@@ -89,7 +89,7 @@ func TestResetTarget(t *testing.T) {
 	runGit(t, local, "reset", "-q", "--hard", "HEAD@{1}")
 
 	runGit(t, local, "switch", "-q", "other")
-	_, _, err = git.ResetTarget(local, "other", true)
+	_, _, err = open(t, local).ResetTarget("other", true)
 	refusedWith(t, err, "git.noUpstream")
 }
 
@@ -101,14 +101,14 @@ func TestResetReportsPublishedCommits(t *testing.T) {
 	write(t, local, "b.txt", "local\n")
 	commitAll(t, local)
 
-	published, err := git.Reset(local, pushed, git.ResetMixed)
+	published, err := open(t, local).Reset(pushed, git.ResetMixed)
 	if err != nil || published {
 		t.Fatalf("Reset неопубликованного = %v, %v; ожидался успех без расхождения", published, err)
 	}
 
 	runGit(t, local, "commit", "-q", "--allow-empty", "-m", "second")
 	runGit(t, local, "push", "-q")
-	published, err = git.Reset(local, pushed, git.ResetSoft)
+	published, err = open(t, local).Reset(pushed, git.ResetSoft)
 	if err != nil || !published {
 		t.Fatalf("Reset опубликованного = %v, %v; ожидалось расхождение с upstream", published, err)
 	}

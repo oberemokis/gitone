@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"gitone/internal/git"
 	"gitone/internal/i18n"
 )
 
@@ -19,10 +18,10 @@ func TestIgnoreAddsExactPath(t *testing.T) {
 	write(t, repo, "logs/[1] *.log", "x\n")
 	write(t, repo, "logs/2.log", "y\n")
 
-	if err := git.Ignore(repo, "logs/[1] *.log"); err != nil {
+	if err := open(t, repo).Ignore("logs/[1] *.log"); err != nil {
 		t.Fatalf("Ignore: %v", err)
 	}
-	if err := git.Ignore(repo, "logs/[1] *.log"); err != nil {
+	if err := open(t, repo).Ignore("logs/[1] *.log"); err != nil {
 		t.Fatalf("повторный Ignore: %v", err)
 	}
 
@@ -43,7 +42,7 @@ func TestIgnoreAppendsOnNewLine(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "new.txt", "x\n")
 
-	if err := git.Ignore(repo, "new.txt"); err != nil {
+	if err := open(t, repo).Ignore("new.txt"); err != nil {
 		t.Fatalf("Ignore: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, ".gitignore")); got != "*.tmp\n/new.txt\n" {
@@ -59,7 +58,7 @@ func TestIgnoreLeadingColon(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, ":foo", "x\n")
 
-	if err := git.Ignore(repo, ":foo"); err != nil {
+	if err := open(t, repo).Ignore(":foo"); err != nil {
 		t.Fatalf("Ignore: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, ".gitignore")); got != "foo\n/:foo\n" {
@@ -75,7 +74,7 @@ func TestIgnoreRefusesTrackedFile(t *testing.T) {
 	commitAll(t, repo)
 
 	var refusal *i18n.Error
-	if err := git.Ignore(repo, "a.txt"); !errors.As(err, &refusal) || refusal.Key != "git.ignoreTracked" {
+	if err := open(t, repo).Ignore("a.txt"); !errors.As(err, &refusal) || refusal.Key != "git.ignoreTracked" {
 		t.Fatalf("Ignore = %v, ожидался отказ git.ignoreTracked", err)
 	}
 	if untracked := runGit(t, repo, "status", "--porcelain"); untracked != "" {

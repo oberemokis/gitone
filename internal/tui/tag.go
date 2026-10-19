@@ -22,21 +22,21 @@ type tagsMsg struct {
 
 func (msg tagsMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.tagsArrived(msg), nil }
 
-func tagsCmd(dir string) tea.Cmd {
+func tagsCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		tags, err := git.Tags(dir)
+		tags, err := repo.Tags()
 		return tagsMsg{tags: tags, err: err}
 	}
 }
 
 // thenTags выполняет правку тегов и отвечает новым списком с итогом note, а
 // отказ git ошибкой: окно тегов остаётся открытым.
-func thenTags(dir, note string, change func() error) tea.Cmd {
+func thenTags(repo git.Repo, note string, change func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := change(); err != nil {
 			return tagsMsg{err: err}
 		}
-		msg := tagsCmd(dir)().(tagsMsg)
+		msg := tagsCmd(repo)().(tagsMsg)
 		msg.note = note
 		return msg
 	}
@@ -91,7 +91,7 @@ func (m Model) askDeleteTag(tag git.Tag) (tea.Model, tea.Cmd) {
 	args["name"] = visible(tag.Name)
 	note := m.text.Text("tags.deleted", i18n.Args{"name": visible(tag.Name)})
 	return m.ask(m.text.Text("tags.deleteQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
-		return m, thenTags(m.dir, note, func() error { return git.DeleteTag(m.dir, tag.Name) })
+		return m, thenTags(m.repo, note, func() error { return m.repo.DeleteTag(tag.Name) })
 	}), nil
 }
 
@@ -102,7 +102,7 @@ func (m Model) askTagName() Model {
 		title := m.text.Text("tags.messageTitle", i18n.Args{"name": visible(name)})
 		m = m.openPrompt(title, "", func(m Model, message string) (tea.Model, tea.Cmd) {
 			note := m.text.Text("tags.created", i18n.Args{"name": visible(name)})
-			return m, thenTags(m.dir, note, func() error { return git.CreateTag(m.dir, name, message) })
+			return m, thenTags(m.repo, note, func() error { return m.repo.CreateTag(name, message) })
 		})
 		m.prompt.empty = true
 		return m, nil
@@ -115,9 +115,9 @@ func (m Model) startTagPush(name string) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.remote = remote{kind: pushingTag, id: m.remote.id + 1, cancel: cancel}
 
-	dir, id := m.dir, m.remote.id
+	repo, id := m.repo, m.remote.id
 	return m, tea.Batch(remoteSpinTick(id), func() tea.Msg {
-		return remoteDoneMsg{id: id, kind: pushingTag, target: name, err: git.PushTag(ctx, dir, name)}
+		return remoteDoneMsg{id: id, kind: pushingTag, target: name, err: repo.PushTag(ctx, name)}
 	})
 }
 

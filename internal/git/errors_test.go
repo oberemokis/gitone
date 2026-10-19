@@ -22,24 +22,24 @@ func TestErrorsNameOperationOnce(t *testing.T) {
 		call   func(repo string) error
 	}{
 		{name: "коммит с пустым индексом", prefix: "commit: ", call: func(repo string) error {
-			return git.Commit(repo, "пусто", "")
+			return open(t, repo).Commit("пусто", "")
 		}},
 		{name: "переключение на несуществующую ветку", prefix: "switch: ", call: func(repo string) error {
-			return git.Switch(repo, "ghost")
+			return open(t, repo).Switch("ghost")
 		}},
 		{name: "применение несуществующего stash", prefix: "stash apply: ", call: func(repo string) error {
-			return git.StashApply(repo, git.Stash{Ref: "stash@{5}", Hash: "0000000000000000000000000000000000000000"})
+			return open(t, repo).StashApply(git.Stash{Ref: "stash@{5}", Hash: "0000000000000000000000000000000000000000"})
 		}},
-		{name: "дифф вне репозитория", prefix: "diff: ", call: func(string) error {
-			_, err := git.Diff(outside, nil)
+		{name: "открытие вне репозитория", prefix: "rev-parse: ", call: func(string) error {
+			_, err := git.Open(outside)
 			return err
 		}},
 		{name: "pull ветки без upstream", prefix: "pull: ", call: func(repo string) error {
-			_, err := git.Pull(context.Background(), repo)
+			_, err := open(t, repo).Pull(context.Background())
 			return err
 		}},
 		{name: "push без origin", prefix: "push: ", call: func(repo string) error {
-			_, err := git.Push(context.Background(), repo)
+			_, err := open(t, repo).Push(context.Background())
 			return err
 		}},
 	}

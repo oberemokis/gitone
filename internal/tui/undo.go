@@ -18,13 +18,13 @@ func (msg undoStepMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.askUndo(ms
 
 // undoStepCmd ищет шаг по reflog в команде: чтение reflog это IO, ему не место
 // в Update.
-func undoStepCmd(dir string, redo bool) tea.Cmd {
-	find := git.UndoStep
+func undoStepCmd(repo git.Repo, redo bool) tea.Cmd {
+	find := repo.UndoStep
 	if redo {
-		find = git.RedoStep
+		find = repo.RedoStep
 	}
 	return func() tea.Msg {
-		step, err := find(dir)
+		step, err := find()
 		return undoStepMsg{step: step, err: err}
 	}
 }
@@ -61,6 +61,6 @@ func (m Model) askUndo(msg undoStepMsg) Model {
 	}
 	done := m.text.Text(note, i18n.Args{"target": visible(target)})
 	return m.ask(m.text.Text(question, args), func(m Model) (tea.Model, tea.Cmd) {
-		return m.changeHistory(done, func(dir string) error { return git.ApplyStep(dir, step) })
+		return m.changeHistory(done, func(repo git.Repo) error { return repo.ApplyStep(step) })
 	})
 }

@@ -36,17 +36,17 @@ func (m Model) startConflicts(file diff.File) Model {
 // помечает файл разрешённым, как без выбора: меню сторон затёрло бы правку.
 func (m Model) chooseSide() (tea.Model, tea.Cmd) {
 	file := m.files[m.current]
-	path, dir := stagedKey(file), m.dir
+	path, repo := stagedKey(file), m.repo
 	start, found := m.view.ConflictStart()
 	if !found {
 		note := m.text.Text("conflict.fileResolved", i18n.Args{"file": visible(path)})
 		return m, func() tea.Msg {
-			return actionDoneMsg{err: git.Stage(dir, []string{path}), note: note}
+			return actionDoneMsg{err: repo.Stage([]string{path}), note: note}
 		}
 	}
 
 	return m, func() tea.Msg {
-		text, err := git.WorktreeFile(dir, path)
+		text, err := repo.WorktreeFile(path)
 		if err != nil {
 			return actionDoneMsg{err: err}
 		}
@@ -76,7 +76,7 @@ func (m Model) sidesArrived(msg conflictLabelsMsg) Model {
 
 	side := func(label string, chosen diff.ConflictSide) menuItem {
 		return menuItem{label: label, run: func(m Model) (tea.Model, tea.Cmd) {
-			return m, resolveConflictCmd(m.dir, msg.path, msg.start, chosen, m.conflictNotes(msg.path))
+			return m, resolveConflictCmd(m.repo, msg.path, msg.start, chosen, m.conflictNotes(msg.path))
 		}}
 	}
 	items := []menuItem{
@@ -98,9 +98,9 @@ func (m Model) fileSides(path, ours, theirs string) []menuItem {
 	whole := func(label string, useTheirs bool) menuItem {
 		note := m.text.Text("conflict.fileResolved", i18n.Args{"file": visible(path)})
 		return menuItem{label: label, run: func(m Model) (tea.Model, tea.Cmd) {
-			dir := m.dir
+			repo := m.repo
 			return m, func() tea.Msg {
-				return actionDoneMsg{err: git.ResolveFile(dir, path, useTheirs), note: note}
+				return actionDoneMsg{err: repo.ResolveFile(path, useTheirs), note: note}
 			}
 		}}
 	}
@@ -123,9 +123,9 @@ func (m Model) conflictNotes(path string) [2]string {
 // выбранную сторону. Когда в файле не осталось конфликтов, кроме тех, что уже
 // лежали в HEAD, файл ставится в индекс: git считает конфликт решённым, и
 // операция ждёт продолжения.
-func resolveConflictCmd(dir, path string, start int, side diff.ConflictSide, notes [2]string) tea.Cmd {
+func resolveConflictCmd(repo git.Repo, path string, start int, side diff.ConflictSide, notes [2]string) tea.Cmd {
 	return func() tea.Msg {
-		text, err := git.WorktreeFile(dir, path)
+		text, err := repo.WorktreeFile(path)
 		if err != nil {
 			return actionDoneMsg{err: err}
 		}
@@ -133,13 +133,13 @@ func resolveConflictCmd(dir, path string, start int, side diff.ConflictSide, not
 		if !found {
 			return actionDoneMsg{err: i18n.New("conflict.gone", nil)}
 		}
-		if err := git.WriteWorktreeFile(dir, path, resolved); err != nil {
+		if err := repo.WriteWorktreeFile(path, resolved); err != nil {
 			return actionDoneMsg{err: err}
 		}
 
-		if diff.ConflictCount(resolved) > diff.ConflictCount(git.HeadFile(dir, path)) {
+		if diff.ConflictCount(resolved) > diff.ConflictCount(repo.HeadFile(path)) {
 			return actionDoneMsg{note: notes[0]}
 		}
-		return actionDoneMsg{err: git.Stage(dir, []string{path}), note: notes[1]}
+		return actionDoneMsg{err: repo.Stage([]string{path}), note: notes[1]}
 	}
 }

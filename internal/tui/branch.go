@@ -24,9 +24,9 @@ type branchesMsg struct {
 
 func (msg branchesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.branchesArrived(msg) }
 
-func branchesCmd(dir string) tea.Cmd {
+func branchesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		branches, err := git.Branches(dir)
+		branches, err := repo.Branches()
 		return branchesMsg{branches: branches, err: err}
 	}
 }
@@ -47,9 +47,9 @@ func (m Model) branchesArrived(msg branchesMsg) (tea.Model, tea.Cmd) {
 }
 
 // switchCmd переключает ветку. Отказ git приходит ошибкой и остаётся в подвале.
-func switchCmd(dir, name string) tea.Cmd {
+func switchCmd(repo git.Repo, name string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.Switch(dir, name)}
+		return actionDoneMsg{err: repo.Switch(name)}
 	}
 }
 
@@ -60,30 +60,30 @@ func currentIndex(branches []git.Branch) int {
 
 // createBranchCmd создаёт ветку name на base и переключается на неё: дифф и
 // подвал перечитываются, как после switch.
-func createBranchCmd(dir, name, base string) tea.Cmd {
+func createBranchCmd(repo git.Repo, name, base string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.CreateBranch(dir, name, base)}
+		return actionDoneMsg{err: repo.CreateBranch(name, base)}
 	}
 }
 
 // deleteBranchCmd удаляет ветку и отвечает новым списком: окно веток остаётся
 // открытым.
-func deleteBranchCmd(dir, name string) tea.Cmd {
-	return thenBranches(dir, func() error { return git.DeleteBranch(dir, name) })
+func deleteBranchCmd(repo git.Repo, name string) tea.Cmd {
+	return thenBranches(repo, func() error { return repo.DeleteBranch(name) })
 }
 
-func renameBranchCmd(dir, from, to string) tea.Cmd {
-	return thenBranches(dir, func() error { return git.RenameBranch(dir, from, to) })
+func renameBranchCmd(repo git.Repo, from, to string) tea.Cmd {
+	return thenBranches(repo, func() error { return repo.RenameBranch(from, to) })
 }
 
 // thenBranches выполняет правку веток и отвечает новым списком, а отказ git
 // ошибкой: окно веток остаётся открытым, корень перечитывает подвал.
-func thenBranches(dir string, change func() error) tea.Cmd {
+func thenBranches(repo git.Repo, change func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := change(); err != nil {
 			return branchesMsg{err: err}
 		}
-		msg := branchesCmd(dir)().(branchesMsg)
+		msg := branchesCmd(repo)().(branchesMsg)
 		msg.edit = true
 		return msg
 	}
@@ -98,7 +98,7 @@ var branchActions = []windowAction[git.Branch]{
 		if branch.Current {
 			return m, nil
 		}
-		return m, switchCmd(m.dir, branch.Name)
+		return m, switchCmd(m.repo, branch.Name)
 	}},
 	{action: keymap.BranchesNew, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
 		return m.askBranchName(branch.Name, branch.Name), nil
@@ -110,16 +110,16 @@ var branchActions = []windowAction[git.Branch]{
 		return m.askDeleteBranch(branch), nil
 	}},
 	{action: keymap.BranchesMerge, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
-		return m.ontoCurrent(branch, git.Merge, "branches.merged")
+		return m.ontoCurrent(branch, git.Repo.Merge, "branches.merged")
 	}},
 	{action: keymap.BranchesRebase, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
-		return m.ontoCurrent(branch, git.Rebase, "branches.rebased")
+		return m.ontoCurrent(branch, git.Repo.Rebase, "branches.rebased")
 	}},
 	{action: keymap.BranchesReset, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
-		return m, resetTargetCmd(m.dir, branch)
+		return m, resetTargetCmd(m.repo, branch)
 	}},
 	{action: keymap.BranchesUpstream, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
-		return m, remoteBranchesCmd(m.dir, branch.Name)
+		return m, remoteBranchesCmd(m.repo, branch.Name)
 	}},
 	{action: keymap.CherryPickPaste, anyRow: true, run: func(m Model, _ git.Branch) (tea.Model, tea.Cmd) {
 		return m.pasteCommit()
@@ -147,15 +147,15 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // поверх неё (#229), без вопроса: операцию отменяет reflog, а конфликт
 // останавливает её с причиной в подвале. Выбрана сама текущая, и подвал
 // сразу говорит, что нужна другая. Итог успеха noteKey гаснет сам.
-func (m Model) ontoCurrent(branch git.Branch, run func(dir, name string) error, noteKey string) (tea.Model, tea.Cmd) {
+func (m Model) ontoCurrent(branch git.Branch, run func(repo git.Repo, name string) error, noteKey string) (tea.Model, tea.Cmd) {
 	if branch.Current {
 		return m.putNotice(m.text.Text("branches.sameBranch", nil), false), nil
 	}
 
 	m.active = noWindow
-	dir, note := m.dir, m.text.Text(noteKey, i18n.Args{"name": visible(branch.Name)})
+	repo, note := m.repo, m.text.Text(noteKey, i18n.Args{"name": visible(branch.Name)})
 	return m, func() tea.Msg {
-		return actionDoneMsg{err: run(dir, branch.Name), note: note}
+		return actionDoneMsg{err: run(repo, branch.Name), note: note}
 	}
 }
 
@@ -167,7 +167,7 @@ func (m Model) askBranchName(label, base string) Model {
 	title := m.text.Text("branches.newTitle", i18n.Args{"base": visible(label)})
 	return m.openPrompt(title, "", func(m Model, name string) (tea.Model, tea.Cmd) {
 		m.active = noWindow
-		return m, createBranchCmd(m.dir, name, base)
+		return m, createBranchCmd(m.repo, name, base)
 	})
 }
 
@@ -179,7 +179,7 @@ func (m Model) askRename(from string) Model {
 		if to == from {
 			return m, nil
 		}
-		return m, renameBranchCmd(m.dir, from, to)
+		return m, renameBranchCmd(m.repo, from, to)
 	})
 }
 
@@ -193,7 +193,7 @@ func (m Model) askDeleteBranch(branch git.Branch) Model {
 	args := questionArgs(m.keys)
 	args["name"] = visible(branch.Name)
 	return m.ask(m.text.Text("branches.deleteQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
-		return m, deleteBranchCmd(m.dir, branch.Name)
+		return m, deleteBranchCmd(m.repo, branch.Name)
 	})
 }
 

@@ -54,7 +54,7 @@ func TestRewriteHistory(t *testing.T) {
 			repo, hashes := historyRepo(t)
 			write(t, repo, "four.txt", "dirty\n")
 
-			published, err := git.RewriteHistory(repo, hashes[tc.at], tc.action, tc.message)
+			published, err := open(t, repo).RewriteHistory(hashes[tc.at], tc.action, tc.message)
 			if err != nil || published {
 				t.Fatalf("RewriteHistory = %v, %v", published, err)
 			}
@@ -73,16 +73,16 @@ func TestRewriteHistory(t *testing.T) {
 func TestRewriteHistoryDetails(t *testing.T) {
 	repo, hashes := historyRepo(t)
 
-	if _, err := git.RewriteHistory(repo, hashes[2], git.RewriteSquash, ""); err != nil {
+	if _, err := open(t, repo).RewriteHistory(hashes[2], git.RewriteSquash, ""); err != nil {
 		t.Fatalf("squash: %v", err)
 	}
 	if got := strings.TrimSpace(runGit(t, repo, "log", "-1", "--skip=1", "--format=%B")); got != "two\n\nthree" {
 		t.Fatalf("сообщение после squash %q, ожидались оба", got)
 	}
 
-	refusedWith(t, func() error { _, err := git.RewriteHistory(repo, hashes[0], git.RewriteSquash, ""); return err }(), "git.rewriteNoParent")
+	refusedWith(t, func() error { _, err := open(t, repo).RewriteHistory(hashes[0], git.RewriteSquash, ""); return err }(), "git.rewriteNoParent")
 	head := revision(t, repo, "HEAD")
-	refusedWith(t, func() error { _, err := git.RewriteHistory(repo, head, git.RewriteMoveUp, ""); return err }(), "git.rewriteNoChild")
+	refusedWith(t, func() error { _, err := open(t, repo).RewriteHistory(head, git.RewriteMoveUp, ""); return err }(), "git.rewriteNoChild")
 }
 
 // Reword сохраняет строки, начинающиеся с «#», как Commit и Amend (#294,
@@ -91,7 +91,7 @@ func TestRewordKeepsHashLines(t *testing.T) {
 	repo, hashes := historyRepo(t)
 	message := "Subject\n\n#42 follow-up\nbody"
 
-	if _, err := git.RewriteHistory(repo, hashes[1], git.RewriteReword, message); err != nil {
+	if _, err := open(t, repo).RewriteHistory(hashes[1], git.RewriteReword, message); err != nil {
 		t.Fatalf("reword: %v", err)
 	}
 	if got := strings.TrimSpace(runGit(t, repo, "log", "-1", "--skip=2", "--format=%B")); got != message {
@@ -111,9 +111,9 @@ func TestAutosquashRefusals(t *testing.T) {
 	runGit(t, repo, "merge", "-q", "--no-ff", "--no-edit", "side")
 	head := revision(t, repo, "HEAD")
 
-	_, err := git.Autosquash(repo, hashes[1])
+	_, err := open(t, repo).Autosquash(hashes[1])
 	refusedWith(t, err, "git.rewriteMerges")
-	_, err = git.Autosquash(repo, side)
+	_, err = open(t, repo).Autosquash(side)
 	refusedWith(t, err, "git.rewriteNotInBranch")
 	if got := revision(t, repo, "HEAD"); got != head {
 		t.Fatalf("HEAD %s, история переписана", got)
@@ -126,7 +126,7 @@ func TestRewriteDuringMerge(t *testing.T) {
 	repo := conflictBranches(t)
 	stopsOnConflict(t, repo, "merge", "topic")
 
-	_, err := git.RewriteHistory(repo, revision(t, repo, "HEAD"), git.RewriteReword, "other")
+	_, err := open(t, repo).RewriteHistory(revision(t, repo, "HEAD"), git.RewriteReword, "other")
 	if err == nil || errorKey(err) == "git.stoppedOnConflict" {
 		t.Fatalf("RewriteHistory = %v, ожидался отказ git", err)
 	}
@@ -138,7 +138,7 @@ func TestRewriteAutostashConflict(t *testing.T) {
 	repo, hashes := historyRepo(t)
 	write(t, repo, "four.txt", "dirty\n")
 
-	_, err := git.RewriteHistory(repo, hashes[3], git.RewriteDrop, "")
+	_, err := open(t, repo).RewriteHistory(hashes[3], git.RewriteDrop, "")
 	refusedWith(t, err, "git.autostashConflict")
 	if stash := runGit(t, repo, "stash", "list"); stash == "" {
 		t.Fatal("отложенных правок нет в stash")
@@ -156,7 +156,7 @@ func TestRewriteHistoryConflict(t *testing.T) {
 	commitAll(t, repo)
 	middle := revision(t, repo, "HEAD~1")
 
-	_, err := git.RewriteHistory(repo, middle, git.RewriteMoveUp, "")
+	_, err := open(t, repo).RewriteHistory(middle, git.RewriteMoveUp, "")
 	refusedWith(t, err, "git.stoppedOnConflict")
 }
 
@@ -170,19 +170,19 @@ func TestFixupAndAutosquash(t *testing.T) {
 	side := revision(t, repo, "HEAD")
 	runGit(t, repo, "switch", "-q", "main")
 
-	refusedWith(t, git.Fixup(repo, hashes[1]), "git.nothingToCommit")
+	refusedWith(t, open(t, repo).Fixup(hashes[1]), "git.nothingToCommit")
 	write(t, repo, "two.txt", "two fixed\n")
 	runGit(t, repo, "add", "two.txt")
-	refusedWith(t, git.Fixup(repo, side), "git.rewriteNotInBranch")
+	refusedWith(t, open(t, repo).Fixup(side), "git.rewriteNotInBranch")
 
-	if err := git.Fixup(repo, hashes[1]); err != nil {
+	if err := open(t, repo).Fixup(hashes[1]); err != nil {
 		t.Fatalf("Fixup: %v", err)
 	}
 	if got := history(t, repo); got != "fixup! two four three two one" {
 		t.Fatalf("история %q, ожидался fixup-коммит сверху", got)
 	}
 
-	if _, err := git.Autosquash(repo, hashes[1]); err != nil {
+	if _, err := open(t, repo).Autosquash(hashes[1]); err != nil {
 		t.Fatalf("Autosquash: %v", err)
 	}
 	if got := history(t, repo); got != "four three two one" {

@@ -33,18 +33,18 @@ func operation(root string) string {
 // отвергает своей причиной. Если операция дошла до следующего конфликта,
 // ошибка из словаря говорит, что она снова остановилась. Остальные отказы
 // (упавший хук) идут строкой git: конфликта в них нет.
-func Continue(dir string) error {
-	root, op, err := runningOperation(dir)
+func (r Repo) Continue() error {
+	op, err := r.runningOperation()
 	if err != nil {
 		return err
 	}
 
-	conflicted, err := ConflictedPaths(root)
+	conflicted, err := r.ConflictedPaths()
 	if err != nil {
 		return err
 	}
-	_, err = run(call{dir: root, env: []string{"GIT_EDITOR=true"}}, op, "--continue")
-	if err != nil && len(conflicted) == 0 && stoppedOnConflict(root) {
+	_, err = run(call{dir: r.root, env: []string{"GIT_EDITOR=true"}}, op, "--continue")
+	if err != nil && len(conflicted) == 0 && r.stoppedOnConflict() {
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": op})
 	}
 	return failed(op, headline(err))
@@ -52,35 +52,32 @@ func Continue(dir string) error {
 
 // stoppedOnConflict говорит, что операция остановилась и в индексе есть
 // конфликтные пути.
-func stoppedOnConflict(root string) bool {
-	conflicted, _ := ConflictedPaths(root)
-	return len(conflicted) > 0 && unfinished(root)
+func (r Repo) stoppedOnConflict() bool {
+	conflicted, _ := r.ConflictedPaths()
+	return len(conflicted) > 0 && unfinished(r.root)
 }
 
 // Abort прерывает незавершённую операцию: HEAD, индекс и дерево
 // возвращаются к состоянию до неё.
-func Abort(dir string) error {
-	root, op, err := runningOperation(dir)
+func (r Repo) Abort() error {
+	op, err := r.runningOperation()
 	if err != nil {
 		return err
 	}
 
-	_, err = run(call{dir: root}, op, "--abort")
+	_, err = r.inRoot(op, "--abort")
 	return failed(op, headline(err))
 }
 
 // runningOperation находит операцию для Continue и Abort. У bisect нет ни
 // --continue, ни --abort: он идёт отметками и кончается bisect reset.
-func runningOperation(dir string) (root, op string, err error) {
-	root, err = topLevel(dir)
-	if err != nil {
-		return "", "", failed("rev-parse", err)
-	}
-	switch op = operation(root); op {
+func (r Repo) runningOperation() (string, error) {
+	switch op := operation(r.root); op {
 	case "":
-		return "", "", i18n.New("git.noOperation", nil)
+		return "", i18n.New("git.noOperation", nil)
 	case "bisect":
-		return "", "", i18n.New("git.bisectNoContinue", nil)
+		return "", i18n.New("git.bisectNoContinue", nil)
+	default:
+		return op, nil
 	}
-	return root, op, nil
 }

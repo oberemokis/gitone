@@ -11,48 +11,38 @@ import (
 // родителя. Уже отменённый коммит тоже: git на нём отвечает «nothing to
 // commit» и ничего не создаёт, а текст этот переводится на язык пользователя.
 // Конфликт останавливает revert, ошибка тогда git.stoppedOnConflict.
-func Revert(dir, hash string) error {
-	return failed("revert", revert(dir, hash))
+func (r Repo) Revert(hash string) error {
+	return failed("revert", r.revert(hash))
 }
 
-func revert(dir, hash string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	if isMerge(root, hash) {
+func (r Repo) revert(hash string) error {
+	if isMerge(r.root, hash) {
 		return i18n.New("git.revertMerge", nil)
 	}
-	if changesNothing(root, hash, hash+"^") {
+	if changesNothing(r.root, hash, hash+"^") {
 		return i18n.New("git.alreadyReverted", nil)
 	}
 
-	return stopping(root, "revert", "revert", "--no-edit", hash)
+	return r.stopping("revert", "revert", "--no-edit", hash)
 }
 
 // CherryPick переносит коммит hash в текущую ветку (#222) с его сообщением.
 // Merge-коммит отвергается, как у Revert. Коммит, правка которого уже есть в
 // ветке, тоже: git остановился бы на пустом cherry-pick и ждал бы решения.
 // Конфликт останавливает cherry-pick, ошибка тогда git.stoppedOnConflict.
-func CherryPick(dir, hash string) error {
-	return failed("cherry-pick", cherryPick(dir, hash))
+func (r Repo) CherryPick(hash string) error {
+	return failed("cherry-pick", r.cherryPick(hash))
 }
 
-func cherryPick(dir, hash string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	if isMerge(root, hash) {
+func (r Repo) cherryPick(hash string) error {
+	if isMerge(r.root, hash) {
 		return i18n.New("git.pickMerge", nil)
 	}
-	if changesNothing(root, hash+"^", hash) {
+	if changesNothing(r.root, hash+"^", hash) {
 		return i18n.New("git.alreadyPicked", nil)
 	}
 
-	return stopping(root, "cherry-pick", "cherry-pick", hash)
+	return r.stopping("cherry-pick", "cherry-pick", hash)
 }
 
 // isMerge говорит, что у коммита больше одного родителя.

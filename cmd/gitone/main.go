@@ -36,7 +36,7 @@ func main() {
 	}
 
 	opts, settingsErrs := loadSettings()
-	opts.Dir, opts.Args = dir, os.Args[1:]
+	opts.Args = os.Args[1:]
 
 	// Язык выбирается после чтения config.json, поэтому ошибки настроек ещё не
 	// стали текстом: они выйдут на выбранном языке.
@@ -63,7 +63,7 @@ func main() {
 		opts.Ticks = ticker.C
 	}
 
-	model, err := loadWithNotice(opts)
+	model, err := loadWithNotice(opts, dir)
 	if err != nil {
 		exit(opts.Text.Error(err))
 	}
@@ -114,21 +114,27 @@ func addNotice(text i18n.Dictionary, notice string, errs ...error) string {
 	return strings.Join(parts, "; ")
 }
 
-// Дифф грузится до запуска интерфейса: ошибка git (вне репозитория, неверный
-// аргумент) должна остаться в терминале текстом, а не мелькнуть на экране,
-// который сразу закроется.
-func loadWithNotice(opts tui.Options) (tea.Model, error) {
+// Репозиторий каталога dir открывается и дифф грузится до запуска интерфейса:
+// ошибка git (вне репозитория, неверный аргумент) должна остаться в терминале
+// текстом, а не мелькнуть на экране, который сразу закроется.
+func loadWithNotice(opts tui.Options, dir string) (tea.Model, error) {
+	repo, err := tui.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	opts.Repo = repo
+
 	printed := make(chan struct{})
 	timer := time.AfterFunc(loadingNoticeDelay, func() {
 		fmt.Fprint(os.Stderr, opts.Text.Text("start.loadingDiff", nil))
 		close(printed)
 	})
 
-	files, err := tui.Load(opts.Dir, opts.Args)
-	index, stagedErr := tui.ReadIndex(opts.Dir)
+	files, err := tui.Load(repo, opts.Args)
+	index, stagedErr := tui.ReadIndex(repo)
 	opts.Index = index
-	// вне репозитория Load уже вернул ошибку, вторая ничего бы не добавила
-	opts.Location, _ = tui.Locate(opts.Dir)
+	// ветку и worktree перечитывание найдёт снова, а ошибку диффа Load уже вернул
+	opts.Location, _ = tui.Locate(repo)
 	opts.Notice = addNotice(opts.Text, opts.Notice, stagedErr)
 
 	if !timer.Stop() {

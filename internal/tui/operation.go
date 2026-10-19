@@ -24,13 +24,13 @@ func (m Model) askOperation() Model {
 	state := m.text.Text("operation."+operation, nil)
 	return m.openMenu(m.text.Text("operation.title", i18n.Args{"state": state}), []menuItem{
 		{label: m.text.Text("operation.continue", nil), run: func(m Model) (tea.Model, tea.Cmd) {
-			return m.changeHistory(m.text.Text("operation.continued", nil), git.Continue)
+			return m.changeHistory(m.text.Text("operation.continued", nil), git.Repo.Continue)
 		}},
 		{label: m.text.Text("operation.abort", nil), run: func(m Model) (tea.Model, tea.Cmd) {
 			args := questionArgs(m.keys)
 			args["state"] = state
 			return m.ask(m.text.Text("operation.abortQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
-				return m.changeHistory(m.text.Text("operation.aborted", nil), git.Abort)
+				return m.changeHistory(m.text.Text("operation.aborted", nil), git.Repo.Abort)
 			}), nil
 		}},
 	})

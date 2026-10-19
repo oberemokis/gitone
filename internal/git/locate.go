@@ -15,28 +15,23 @@ type Location struct {
 	Operation string
 }
 
-// Locate называет ветку и worktree каталога dir. symbolic-ref знает ветку и в
+// Locate называет ветку и worktree репозитория. symbolic-ref знает ветку и в
 // репозитории без коммитов, а rev-parse нужен только для detached HEAD. Префикс
 // refs/heads/ снимается вручную: --short при теге с именем ветки отдаёт
 // неоднозначное heads/v1. Хэш режется из полного той же shortHash, что у
 // Worktrees: --short=7 при коллизии префикса отдаёт 8 символов и больше, и
 // core.abbrev длину тоже меняет.
-func Locate(dir string) (Location, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return Location{}, failed("rev-parse", err)
-	}
-
-	branch, err := run(call{dir: root}, "symbolic-ref", "--quiet", "HEAD")
+func (r Repo) Locate() (Location, error) {
+	branch, err := r.inRoot("symbolic-ref", "--quiet", "HEAD")
 	if err != nil {
 		var head string
-		if head, err = run(call{dir: root}, "rev-parse", "HEAD"); err != nil {
+		if head, err = r.inRoot("rev-parse", "HEAD"); err != nil {
 			return Location{}, failed("rev-parse", err)
 		}
 		branch = shortHash(strings.TrimSpace(head))
 	}
 
-	return Location{Branch: strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/"), Worktree: filepath.Base(root), Operation: operation(root)}, nil
+	return Location{Branch: strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/"), Worktree: filepath.Base(r.root), Operation: operation(r.root)}, nil
 }
 
 // Root это корень репозитория, в котором лежит dir: от него идут пути диффа.

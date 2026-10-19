@@ -185,20 +185,25 @@ func TestErrorsCarryGitMessage(t *testing.T) {
 
 	cases := []struct {
 		name string
-		dir  string
-		args []string
+		call func(t *testing.T) error
 		want string
 	}{
-		{name: "вне репозитория", dir: outside, want: "not a git repository"},
-		{name: "неверный аргумент", dir: repo, args: []string{"main..nope"}, want: "unknown revision"},
+		{name: "вне репозитория", want: "not a git repository", call: func(*testing.T) error {
+			_, err := git.Open(outside)
+			return err
+		}},
+		{name: "неверный аргумент", want: "unknown revision", call: func(t *testing.T) error {
+			_, err := open(t, repo).Diff([]string{"main..nope"})
+			return err
+		}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := git.Diff(tc.dir, tc.args)
+			err := tc.call(t)
 
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Errorf("Diff(%q, %q) error = %v, want с текстом %q", tc.dir, tc.args, err, tc.want)
+				t.Errorf("%s: error = %v, want с текстом %q", tc.name, err, tc.want)
 			}
 		})
 	}
@@ -265,10 +270,21 @@ func commitAll(t *testing.T, repo string) {
 	runGit(t, repo, "commit", "-q", "-m", "commit")
 }
 
+// open открывает репозиторий каталога dir, как gitone при запуске.
+func open(t testing.TB, dir string) git.Repo {
+	t.Helper()
+
+	repo, err := git.Open(dir)
+	if err != nil {
+		t.Fatalf("Open(%s): %v", dir, err)
+	}
+	return repo
+}
+
 func load(t *testing.T, dir string, args []string) []diff.File {
 	t.Helper()
 
-	text, err := git.Diff(dir, args)
+	text, err := open(t, dir).Diff(args)
 	if err != nil {
 		t.Fatalf("Diff: %v", err)
 	}
