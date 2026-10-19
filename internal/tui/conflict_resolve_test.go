@@ -117,6 +117,132 @@ func TestConflictsGoneWithDiff(t *testing.T) {
 	}
 }
 
+// textConflict это слияние topic в main, остановленное на конфликте в a.txt:
+// base общий предок, main и topic правки сторон. setup готовит репозиторий до
+// первого коммита.
+func textConflict(t *testing.T, base, main, topic string, setup func(repo string)) (string, tea.Model) {
+	t.Helper()
+
+	repo := newRepo(t)
+	if setup != nil {
+		setup(repo)
+	}
+	write(t, repo, "a.txt", base)
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "topic")
+	write(t, repo, "a.txt", topic)
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+	write(t, repo, "a.txt", main)
+	commitAll(t, repo)
+	merge := exec.Command("git", "merge", "topic")
+	merge.Dir = repo
+	if out, err := merge.CombinedOutput(); err == nil {
+		t.Fatalf("слияние прошло без конфликта:\n%s", out)
+	}
+
+	return repo, resize(open(t, options(repo, layout.Focus())), 100, 30)
+}
+
+// markedText это строки экрана, отмеченные выделением.
+func markedText(model tea.Model) string {
+	var rows []string
+	for _, row := range screenOf(model) {
+		if strings.Contains(row, "▌") {
+			rows = append(rows, row)
+		}
+	}
+	return strings.Join(rows, "\n")
+}
+
+// resolvedWith решает конфликт под курсором стороной label и проверяет, что
+// файл в индексе с текстом want.
+func resolvedWith(t *testing.T, repo string, model tea.Model, label, want string) tea.Model {
+	t.Helper()
+
+	model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	model = chooseMenu(t, model, label)
+	if got := readText(t, filepath.Join(repo, "a.txt")); got != want {
+		t.Fatalf("a.txt = %q, ожидалось %q", got, want)
+	}
+	if unmerged := runGit(t, repo, "ls-files", "--unmerged", "--", "a.txt"); unmerged != "" {
+		t.Fatalf("a.txt не в индексе:\n%s", unmerged)
+	}
+	return model
+}
+
+// Маркеры, которые уже лежали в HEAD, файл неслитым не держат: после решения
+// настоящего конфликта он в индексе (#302, случай 1).
+func TestConflictIgnoresMarkersFromHead(t *testing.T) {
+	block := "<<<<<<< HEAD\nold\n=======\nnew\n>>>>>>> doc\n"
+	padding := "x\nx\nx\nx\nx\nx\n"
+	repo, model := textConflict(t, block+padding+"line\n", block+padding+"main\n", block+padding+"topic\n", nil)
+
+	model = pressAndSettle(model, key('v'))
+	resolvedWith(t, repo, model, "HEAD", block+padding+"main\n")
+}
+
+// Маркеры длины conflict-marker-size узнаются, выбор по хунку работает
+// (случай 2).
+func TestConflictMarkerSize(t *testing.T) {
+	repo, model := textConflict(t, "one\n", "main\n", "topic\n", func(repo string) {
+		write(t, repo, ".gitattributes", "a.txt conflict-marker-size=10\n")
+	})
+
+	model = pressAndSettle(model, key('v'))
+	if marked := markedText(model); !strings.Contains(marked, "<<<<<<<<<< HEAD") {
+		t.Fatalf("выбор конфликтов не включился:\n%s", screenText(model))
+	}
+	resolvedWith(t, repo, model, "HEAD", "main\n")
+}
+
+// Блок без ======= конфликтом не считается: курсор встаёт на настоящий
+// конфликт ниже (случай 3).
+func TestConflictWithoutMiddleIsSkipped(t *testing.T) {
+	repo, model := conflictRepo(t)
+	text := readText(t, filepath.Join(repo, "a.txt"))
+	write(t, repo, "a.txt", strings.Replace(text, "=======\n", "", 1))
+	model = pressReload(t, model)
+
+	model = pressAndSettle(model, key('v'))
+	if marked := markedText(model); !strings.Contains(marked, "TWO main") || strings.Contains(marked, "ONE main") {
+		t.Fatalf("курсор не на настоящем конфликте:\n%s", marked)
+	}
+}
+
+// Маркеры убраны в редакторе: space в выборе конфликтов помечает файл
+// разрешённым, а не молчит (случай 4).
+func TestConflictMarkersRemovedByHand(t *testing.T) {
+	repo, model := textConflict(t, "one\n", "main\n", "topic\n", nil)
+	model = pressAndSettle(model, key('v'))
+	write(t, repo, "a.txt", "by hand\n")
+	model = pressReload(t, model)
+
+	pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	if unmerged := runGit(t, repo, "ls-files", "--unmerged", "--", "a.txt"); unmerged != "" {
+		t.Fatalf("a.txt не помечен разрешённым:\n%s", unmerged)
+	}
+	if got := readText(t, filepath.Join(repo, "a.txt")); got != "by hand\n" {
+		t.Fatalf("a.txt = %q, правка затёрта", got)
+	}
+}
+
+// Конфликт в файле с CRLF решается (случай 5); решение первого из двух
+// ставит курсор на второй (случай 6).
+func TestConflictCRLFAndNext(t *testing.T) {
+	repo, model := textConflict(t, "one\r\n", "main\r\n", "topic\r\n", nil)
+	model = pressAndSettle(model, key('v'))
+	resolvedWith(t, repo, model, "HEAD", "main\r\n")
+
+	_, model = conflictRepo(t)
+	model = pressAndSettle(model, key('v'))
+	model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	model = chooseMenu(t, model, "HEAD")
+	if marked := markedText(model); !strings.Contains(marked, "TWO main") {
+		t.Fatalf("курсор не на втором конфликте:\n%s", screenText(model))
+	}
+}
+
 // Бинарный конфликт решается стороной для файла целиком (случаи 3 и 5).
 func TestResolveBinaryConflictWhole(t *testing.T) {
 	repo, model := conflictRepo(t)

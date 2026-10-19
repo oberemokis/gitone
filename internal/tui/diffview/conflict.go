@@ -1,32 +1,30 @@
 package diffview
 
-import (
-	"strings"
-
-	"gitone/internal/diff"
-)
+import "gitone/internal/diff"
 
 // Выбор конфликтов (#242) это выделение, где курсор ходит по конфликтам
-// файла: блокам от строки «<<<<<<<» до строки «>>>>>>>». Маркеры в диффе от
-// HEAD всегда добавленные строки, курсор держится за номер строки начала.
+// файла. Что считать конфликтом, решает diff.Conflicts, то же правило, что у
+// решения конфликта. Маркеры настоящего конфликта в диффе от HEAD всегда
+// добавленные строки, поэтому правило получает только их: маркеры, которые
+// уже лежали в HEAD, конфликтом не считаются. Курсор держится за номер строки
+// начала.
 
 // SelectConflicts включает выбор конфликтов на открытом файле, курсор на
-// первом конфликте экрана или ниже. found false, если маркеров в диффе нет.
+// первом конфликте экрана или ниже. found false, если конфликтов в диффе нет.
 func (m Model) SelectConflicts() (next Model, found bool) {
-	starts := m.conflictStarts()
-	if len(starts) == 0 {
+	blocks := m.conflicts()
+	if len(blocks) == 0 {
 		return m, false
 	}
 
-	index := starts[len(starts)-1]
-	for _, start := range starts {
-		if start >= m.scroll {
-			index = start
+	chosen := blocks[len(blocks)-1]
+	for _, block := range blocks {
+		if block.from >= m.scroll {
+			chosen = block
 			break
 		}
 	}
-	ref, _ := conflictMark(m.lines[index])
-	m.selection = selection{on: true, conflict: true, cursor: ref}
+	m.selection = selection{on: true, conflict: true, cursor: diff.LineRef{Kind: diff.LineAdded, Number: chosen.Start}}
 	return m.follow(), true
 }
 
@@ -38,38 +36,40 @@ func (m Model) SelectingConflicts() bool {
 // ConflictStart это номер строки рабочего дерева, с которой начинается
 // конфликт под курсором.
 func (m Model) ConflictStart() (line int, found bool) {
-	index := m.conflictCursor()
-	if !m.SelectingConflicts() || index < 0 {
+	block, found := m.conflictCursor()
+	if !m.SelectingConflicts() || !found {
 		return 0, false
 	}
-	ref, _ := conflictMark(m.lines[index])
-	return ref.Number, true
+	return block.Start, true
 }
 
-// conflictCursor это строка экрана начала конфликта под курсором. После
-// решения конфликта строки сдвигаются, и курсор встаёт на первый конфликт с
-// тем же номером строки или ниже, а без него на последний.
-func (m Model) conflictCursor() int {
-	starts := m.conflictStarts()
-	if len(starts) == 0 {
-		return -1
+// conflictCursor это конфликт под курсором. После решения конфликта строки
+// сдвигаются, и курсор встаёт на первый конфликт с тем же номером строки или
+// ниже, а без него на последний.
+func (m Model) conflictCursor() (screenConflict, bool) {
+	blocks := m.conflicts()
+	if len(blocks) == 0 {
+		return screenConflict{}, false
 	}
-	for _, index := range starts {
-		if ref, _ := conflictMark(m.lines[index]); ref.Number >= m.selection.cursor.Number {
-			return index
+	for _, block := range blocks {
+		if block.Start >= m.selection.cursor.Number {
+			return block, true
 		}
 	}
-	return starts[len(starts)-1]
+	return blocks[len(blocks)-1], true
 }
 
 // moveConflict переводит курсор на delta конфликтов.
 func (m Model) moveConflict(delta int) Model {
-	starts := m.conflictStarts()
-	current := m.conflictCursor()
-	for position, index := range starts {
-		if index == current {
-			next := starts[max(min(position+delta, len(starts)-1), 0)]
-			m.selection.cursor, _ = conflictMark(m.lines[next])
+	blocks := m.conflicts()
+	current, found := m.conflictCursor()
+	if !found {
+		return m
+	}
+	for position, block := range blocks {
+		if block.Start == current.Start {
+			next := blocks[max(min(position+delta, len(blocks)-1), 0)]
+			m.selection.cursor = diff.LineRef{Kind: diff.LineAdded, Number: next.Start}
 			break
 		}
 	}
@@ -77,72 +77,53 @@ func (m Model) moveConflict(delta int) Model {
 }
 
 // conflictBounds это строки экрана конфликта под курсором, от начала до
-// закрывающего маркера.
+// закрывающего маркера с его перенесёнными частями.
 func (m Model) conflictBounds() (from, to int) {
-	from = m.conflictCursor()
-	if from < 0 {
+	block, found := m.conflictCursor()
+	if !found {
 		return 0, -1
 	}
-	for to = from + 1; to < len(m.lines); to++ {
-		if _, mark := conflictMark(m.lines[to]); mark == theirsEnd {
-			break
-		}
-	}
+	to = block.to
 	for to+1 < len(m.lines) && m.lines[to+1].part > 0 {
 		to++
 	}
-	return from, min(to, len(m.lines)-1)
+	return block.from, to
 }
 
-// conflictStarts это строки экрана, с которых начинаются конфликты.
-func (m Model) conflictStarts() []int {
-	var starts []int
-	for index, line := range m.lines {
-		if _, mark := conflictMark(line); mark == oursStart {
-			starts = append(starts, index)
+// screenConflict это конфликт и строки экрана его маркеров начала и конца.
+type screenConflict struct {
+	diff.Conflict
+	from, to int
+}
+
+// conflicts это конфликты диффа по его добавленным строкам. Продолжение
+// перенесённой строки строкой не считается.
+func (m Model) conflicts() []screenConflict {
+	var added []diff.NumberedLine
+	rows := map[int]int{}
+	for index, l := range m.lines {
+		if line, ok := addedLine(l); ok {
+			added = append(added, line)
+			rows[line.Number] = index
 		}
 	}
-	return starts
+
+	var result []screenConflict
+	for _, block := range diff.Conflicts(added) {
+		result = append(result, screenConflict{Conflict: block, from: rows[block.Start], to: rows[block.End]})
+	}
+	return result
 }
 
-type marker int
-
-const (
-	noMarker marker = iota
-	oursStart
-	theirsEnd
-)
-
-// conflictMark говорит, что добавленная строка экрана это маркер начала или
-// конца конфликта, и возвращает её. Продолжение перенесённой строки маркером
-// не считается.
-func conflictMark(l line) (diff.LineRef, marker) {
-	if l.part != 0 {
-		return diff.LineRef{}, noMarker
-	}
-
-	var text string
-	var number int
+// addedLine это текст и номер в рабочем дереве добавленной строки экрана.
+func addedLine(l line) (diff.NumberedLine, bool) {
 	switch {
+	case l.part != 0:
+		return diff.NumberedLine{}, false
 	case l.unified != nil && l.unified.Kind == diff.RowLine && l.unified.Line == diff.LineAdded:
-		text, number = l.unified.Text, l.unified.NewNumber
+		return diff.NumberedLine{Number: l.unified.NewNumber, Text: l.unified.Text}, true
 	case l.split != nil && l.split.Kind == diff.RowLine && l.split.Right.Kind == diff.LineAdded:
-		text, number = l.split.Right.Text, l.split.Right.Number
-	default:
-		return diff.LineRef{}, noMarker
+		return diff.NumberedLine{Number: l.split.Right.Number, Text: l.split.Right.Text}, true
 	}
-
-	ref := diff.LineRef{Kind: diff.LineAdded, Number: number}
-	switch {
-	case markerLine(text, "<<<<<<<"):
-		return ref, oursStart
-	case markerLine(text, ">>>>>>>"):
-		return ref, theirsEnd
-	}
-	return diff.LineRef{}, noMarker
-}
-
-func markerLine(text, marker string) bool {
-	rest, found := strings.CutPrefix(text, marker)
-	return found && (rest == "" || rest[0] == ' ')
+	return diff.NumberedLine{}, false
 }

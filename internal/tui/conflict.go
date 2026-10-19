@@ -32,14 +32,19 @@ func (m Model) startConflicts(file diff.File) Model {
 // chooseSide открывает меню сторон для конфликта под курсором: наша, их, обе
 // и сторона для файла целиком. Метки сторон берутся из маркеров, «HEAD» и имя
 // ветки понятнее слов ours и theirs, которые при rebase меняются местами.
+// Конфликтов в диффе не осталось (маркеры убраны в редакторе), и space
+// помечает файл разрешённым, как без выбора: меню сторон затёрло бы правку.
 func (m Model) chooseSide() (tea.Model, tea.Cmd) {
-	start, found := m.view.ConflictStart()
-	if !found {
-		return m, nil
-	}
-
 	file := m.files[m.current]
 	path, dir := stagedKey(file), m.dir
+	start, found := m.view.ConflictStart()
+	if !found {
+		note := m.text.Text("conflict.fileResolved", i18n.Args{"file": visible(path)})
+		return m, func() tea.Msg {
+			return actionDoneMsg{err: git.Stage(dir, []string{path}), note: note}
+		}
+	}
+
 	return m, func() tea.Msg {
 		text, err := git.WorktreeFile(dir, path)
 		if err != nil {
@@ -113,8 +118,9 @@ func (m Model) conflictNotes(path string) [2]string {
 }
 
 // resolveConflictCmd заменяет конфликт, начинающийся строкой start, на
-// выбранную сторону. Когда в файле не осталось маркеров, файл ставится в
-// индекс: git считает конфликт решённым, и операция ждёт продолжения.
+// выбранную сторону. Когда в файле не осталось конфликтов, кроме тех, что уже
+// лежали в HEAD, файл ставится в индекс: git считает конфликт решённым, и
+// операция ждёт продолжения.
 func resolveConflictCmd(dir, path string, start int, side diff.ConflictSide, notes [2]string) tea.Cmd {
 	return func() tea.Msg {
 		text, err := git.WorktreeFile(dir, path)
@@ -129,7 +135,7 @@ func resolveConflictCmd(dir, path string, start int, side diff.ConflictSide, not
 			return actionDoneMsg{err: err}
 		}
 
-		if diff.HasConflicts(resolved) {
+		if diff.ConflictCount(resolved) > diff.ConflictCount(git.HeadFile(dir, path)) {
 			return actionDoneMsg{note: notes[0]}
 		}
 		return actionDoneMsg{err: git.Stage(dir, []string{path}), note: notes[1]}
