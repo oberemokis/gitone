@@ -6,11 +6,14 @@ import (
 )
 
 // LineRef называет изменённую строку диффа: удалённую по старому номеру,
-// добавленную по новому (#212). По номерам выделение на экране находит те же
-// строки в диффе, перечитанном с другим числом строк контекста.
+// добавленную по новому (#212), и её текст, как в Line.Text. По номерам
+// выделение на экране находит те же строки в диффе, перечитанном с другим
+// числом строк контекста, а текст не даёт взять другую строку, вставшую на
+// этот номер, пока выделение висело на экране.
 type LineRef struct {
 	Kind   LineKind
 	Number int
+	Text   string
 }
 
 // Patch собирает из текста диффа одного файла патч только с выбранными
@@ -95,7 +98,7 @@ func (p *patchBuilder) line(line string, selected map[LineRef]bool) {
 
 	switch {
 	case strings.HasPrefix(line, "+"):
-		pick := selected[LineRef{Kind: LineAdded, Number: p.newNumber}]
+		pick := selected[LineRef{Kind: LineAdded, Number: p.newNumber, Text: clean(body)}]
 		p.newNumber++
 		switch {
 		case pick:
@@ -110,7 +113,7 @@ func (p *patchBuilder) line(line string, selected map[LineRef]bool) {
 			p.lastKept = false
 		}
 	case strings.HasPrefix(line, "-"):
-		pick := selected[LineRef{Kind: LineRemoved, Number: p.oldNumber}]
+		pick := selected[LineRef{Kind: LineRemoved, Number: p.oldNumber, Text: clean(body)}]
 		p.oldNumber++
 		switch {
 		case pick:

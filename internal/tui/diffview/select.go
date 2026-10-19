@@ -278,16 +278,16 @@ func refs(l line) []diff.LineRef {
 	case l.unified != nil && l.unified.Kind == diff.RowLine:
 		switch l.unified.Line {
 		case diff.LineRemoved:
-			found = append(found, diff.LineRef{Kind: diff.LineRemoved, Number: l.unified.OldNumber})
+			found = append(found, diff.LineRef{Kind: diff.LineRemoved, Number: l.unified.OldNumber, Text: l.unified.Text})
 		case diff.LineAdded:
-			found = append(found, diff.LineRef{Kind: diff.LineAdded, Number: l.unified.NewNumber})
+			found = append(found, diff.LineRef{Kind: diff.LineAdded, Number: l.unified.NewNumber, Text: l.unified.Text})
 		}
 	case l.split != nil && l.split.Kind == diff.RowLine:
 		if l.split.Left.Kind == diff.LineRemoved {
-			found = append(found, diff.LineRef{Kind: diff.LineRemoved, Number: l.split.Left.Number})
+			found = append(found, diff.LineRef{Kind: diff.LineRemoved, Number: l.split.Left.Number, Text: l.split.Left.Text})
 		}
 		if l.split.Right.Kind == diff.LineAdded {
-			found = append(found, diff.LineRef{Kind: diff.LineAdded, Number: l.split.Right.Number})
+			found = append(found, diff.LineRef{Kind: diff.LineAdded, Number: l.split.Right.Number, Text: l.split.Right.Text})
 		}
 	}
 	return found
