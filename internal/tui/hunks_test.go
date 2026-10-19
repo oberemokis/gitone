@@ -78,6 +78,24 @@ func TestStageLines(t *testing.T) {
 	}
 }
 
+// diff.context=0 в настройках пользователя не сдвигает поставленную строку:
+// патч собирается с контекстом (#289, случаи 1 и 2).
+func TestStageWithoutConfiguredContext(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "1\n2\n3\n4\n5\n6\n7\n8\n")
+	commitAll(t, repo)
+	runGit(t, repo, "config", "diff.context", "0")
+	write(t, repo, "a.txt", "1\n2\n3\nX\n4\n5\n6\n7\n8\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 30)
+
+	model = pressAndSettle(model, key('v'))
+	pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+
+	if got := runGit(t, repo, "show", ":a.txt"); got != "1\n2\n3\nX\n4\n5\n6\n7\n8" {
+		t.Fatalf("индекс %q, X ожидалась после строки 3", got)
+	}
+}
+
 // Неотслеженный файл хунков не даёт: подвал советует space (случай 4).
 func TestSelectUntrackedFile(t *testing.T) {
 	repo := newRepo(t)

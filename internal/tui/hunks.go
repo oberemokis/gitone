@@ -194,11 +194,11 @@ func (m Model) selectedSet() map[diff.LineRef]bool {
 
 // applySelection ставит выделенные строки в индекс, а discard возвращает их в
 // рабочем дереве к индексу обратным патчем. Патч собирается из свежего диффа
-// без флагов вида: строки ищутся по номерам, и патч с полным контекстом git
-// применяет надёжнее.
+// без флагов вида: строки ищутся по номерам. Контекст задан явно, а не взят из
+// diff.context: хунк без контекста git apply ставит не на своё место.
 func applySelection(dir, path string, selected map[diff.LineRef]bool, discard bool, note string) tea.Cmd {
 	return func() tea.Msg {
-		text, err := git.UnstagedDiff(dir, path)
+		text, err := git.UnstagedDiff(dir, path, "--unified=3")
 		if err != nil {
 			return actionDoneMsg{err: err}
 		}
