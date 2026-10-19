@@ -51,6 +51,22 @@ func TestIgnoreAppendsOnNewLine(t *testing.T) {
 	}
 }
 
+// Путь с «:» в начале не читается магией pathspec: правило «foo» не прячет
+// файл «:foo», и он попадает в .gitignore (#301, случай 1).
+func TestIgnoreLeadingColon(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, ".gitignore", "foo\n")
+	commitAll(t, repo)
+	write(t, repo, ":foo", "x\n")
+
+	if err := git.Ignore(repo, ":foo"); err != nil {
+		t.Fatalf("Ignore: %v", err)
+	}
+	if got := readFile(t, filepath.Join(repo, ".gitignore")); got != "foo\n/:foo\n" {
+		t.Fatalf(".gitignore = %q", got)
+	}
+}
+
 // Отслеженный файл git не игнорирует: Ignore отказывает и .gitignore не
 // создаёт (случай 3).
 func TestIgnoreRefusesTrackedFile(t *testing.T) {

@@ -28,7 +28,9 @@ func ignore(dir, path string) (err error) {
 	if _, err := run(literal(root), "ls-files", "--error-unmatch", "--", path); err == nil {
 		return i18n.New("git.ignoreTracked", i18n.Args{"path": path})
 	}
-	if _, err := run(call{dir: root}, "check-ignore", "--quiet", "--no-index", "--", path); err == nil {
+	// check-ignore не знает GIT_LITERAL_PATHSPECS, и «:» в начале пути он
+	// читал бы магией pathspec: «./» её снимает
+	if _, err := run(call{dir: root}, "check-ignore", "--quiet", "--no-index", "--", "./"+path); err == nil {
 		return nil
 	}
 
