@@ -515,8 +515,12 @@ func (m Model) wheel(msg tea.MouseWheelMsg) diffview.Model {
 	return m.view
 }
 
+// handleAction выполняет действие главного экрана из таблицы globalActions.
+// Действие, которое правит репозиторий, отказывает, пока идёт pull, push или
+// fetch; при выделении часть действий работает иначе (selectionAction).
 func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
-	if changesRepo(action) {
+	entry, found := globalActions[action]
+	if entry.changesRepo {
 		if next, refused := m.refuseWhileRemote(); refused {
 			return next, nil
 		}
@@ -524,112 +528,11 @@ func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.selectionAction(action); handled {
 		return next, cmd
 	}
-
-	switch action {
-	case keymap.AppQuit:
-		return m, tea.Quit
-	case keymap.AppHelp:
-		m.helpOpen = !m.helpOpen
-		m.helpTop = 0
-	// esc закрывает справку, а без неё отменяет идущий pull или push
-	case keymap.HelpClose:
-		if !m.helpOpen {
-			m = m.stopRemote()
-		}
-		m.helpOpen = false
-	case keymap.GitPull:
-		return m.startRemote(pulling)
-	case keymap.GitFetch:
-		return m.startRemote(fetching)
-	case keymap.GitPush:
-		return m.startRemote(pushing)
-	case keymap.GitOperation:
-		m = m.askOperation()
-	case keymap.GitUndo:
-		return m, undoStepCmd(m.dir, false)
-	case keymap.GitRedo:
-		return m, undoStepCmd(m.dir, true)
-	case keymap.FilesPick:
-		m = m.openPicker()
-	case keymap.FilesToggle:
-		m.filesOpen = !m.filesOpen
-		m = m.resize()
-	case keymap.FilesNext:
-		m = m.openFile(m.current + 1)
-	case keymap.FilesPrevious:
-		m = m.openFile(m.current - 1)
-	case keymap.DiffToggleMode:
-		m.view = m.view.ToggleMode()
-	case keymap.DiffToggleWrap:
-		m.view = m.view.ToggleWrap()
-	case keymap.DiffToggleWhitespace:
-		return m.toggleWhitespace()
-	case keymap.DiffMoreContext:
-		return m.changeContext(1)
-	case keymap.DiffLessContext:
-		return m.changeContext(-1)
-	case keymap.DiffScrollLeft:
-		m.view = m.view.ScrollRight(-shiftStep)
-	case keymap.DiffScrollRight:
-		m.view = m.view.ScrollRight(shiftStep)
-	case keymap.DiffReload:
-		return m.startReload()
-	case keymap.DiffSelect:
-		return m.startSelect()
-	case keymap.FilesStage:
-		return m.toggleStage()
-	case keymap.FilesDiscard:
-		m = m.askDiscard()
-	case keymap.FilesCommit:
-		m = m.openCommit()
-	case keymap.FilesAmend:
-		return m, lastMessageCmd(m.dir)
-	case keymap.FilesHistory:
-		return m.fileHistory()
-	case keymap.FilesEdit:
-		return m.editFile()
-	case keymap.FilesIgnore:
-		return m.ignoreFile()
-	case keymap.AppLog:
-		return m, logCmd(m.dir, git.LogFilter{})
-	case keymap.AppBranches:
-		return m, branchesCmd(m.dir)
-	case keymap.AppWorktrees:
-		return m, worktreesCmd(m.dir)
-	case keymap.AppTags:
-		return m, tagsCmd(m.dir)
-	case keymap.AppRemotes:
-		return m, remotesCmd(m.dir)
-	case keymap.AppReflog:
-		return m, reflogCmd(m.dir)
-	case keymap.AppJournal:
-		return m, journalCmd()
-	case keymap.AppRecent:
-		return m, recentCmd(m.stateDir, m.dir)
-	case keymap.AppSubmodules:
-		return m, submodulesCmd(m.dir)
-	case keymap.StashPush:
-		return m, stashPushCmd(m.dir)
-	case keymap.StashList:
-		return m, stashListCmd(m.dir)
-	case keymap.DiffWorkingTree:
-		m.args = m.baseArgs
-		return m.startReload()
-	case keymap.DiffScrollDown:
-		m.view = m.view.ScrollBy(1)
-	case keymap.DiffScrollUp:
-		m.view = m.view.ScrollBy(-1)
-	case keymap.DiffHalfPageDown:
-		m.view = m.view.ScrollBy(m.bodyHeight() / 2)
-	case keymap.DiffHalfPageUp:
-		m.view = m.view.ScrollBy(-m.bodyHeight() / 2)
-	case keymap.DiffTop:
-		m.view = m.view.Top()
-	case keymap.DiffBottom:
-		m.view = m.view.Bottom()
+	if !found {
+		return m, nil
 	}
 
-	return m, nil
+	return entry.run(m)
 }
 
 // pickerKey отдаёт нажатие окну поиска целиком: q и ? там набираются в
