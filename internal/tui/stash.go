@@ -9,11 +9,12 @@ import (
 	"gitone/internal/tui/theme"
 )
 
-// stashesMsg несёт список stash или ошибку git. at это строка, на которую
-// встаёт курсор, когда список пришёл в открытое окно после правки.
+// stashesMsg несёт список stash или ошибку git. edit значит, что список
+// пришёл после правки, at это строка, на которую тогда встаёт курсор.
 type stashesMsg struct {
 	stashes []git.Stash
 	err     error
+	edit    bool
 	at      int
 }
 
@@ -37,7 +38,9 @@ func stashNewCmd(dir string, opts git.StashOptions) tea.Cmd {
 		if err := git.StashPush(dir, opts); err != nil {
 			return stashesMsg{err: err}
 		}
-		return stashListCmd(dir)()
+		msg := stashListCmd(dir)().(stashesMsg)
+		msg.edit = true
+		return msg
 	}
 }
 
@@ -49,7 +52,7 @@ func stashRenameCmd(dir string, stash git.Stash, at int, message string) tea.Cmd
 			return stashesMsg{err: err}
 		}
 		msg := stashListCmd(dir)().(stashesMsg)
-		msg.at = at
+		msg.edit, msg.at = true, at
 		return msg
 	}
 }

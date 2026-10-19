@@ -333,38 +333,46 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.actionDone(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список
 	// отбрасывается: иначе на экране одно окно, а клавиши уходят другому.
-	// Ошибка доходит до подвала при любом окне.
+	// Ошибка доходит до подвала при любом окне. Ответ правки (edit) окно не
+	// открывает: если его закрыли, остаются итог и перечитывание диффа.
 	case stashesMsg:
 		switch {
 		case msg.err != nil:
 			m = m.say(m.text.Error(msg.err))
-		case m.active == noWindow:
-			m.stashes, m.cursor, m.active = msg.stashes, 0, stashWindow
 		// список после нового stash или переименования: окно остаётся, курсор
 		// на новой или переименованной записи, а дифф перечитывается, правки
 		// могли уйти из дерева
-		case m.active == stashWindow:
+		case msg.edit && m.beneath() == stashWindow:
 			m.stashes = msg.stashes
 			m.cursor = 0
 			m = m.moveCursor(msg.at, len(m.stashes))
 			return m.startReload()
+		case msg.edit:
+			return m.startReload()
+		case m.active == noWindow:
+			m.stashes, m.cursor, m.active = msg.stashes, 0, stashWindow
 		}
 	case branchesMsg:
 		switch {
 		case msg.err != nil:
 			m = m.say(m.text.Error(msg.err))
-		case m.active == noWindow:
-			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
-			m.query, m.searching = "", false
 		// список после удаления или переименования: окно остаётся, курсор не
 		// уходит за край, а подвал перечитывается, ведь имя текущей могло смениться
-		case m.active == branchWindow:
+		case msg.edit && m.beneath() == branchWindow:
 			m.branches = msg.branches
 			m = m.moveCursor(0, len(m.branchesShown()))
 			if msg.note != "" {
 				m = m.sayCalm(msg.note)
 			}
 			return m.startReload()
+		case msg.edit:
+			if msg.note != "" {
+				m = m.sayCalm(msg.note)
+			}
+			return m.startReload()
+		case m.active == noWindow:
+			m.branches, m.cursor, m.active = msg.branches, currentIndex(msg.branches), branchWindow
+			m.query, m.searching = "", false
 		}
 	case worktreesMsg:
 		switch {
@@ -384,8 +392,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case m.active == noWindow:
 			m.logEntries, m.logFilter, m.cursor, m.active = msg.entries, msg.filter, 0, logWindow
 			m.query, m.searching = "", false
-		// список под новым фильтром в открытый лог (#226)
-		case m.active == logWindow:
+		// список под новым фильтром или после правки истории в открытый лог
+		// (#226), и под вопросом над ним тоже
+		case m.beneath() == logWindow:
 			m = m.refilterLog(msg)
 		}
 	}

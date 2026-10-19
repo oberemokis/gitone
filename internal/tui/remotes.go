@@ -39,19 +39,20 @@ func thenRemotes(dir, note string, change func() error) tea.Cmd {
 	}
 }
 
-// remotesArrived открывает окно remote или обновляет открытое.
+// remotesArrived открывает окно remote или обновляет открытое. Ответ правки
+// (с note) окно не открывает: если его закрыли, остаётся итог.
 func (m Model) remotesArrived(msg remotesMsg) Model {
 	switch {
 	case msg.err != nil:
 		return m.say(m.text.Error(msg.err))
-	case m.active == noWindow:
-		m.remotes, m.cursor, m.active = msg.remotes, 0, remoteWindow
-	case m.active == remoteWindow:
+	case msg.note != "" && m.beneath() == remoteWindow:
 		m.remotes = msg.remotes
 		m = m.moveCursor(0, len(m.remotes))
-		if msg.note != "" {
-			m = m.sayCalm(msg.note)
-		}
+		return m.sayCalm(msg.note)
+	case msg.note != "":
+		return m.sayCalm(msg.note)
+	case m.active == noWindow:
+		m.remotes, m.cursor, m.active = msg.remotes, 0, remoteWindow
 	}
 	return m
 }

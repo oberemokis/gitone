@@ -14,11 +14,12 @@ import (
 	"gitone/internal/tui/theme"
 )
 
-// branchesMsg несёт список локальных веток или ошибку git. note это итог
-// правки, после которой список пришёл в открытое окно.
+// branchesMsg несёт список локальных веток или ошибку git. edit значит, что
+// список пришёл после правки, note это её итог.
 type branchesMsg struct {
 	branches []git.Branch
 	err      error
+	edit     bool
 	note     string
 }
 
@@ -66,7 +67,9 @@ func thenBranches(dir string, change func() error) tea.Cmd {
 		if err := change(); err != nil {
 			return branchesMsg{err: err}
 		}
-		return branchesCmd(dir)()
+		msg := branchesCmd(dir)().(branchesMsg)
+		msg.edit = true
+		return msg
 	}
 }
 
