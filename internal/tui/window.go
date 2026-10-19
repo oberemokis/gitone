@@ -37,9 +37,8 @@ const (
 	promptWindow
 	menuWindow
 	// вопросы y/n: любая клавиша отвечает на них, ctrl c тоже это «нет».
-	// questionWindow общий вопрос (question.go), два других старше него
+	// questionWindow общий вопрос (question.go), stashDropWindow старше него
 	stashDropWindow
-	discardWindow
 	questionWindow
 )
 
@@ -52,8 +51,6 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.typePrompt(key)
 	case menuWindow:
 		return m.menuKey(key)
-	case discardWindow:
-		return m.answerDiscard(key)
 	case stashDropWindow:
 		return m.answerStashDrop(key)
 	case commitWindow:

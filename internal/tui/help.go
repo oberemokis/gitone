@@ -51,9 +51,9 @@ func helpPage(height int) int {
 }
 
 // helpShown говорит, что справка на экране: окна списков закрывают её собой,
-// вопрос discard нет.
+// вопрос с главного экрана нет.
 func (m Model) helpShown() bool {
-	return m.helpOpen && (m.active == noWindow || m.active == discardWindow)
+	return m.helpOpen && (m.active == noWindow || m.footerQuestion())
 }
 
 // helpOverflow это на сколько строк справка выше тела. Ноль значит, что она

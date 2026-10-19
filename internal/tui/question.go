@@ -59,8 +59,13 @@ func (m Model) beneath() window {
 		return m.prompt.back
 	case stashDropWindow:
 		return stashWindow
-	case discardWindow:
-		return noWindow
 	}
 	return m.active
+}
+
+// footerQuestion говорит, что вопрос задан с главного экрана и стоит в
+// подвале: под ним видны дифф и справка, но клики из них не принимаются, ответ
+// идёт клавишей.
+func (m Model) footerQuestion() bool {
+	return m.active == questionWindow && m.question.back == noWindow
 }
