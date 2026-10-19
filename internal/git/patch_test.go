@@ -31,3 +31,15 @@ func TestPatch(t *testing.T) {
 		t.Fatal("файл патча расходится с текстом")
 	}
 }
+
+// Merge-коммит отвергается до format-patch, файла патча нет (#292, случай 1).
+func TestPatchRefusesMerge(t *testing.T) {
+	repo := divergedRepo(t)
+	runGit(t, repo, "merge", "-q", "--no-edit", "feature")
+
+	_, _, err := git.Patch(repo, revision(t, repo, "HEAD"))
+	refusedWith(t, err, "git.patchMerge")
+	if patches, _ := filepath.Glob(filepath.Join(repo, "*.patch")); len(patches) != 0 {
+		t.Fatalf("файлы патча остались: %q", patches)
+	}
+}
