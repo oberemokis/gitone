@@ -297,13 +297,13 @@ func Default() Keymap {
 // Load читает keybinds.json из каталога. Файла нет, значит встроенные клавиши.
 // Файл с ошибкой отбрасывается целиком, как config.json. Ссылка, которая ведёт
 // в никуда, ошибка, хоть ReadFile и отвечает на неё ErrNotExist: это и ссылка
-// keybinds.json, и ссылка вместо каталога настроек. Правило то же, что у
-// config.readFile: по графу пакетов keymap не может импортировать config, ради
-// десяти строк стрелку не заводим.
+// keybinds.json, и ссылка вместо каталога настроек или каталога над ним.
+// Правило то же, что у config.readFile: по графу пакетов keymap не может
+// импортировать config, ради десяти строк стрелку не заводим.
 func Load(dir string) (Keymap, error) {
 	path := filepath.Join(dir, fileName)
 	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) && !dangling(path) && !dangling(dir) {
+	if errors.Is(err, fs.ErrNotExist) && !brokenLink(path) {
 		return Default(), nil
 	}
 	if err != nil {
@@ -318,13 +318,21 @@ func Load(dir string) (Keymap, error) {
 	return km, nil
 }
 
-// dangling говорит, что путь существует как символическая ссылка, но ведёт в
-// никуда: Lstat видит ссылку, Stat уже нет.
-func dangling(path string) bool {
-	_, linkErr := os.Lstat(path)
-	_, targetErr := os.Stat(path)
-
-	return linkErr == nil && errors.Is(targetErr, fs.ErrNotExist)
+// brokenLink говорит, что путь не находится из-за ссылки в никуда: первая
+// часть пути вверх от него, которая есть на диске, это символическая ссылка,
+// а её цели нет.
+func brokenLink(path string) bool {
+	for {
+		if _, err := os.Lstat(path); err == nil {
+			_, err := os.Stat(path)
+			return errors.Is(err, fs.ErrNotExist)
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return false
+		}
+		path = parent
+	}
 }
 
 type file struct {
