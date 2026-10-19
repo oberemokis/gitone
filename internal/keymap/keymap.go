@@ -281,6 +281,16 @@ var windowGroups = [][]Action{
 	{PromptSubmit, PromptClose},
 }
 
+// Groups это копия групп действий окон. По ней tui сверяет свои таблицы
+// действий окон с конфликтами, которые ищет keymap (#353).
+func Groups() [][]Action {
+	groups := make([][]Action, len(windowGroups))
+	for index, group := range windowGroups {
+		groups[index] = slices.Clone(group)
+	}
+	return groups
+}
+
 var (
 	// windowActions это действия окон, остальные глобальные
 	windowActions = actionSet(slices.Concat(windowGroups...)...)
