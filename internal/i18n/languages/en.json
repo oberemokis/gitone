@@ -253,6 +253,7 @@
   "logFilter.path": "Filter by path",
   "logFilter.title": "Filter the log",
   "operation.abort": "Abort",
+  "operation.am": "applying patches",
   "operation.bisect": "bisecting",
   "operation.abortQuestion": "Abort and return to the state before {state}? {yes} yes, any other key no",
   "operation.aborted": "Aborted",

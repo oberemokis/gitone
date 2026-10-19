@@ -87,6 +87,25 @@ func TestContinueRebase(t *testing.T) {
 	}
 }
 
+// Остановленный git am это своя операция: не rebase, и abort его прерывает
+// (#300, случай 1).
+func TestAmOperation(t *testing.T) {
+	repo := conflictBranches(t)
+	patch := runGit(t, repo, "format-patch", "-1", "--stdout", "topic~1")
+	write(t, repo, "topic.patch", patch)
+	stopsOnConflict(t, repo, "am", "topic.patch")
+
+	if got := operationOf(t, repo); got != "am" {
+		t.Fatalf("Operation = %q, ожидался am", got)
+	}
+	if err := git.Abort(repo); err != nil {
+		t.Fatalf("Abort: %v", err)
+	}
+	if got := operationOf(t, repo); got != "" {
+		t.Fatalf("Operation = %q после abort", got)
+	}
+}
+
 // Abort rebase возвращает ветку на исходный коммит (случай 4); без операции
 // отказ из словаря.
 func TestAbortRebase(t *testing.T) {

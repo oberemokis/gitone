@@ -2,13 +2,16 @@ package git
 
 import "gitone/internal/i18n"
 
-// operation это незавершённая операция git (#243): merge, rebase,
+// operation это незавершённая операция git (#243): merge, rebase, am,
 // cherry-pick или revert, пустая строка без неё. Имя совпадает с командой
 // git: её --continue и --abort продолжают и прерывают операцию. bisect
 // (#245) идёт последним: конфликт посреди поиска важнее самого поиска.
 func operation(root string) string {
-	if rebasing(root) {
+	switch {
+	case rebasing(root):
 		return "rebase"
+	case applying(root):
+		return "am"
 	}
 	for _, state := range []struct{ head, name string }{
 		{"MERGE_HEAD", "merge"},

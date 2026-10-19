@@ -1,7 +1,6 @@
 package git
 
 import (
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -82,10 +81,5 @@ func BisectReset(dir string) error {
 
 // bisecting говорит, что идёт bisect: git держит его начало в BISECT_START.
 func bisecting(root string) bool {
-	path, err := run(call{dir: root}, "rev-parse", "--path-format=absolute", "--git-path", "BISECT_START")
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(strings.TrimSpace(path))
-	return err == nil
+	return gitPathExists(root, "BISECT_START")
 }

@@ -102,25 +102,31 @@ func inProgress(root string) bool {
 }
 
 // rebasing говорит, что rebase остановился и ждёт продолжения: git держит его
-// состояние в каталоге rebase-merge (или rebase-apply у старого движка).
+// состояние в каталоге rebase-merge (или rebase-apply у старого движка). Тот
+// же rebase-apply держит остановленный git am, его отличает файл applying.
 func rebasing(root string) bool {
-	for _, name := range []string{"rebase-merge", "rebase-apply"} {
-		path, err := run(call{dir: root}, "rev-parse", "--path-format=absolute", "--git-path", name)
-		if err != nil {
-			continue
-		}
-		if _, err := os.Stat(strings.TrimSpace(path)); err == nil {
-			return true
-		}
-	}
+	return gitPathExists(root, "rebase-merge") || gitPathExists(root, "rebase-apply") && !applying(root)
+}
 
-	return false
+// applying говорит, что git am остановился и ждёт продолжения.
+func applying(root string) bool {
+	return gitPathExists(root, "rebase-apply/applying")
+}
+
+// gitPathExists говорит, что в каталоге git есть файл или каталог name.
+func gitPathExists(root, name string) bool {
+	path, err := run(call{dir: root}, "rev-parse", "--path-format=absolute", "--git-path", name)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(strings.TrimSpace(path))
+	return err == nil
 }
 
 // unfinished говорит, что операция git остановилась посредине: слияние,
-// cherry-pick, revert или rebase.
+// cherry-pick, revert, rebase или am.
 func unfinished(root string) bool {
-	return inProgress(root) || rebasing(root)
+	return inProgress(root) || rebasing(root) || applying(root)
 }
 
 // stopping запускает операцию, которая может остановиться на конфликте, из
