@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -84,6 +85,76 @@ func TestContinueRebase(t *testing.T) {
 	}
 	if got := strings.TrimSpace(runGit(t, repo, "show", "HEAD:b.txt")); got != "topic b" {
 		t.Fatalf("второй коммит topic не применён: b.txt = %q", got)
+	}
+}
+
+// Continue после решения первого конфликта дошёл до второго: ошибка говорит,
+// что rebase снова остановился (#300, случай 4).
+func TestContinueStopsOnNextConflict(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "base\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "topic")
+	for _, content := range []string{"t1\n", "t2\n"} {
+		write(t, repo, "a.txt", content)
+		commitAll(t, repo)
+	}
+	runGit(t, repo, "switch", "-q", "main")
+	write(t, repo, "a.txt", "main\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "topic")
+	stopsOnConflict(t, repo, "rebase", "main")
+
+	write(t, repo, "a.txt", "resolved\n")
+	runGit(t, repo, "add", "a.txt")
+	refusedWith(t, git.Continue(repo), "git.stoppedOnConflict")
+}
+
+// У bisect нет continue и abort: оба отказывают ошибкой из словаря (#300,
+// случай 2).
+func TestContinueRefusesBisect(t *testing.T) {
+	repo := eightCommits(t)
+	if _, err := git.BisectMark(repo, "HEAD", false); err != nil {
+		t.Fatalf("BisectMark: %v", err)
+	}
+
+	refusedWith(t, git.Continue(repo), "git.bisectNoContinue")
+	refusedWith(t, git.Abort(repo), "git.bisectNoContinue")
+}
+
+// Упавший хук при продолжении слияния виден своим текстом, а не остановкой
+// на конфликте (#300, случай 3).
+func TestContinueShowsHookFailure(t *testing.T) {
+	repo := conflictBranches(t)
+	stopsOnConflict(t, repo, "merge", "topic")
+	write(t, repo, "a.txt", "resolved\n")
+	runGit(t, repo, "add", "a.txt")
+	write(t, repo, ".git/hooks/pre-commit", "#!/bin/sh\necho hook says no >&2\nexit 1\n")
+	if err := os.Chmod(filepath.Join(repo, ".git/hooks/pre-commit"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := git.Continue(repo); err == nil || !strings.Contains(err.Error(), "hook says no") {
+		t.Fatalf("Continue = %v, ожидался текст хука", err)
+	}
+}
+
+// Остановленный git am это своя операция: не rebase, и abort его прерывает
+// (#300, случай 1).
+func TestAmOperation(t *testing.T) {
+	repo := conflictBranches(t)
+	patch := runGit(t, repo, "format-patch", "-1", "--stdout", "topic~1")
+	write(t, repo, "topic.patch", patch)
+	stopsOnConflict(t, repo, "am", "topic.patch")
+
+	if got := operationOf(t, repo); got != "am" {
+		t.Fatalf("Operation = %q, ожидался am", got)
+	}
+	if err := git.Abort(repo); err != nil {
+		t.Fatalf("Abort: %v", err)
+	}
+	if got := operationOf(t, repo); got != "" {
+		t.Fatalf("Operation = %q после abort", got)
 	}
 }
 

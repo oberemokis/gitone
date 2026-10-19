@@ -2,13 +2,16 @@ package git
 
 import "gitone/internal/i18n"
 
-// operation это незавершённая операция git (#243): merge, rebase,
+// operation это незавершённая операция git (#243): merge, rebase, am,
 // cherry-pick или revert, пустая строка без неё. Имя совпадает с командой
 // git: её --continue и --abort продолжают и прерывают операцию. bisect
 // (#245) идёт последним: конфликт посреди поиска важнее самого поиска.
 func operation(root string) string {
-	if rebasing(root) {
+	switch {
+	case rebasing(root):
 		return "rebase"
+	case applying(root):
+		return "am"
 	}
 	for _, state := range []struct{ head, name string }{
 		{"MERGE_HEAD", "merge"},
@@ -28,7 +31,8 @@ func operation(root string) string {
 // Continue продолжает незавершённую операцию. Сообщение коммита git берёт
 // приготовленное: редактор не открывается. Нерешённый конфликт git
 // отвергает своей причиной. Если операция дошла до следующего конфликта,
-// ошибка из словаря говорит, что она снова остановилась.
+// ошибка из словаря говорит, что она снова остановилась. Остальные отказы
+// (упавший хук) идут строкой git: конфликта в них нет.
 func Continue(dir string) error {
 	root, op, err := runningOperation(dir)
 	if err != nil {
@@ -40,10 +44,17 @@ func Continue(dir string) error {
 		return err
 	}
 	_, err = run(call{dir: root, env: []string{"GIT_EDITOR=true"}}, op, "--continue")
-	if err != nil && len(conflicted) == 0 && unfinished(root) {
+	if err != nil && len(conflicted) == 0 && stoppedOnConflict(root) {
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": op})
 	}
 	return failed(op, headline(err))
+}
+
+// stoppedOnConflict говорит, что операция остановилась и в индексе есть
+// конфликтные пути.
+func stoppedOnConflict(root string) bool {
+	conflicted, _ := ConflictedPaths(root)
+	return len(conflicted) > 0 && unfinished(root)
 }
 
 // Abort прерывает незавершённую операцию: HEAD, индекс и дерево
@@ -58,13 +69,18 @@ func Abort(dir string) error {
 	return failed(op, headline(err))
 }
 
+// runningOperation находит операцию для Continue и Abort. У bisect нет ни
+// --continue, ни --abort: он идёт отметками и кончается bisect reset.
 func runningOperation(dir string) (root, op string, err error) {
 	root, err = topLevel(dir)
 	if err != nil {
 		return "", "", failed("rev-parse", err)
 	}
-	if op = operation(root); op == "" {
+	switch op = operation(root); op {
+	case "":
 		return "", "", i18n.New("git.noOperation", nil)
+	case "bisect":
+		return "", "", i18n.New("git.bisectNoContinue", nil)
 	}
 	return root, op, nil
 }

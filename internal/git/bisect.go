@@ -1,7 +1,6 @@
 package git
 
 import (
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -46,7 +45,9 @@ func BisectMark(dir, hash string, good bool) (BisectStep, error) {
 	if good {
 		term = "good"
 	}
-	out, err := run(call{dir: root}, "bisect", term, hash)
+	// вывод разбирается по-английски: перевод git сломал бы bisectLeft, а
+	// итог для человека пишет gitone. При локали C git не смотрит и LANGUAGE.
+	out, err := run(call{dir: root, env: []string{"LC_ALL=C"}}, "bisect", term, hash)
 	if err != nil {
 		return BisectStep{}, failed("bisect", headline(err))
 	}
@@ -82,10 +83,5 @@ func BisectReset(dir string) error {
 
 // bisecting говорит, что идёт bisect: git держит его начало в BISECT_START.
 func bisecting(root string) bool {
-	path, err := run(call{dir: root}, "rev-parse", "--path-format=absolute", "--git-path", "BISECT_START")
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(strings.TrimSpace(path))
-	return err == nil
+	return gitPathExists(root, "BISECT_START")
 }
