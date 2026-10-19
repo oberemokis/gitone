@@ -55,9 +55,10 @@ func LastMessage(dir string) (subject, description string, err error) {
 }
 
 // Message возвращает тему и описание коммита rev: amend и reword (#219)
-// открывают окно коммита с ними.
+// открывают окно коммита с ними. Тема это первая строка сообщения, описание
+// всё после неё: %s склеил бы первый абзац из нескольких строк в одну.
 func Message(dir, rev string) (subject, description string, err error) {
-	out, err := inRoot(dir, "log", "-1", "--format=%s%x00%b", rev, "--")
+	out, err := inRoot(dir, "log", "-1", "--format=%B", rev, "--")
 	if err != nil {
 		if !hasCommits(dir) {
 			err = i18n.New("git.noCommits", nil)
@@ -65,14 +66,15 @@ func Message(dir, rev string) (subject, description string, err error) {
 		return "", "", failed("log", err)
 	}
 
-	subject, description, _ = strings.Cut(strings.TrimRight(out, "\n"), "\x00")
+	subject, description, _ = strings.Cut(strings.TrimRight(out, "\n"), "\n")
 	return subject, strings.TrimSpace(description), nil
 }
 
 // Amend переписывает последний коммит (#218): индекс входит в него, тема и
-// описание заменяются. published говорит, что прежний коммит уже лежал в
-// upstream: после amend ветка разошлась с remote, и обычный push её не
-// отправит. Хуки выполняются, как у Commit.
+// описание заменяются. Пустая тема оставляет сообщение как есть, байт в байт
+// (--no-edit). published говорит, что прежний коммит уже лежал в upstream:
+// после amend ветка разошлась с remote, и обычный push её не отправит. Хуки
+// выполняются, как у Commit.
 func Amend(dir, subject, description string) (published bool, err error) {
 	published, err = amend(dir, subject, description)
 	return published, failed("commit", err)
@@ -84,8 +86,12 @@ func amend(dir, subject, description string) (bool, error) {
 		return false, err
 	}
 
+	args := []string{"commit", "--amend", "--no-edit"}
+	if subject != "" {
+		args = messageArgs([]string{"commit", "--amend"}, subject, description)
+	}
 	_, pushedErr := run(call{dir: root}, "merge-base", "--is-ancestor", "HEAD", "@{upstream}")
-	_, err = run(call{dir: root}, messageArgs([]string{"commit", "--amend"}, subject, description)...)
+	_, err = run(call{dir: root}, args...)
 	return err == nil && pushedErr == nil, headline(err)
 }
 

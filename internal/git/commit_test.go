@@ -67,6 +67,27 @@ func TestAmend(t *testing.T) {
 	}
 }
 
+// Тема это первая строка, даже если первый абзац из двух строк; amend с пустой
+// темой оставляет сообщение байт в байт, с табом (#299, случаи 1 и 2).
+func TestMessageRoundTrip(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "-A")
+	message := "Fix parser\nAlso handle CRLF\n\n\tindented"
+	runGit(t, repo, "commit", "-q", "--cleanup=verbatim", "-m", message)
+
+	subject, description, err := git.LastMessage(repo)
+	if err != nil || subject != "Fix parser" || description != "Also handle CRLF\n\n\tindented" {
+		t.Fatalf("LastMessage = %q, %q, %v", subject, description, err)
+	}
+	if _, err := git.Amend(repo, "", ""); err != nil {
+		t.Fatalf("Amend без правки: %v", err)
+	}
+	if got := runGit(t, repo, "log", "-1", "--format=%B"); got != message+"\n\n" {
+		t.Fatalf("сообщение %q, ожидалось прежнее %q", got, message)
+	}
+}
+
 // Без коммитов amend нечего исправлять, а коммит, лежащий в upstream, после
 // amend даёт расхождение (случаи 3 и 4).
 func TestAmendRefusalsAndPublished(t *testing.T) {

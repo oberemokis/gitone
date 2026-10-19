@@ -74,6 +74,7 @@ func (m Model) openAmend(msg lastMessageMsg) Model {
 	m.amending = true
 	m.subject = msg.subject
 	m.description = m.description.Type(msg.description)
+	m.opened = fullMessage(m.subject, m.description.Text())
 	return m
 }
 
@@ -90,7 +91,7 @@ func (m Model) clearCommit() Model {
 	m.subject = ""
 	m.description = editor.Model{}.Resize(commitFieldSize(m.width, m.bodyHeight()))
 	m.commitField = subjectField
-	m.amending, m.rewording = false, ""
+	m.amending, m.rewording, m.opened = false, "", ""
 	return m
 }
 
@@ -142,12 +143,20 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		description, amending, rewording := m.description.Text(), m.amending, m.rewording
+		// без правки сообщение остаётся байт в байт: поле показывает табы
+		// пробелами, и отправка их бы заменила
+		unchanged := fullMessage(m.subject, description) == m.opened
 		m.active = noWindow
 		m = m.clearCommit()
 		switch {
+		case amending && unchanged:
+			note := m.text.Text("commit.amended", nil)
+			return m, amendCmd(m.dir, "", "", note, m.text.Text("commit.amendPublished", nil))
 		case amending:
 			note := m.text.Text("commit.amended", nil)
 			return m, amendCmd(m.dir, subject, description, note, m.text.Text("commit.amendPublished", nil))
+		case rewording != "" && unchanged:
+			return m, nil
 		case rewording != "":
 			return m, m.rewrite(rewording, git.RewriteReword, fullMessage(subject, description), -1)
 		}

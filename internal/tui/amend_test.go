@@ -36,6 +36,29 @@ func TestAmendFromApp(t *testing.T) {
 	}
 }
 
+// enter без правки не меняет сообщение: первый абзац из двух строк и таб в
+// описании остаются как были; новая тема меняет только тему (#299, случаи 1
+// и 3).
+func TestAmendUnchangedKeepsMessage(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "-A")
+	message := "Fix parser\nAlso handle CRLF\n\n\tindented"
+	runGit(t, repo, "commit", "-q", "--cleanup=verbatim", "-m", message)
+	model := resize(open(t, options(repo, layout.Focus())), 100, 24)
+
+	model = enterKey(pressAndSettle(model, key('A')))
+	if got := runGit(t, repo, "log", "-1", "--format=%B"); got != message {
+		t.Fatalf("сообщение %q, ожидалось прежнее %q", got, message)
+	}
+
+	// при правке таб уходит пробелами: поле описания хранит то, что рисует
+	enterKey(typeText(pressAndSettle(model, key('A')), "!"))
+	if got := runGit(t, repo, "log", "-1", "--format=%B"); !strings.HasPrefix(got, "Fix parser!\n\nAlso handle CRLF\n\n") {
+		t.Fatalf("сообщение %q, ожидалась новая тема с прежним описанием", got)
+	}
+}
+
 // Без коммитов подвал называет причину, окно не открывается (случай 3).
 func TestAmendWithoutCommits(t *testing.T) {
 	repo := newRepo(t)

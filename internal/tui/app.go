@@ -64,9 +64,11 @@ type Model struct {
 	description editor.Model
 	commitField commitField
 	// amending: окно коммита переписывает последний коммит (#218), rewording
-	// хэш коммита, сообщение которого оно правит (#219)
+	// хэш коммита, сообщение которого оно правит (#219), opened сообщение, с
+	// которым окно открылось: без правки его не переписывают
 	amending   bool
 	rewording  string
+	opened     string
 	logEntries []git.LogEntry
 	// logFilter фильтр открытого лога по автору и пути (#226)
 	logFilter git.LogFilter

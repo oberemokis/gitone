@@ -168,6 +168,7 @@ func (m Model) openReword(msg rewordMsg) Model {
 	m.rewording = msg.hash
 	m.subject = msg.subject
 	m.description = m.description.Type(msg.description)
+	m.opened = fullMessage(m.subject, m.description.Text())
 	return m
 }
 
