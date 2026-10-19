@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -73,6 +74,20 @@ func TestCustomCommandPathIsLiteral(t *testing.T) {
 	model = pressAndSettle(model, key('o'))
 	if footer := footerOf(model); !strings.Contains(footer, "mine: it's $HOME.txt") {
 		t.Fatalf("подвал %q, ожидался путь как есть", footer)
+	}
+}
+
+// Фоновый процесс команды не держит итог (случай 2).
+func TestCustomCommandDoesNotWaitForBackground(t *testing.T) {
+	_, model := commandRepo(t, "sleep 5 & echo started")
+
+	start := time.Now()
+	model = pressAndSettle(model, key('o'))
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("команда шла %v, итог ждал фоновый процесс", elapsed)
+	}
+	if footer := footerOf(model); !strings.Contains(footer, "mine: started") {
+		t.Fatalf("подвал %q, ожидался вывод до фона", footer)
 	}
 }
 

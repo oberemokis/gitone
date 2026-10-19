@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -58,20 +59,25 @@ func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
 
 // runShell выполняет script в каталоге dir с путём path в GITONE_PATH и
 // отдаёт stdout. Выход с кодом не ноль это ошибка из словаря с кодом и первой
-// строкой stderr, а без неё stdout.
+// строкой stderr, а без неё stdout. Итог не ждёт фоновых процессов команды
+// (`gitk &`): они держали бы stdout открытым, пока не закроются сами.
 func runShell(dir, script, path string) (string, error) {
 	shell := shellCommand(script)
 	shell.Dir = dir
 	shell.Env = append(os.Environ(), "GITONE_PATH="+path)
+	shell.WaitDelay = time.Second
 
 	var stdout, stderr bytes.Buffer
 	shell.Stdout, shell.Stderr = &stdout, &stderr
 	err := shell.Run()
 
 	var exit *exec.ExitError
-	if errors.As(err, &exit) {
+	switch {
+	case errors.As(err, &exit):
 		line := cmp.Or(firstLine(stderr.String()), firstLine(stdout.String()))
 		return "", i18n.New("command.failed", i18n.Args{"code": exit.ExitCode(), "line": visible(line)})
+	case errors.Is(err, exec.ErrWaitDelay):
+		return stdout.String(), nil
 	}
 	return stdout.String(), err
 }
