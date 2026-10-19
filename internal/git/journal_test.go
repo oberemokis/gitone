@@ -43,11 +43,17 @@ func TestJournal(t *testing.T) {
 		t.Fatalf("запись %+v, ожидался код выхода отказа", entry)
 	}
 
+	// -w это флаг вида, а не запись (#290, случай 2); неотслеженный файл
+	// заставляет Diff собрать временный индекс через git add (случай 1)
+	if _, err := git.Diff(repo, []string{"HEAD"}, "-w"); err != nil {
+		t.Fatalf("Diff -w: %v", err)
+	}
+	write(t, repo, "new.txt", "new\n")
 	if _, err := git.Diff(repo, nil); err != nil {
 		t.Fatalf("Diff: %v", err)
 	}
 	for _, entry := range git.Journal() {
-		if entry.Args[0] == "diff" || entry.Args[0] == "rev-parse" {
+		if entry.Args[0] == "diff" || entry.Args[0] == "rev-parse" || slices.Contains(entry.Args, "--intent-to-add") {
 			t.Fatalf("чтение в журнале: %q", entry.Args)
 		}
 	}
