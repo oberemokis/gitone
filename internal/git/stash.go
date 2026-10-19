@@ -2,6 +2,8 @@ package git
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -230,4 +232,42 @@ func stashAt(dir string, stash Stash, action string) error {
 
 	_, err = run(call{dir: root}, "stash", action, stash.Ref)
 	return err
+}
+
+// StashTree это то, с чем сравнивать родителя stash в его диффе: сам stash, а
+// если в нём неотслеженные файлы (третий родитель, stash -u), дерево stash
+// вместе с ними. git diff по самому stash неотслеженных не видит. Дерево
+// собирается во временном индексе, настоящий индекс не трогается.
+func StashTree(dir, hash string) (string, error) {
+	tree, err := stashTree(dir, hash)
+	return tree, failed("stash", err)
+}
+
+func stashTree(dir, hash string) (string, error) {
+	root, err := topLevel(dir)
+	if err != nil {
+		return "", err
+	}
+	untracked, err := run(call{dir: root}, "ls-tree", "-r", "-z", hash+"^3")
+	if err != nil {
+		return hash, nil
+	}
+
+	temp, err := os.MkdirTemp("", "gitone-stash-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(temp)
+
+	index := call{dir: root, env: []string{"GIT_INDEX_FILE=" + filepath.Join(temp, "index")}}
+	if _, err := run(index, "read-tree", hash); err != nil {
+		return "", err
+	}
+	index.stdin = untracked
+	if _, err := run(index, "update-index", "-z", "--index-info"); err != nil {
+		return "", err
+	}
+	index.stdin = ""
+	tree, err := run(index, "write-tree")
+	return strings.TrimSpace(tree), err
 }
