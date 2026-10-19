@@ -119,6 +119,25 @@ func TestDiscardHunk(t *testing.T) {
 	}
 }
 
+// Откат единственного хунка оставляет дифф пустым: выделение снимается, и
+// space после этого не падает (#287, случай 1).
+func TestSelectionGoneWithDiff(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "ONE\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 30)
+
+	model = pressAndSettle(model, key('v'))
+	model, _ = model.Update(key('x'))
+	model = answerYes(model)
+	model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+
+	if body := screenText(model); strings.Contains(body, "▌") {
+		t.Fatalf("выделение пережило пустой дифф:\n%s", body)
+	}
+}
+
 // x на выделенной строке откатывает только её (случай 2).
 func TestDiscardLine(t *testing.T) {
 	repo := newRepo(t)

@@ -88,6 +88,35 @@ func TestResolveConflictHunks(t *testing.T) {
 	}
 }
 
+// Наша сторона для файла целиком делает его равным HEAD, и дифф пустеет:
+// выбор конфликтов снимается, space после этого не падает (#287, случай 2).
+func TestConflictsGoneWithDiff(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "base\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "-c", "topic")
+	write(t, repo, "a.txt", "topic\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+	write(t, repo, "a.txt", "main\n")
+	commitAll(t, repo)
+	merge := exec.Command("git", "merge", "topic")
+	merge.Dir = repo
+	if out, err := merge.CombinedOutput(); err == nil {
+		t.Fatalf("слияние прошло без конфликта:\n%s", out)
+	}
+	model := resize(open(t, options(repo, layout.Focus())), 100, 30)
+
+	model = pressAndSettle(model, key('v'))
+	model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	model = chooseMenu(t, model, "Whole file: HEAD")
+	model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+
+	if body := screenText(model); strings.Contains(body, "▌") {
+		t.Fatalf("выбор конфликтов пережил пустой дифф:\n%s", body)
+	}
+}
+
 // Бинарный конфликт решается стороной для файла целиком (случаи 3 и 5).
 func TestResolveBinaryConflictWhole(t *testing.T) {
 	repo, model := conflictRepo(t)

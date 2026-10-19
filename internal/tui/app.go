@@ -671,7 +671,8 @@ func (m Model) chosenFile() (int, bool) {
 }
 
 // applyReload ставит новый дифф на место старого. Открытая запись остаётся
-// открытой, если она ещё в диффе (sameEntry), иначе открывается первая.
+// открытой, если она ещё в диффе (sameEntry), иначе открывается первая. Пустой
+// дифф сбрасывает вид: выделение без файла держать нечему.
 func (m Model) applyReload(files []diff.File) Model {
 	kept := -1
 	if len(m.files) > 0 {
@@ -695,6 +696,8 @@ func (m Model) applyReload(files []diff.File) Model {
 	m.current = 0
 	if len(files) > 0 {
 		m.view = m.view.SetFile(files[0])
+	} else {
+		m.view = m.view.SetFile(diff.File{})
 	}
 	return m
 }
