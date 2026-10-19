@@ -99,6 +99,25 @@ func TestRewordFromLog(t *testing.T) {
 	}
 }
 
+// Reword без правки не запускает rebase: таб в описании не превращается в
+// пробелы, хэши на месте (#299, случай 2).
+func TestRewordUnchangedKeepsCommit(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "-A")
+	runGit(t, repo, "commit", "-q", "--cleanup=verbatim", "-m", "one\n\n\tindented")
+	write(t, repo, "b.txt", "two\n")
+	commitAll(t, repo)
+	head := revision(t, repo, "HEAD")
+	model := openAsync(resize(open(t, options(repo, layout.Focus())), 140, 30), key('l'))
+	model, _ = model.Update(key('j'))
+
+	enterKey(pressAndSettle(model, key('r')))
+	if got := revision(t, repo, "HEAD"); got != head {
+		t.Fatalf("HEAD %s, reword без правки переписал историю", got)
+	}
+}
+
 // Конфликт останавливает rebase, подвал говорит об этом (случай 5).
 func TestRewriteConflictStops(t *testing.T) {
 	repo := newRepo(t)
