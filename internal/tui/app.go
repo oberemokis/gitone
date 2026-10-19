@@ -330,6 +330,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.rewritten(msg)
 	case actionDoneMsg:
 		return m.actionDone(msg)
+	case stashTreeMsg:
+		return m.openStashDiff(msg)
 	// Списки приходят асинхронно. Если за это время открыли другое окно, список
 	// отбрасывается: иначе на экране одно окно, а клавиши уходят другому.
 	// Ошибка доходит до подвала при любом окне. Ответ правки (edit) окно не

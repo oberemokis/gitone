@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/git"
@@ -23,6 +25,38 @@ func stashListCmd(dir string) tea.Cmd {
 		stashes, err := git.Stashes(dir)
 		return stashesMsg{stashes: stashes, err: err}
 	}
+}
+
+// stashTreeMsg несёт то, с чем сравнивать родителя stash hash в его диффе.
+type stashTreeMsg struct {
+	hash string
+	tree string
+	err  error
+}
+
+func stashTreeCmd(dir, hash string) tea.Cmd {
+	return func() tea.Msg {
+		tree, err := git.StashTree(dir, hash)
+		return stashTreeMsg{hash: hash, tree: tree, err: err}
+	}
+}
+
+// openStashDiff добавляет в открытый дифф stash его неотслеженные файлы. stash
+// это коммит слияния HEAD и индекса: <хэш>^! дал бы комбинированный diff --cc.
+// Родитель и дерево stash с неотслеженными файлами дают обычный дифф, как git
+// stash show -p -u. Хэш, а не stash@{N}: перечитывание не уйдёт на другой
+// stash после внешнего git stash push. Если за это время открыли другой дифф
+// или неотслеженных нет, ответ ничего не меняет.
+func (m Model) openStashDiff(msg stashTreeMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case msg.err != nil:
+		return m.say(m.text.Error(msg.err)), nil
+	case msg.tree == msg.hash || !slices.Equal(m.args, []string{msg.hash + "^1", msg.hash}):
+		return m, nil
+	}
+
+	m.args = []string{msg.hash + "^1", msg.tree}
+	return m.startReload()
 }
 
 func stashPushCmd(dir string) tea.Cmd {
@@ -131,14 +165,13 @@ func (m Model) stashKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	stash := m.stashes[m.cursor]
 	pressed := key.String()
 	switch {
+	// дифф stash открывается сразу, а неотслеженные файлы добавит
+	// openStashDiff, когда git соберёт дерево с ними
 	case m.keys.Is(keymap.StashDiff, pressed):
 		m.active = noWindow
-		// stash это коммит слияния HEAD и индекса: <хэш>^! дал бы комбинированный
-		// diff --cc. Родитель и сам stash дают обычный дифф, как git stash show -p.
-		// Хэш, а не stash@{N}: перечитывание не уйдёт на другой stash после
-		// внешнего git stash push.
 		m.args = []string{stash.Hash + "^1", stash.Hash}
-		return m.startReload()
+		next, reload := m.startReload()
+		return next, tea.Batch(reload, stashTreeCmd(m.dir, stash.Hash))
 	case m.keys.Is(keymap.StashApply, pressed):
 		if next, refused := m.refuseWhileRemote(); refused {
 			return next, nil
