@@ -7,9 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 	"gitone/internal/tui/zone"
 )
 
@@ -26,23 +24,22 @@ const (
 // Строки под заголовком, которые не поместились по высоте, прокручиваются:
 // top это первая показанная (#152). Клик по строке закрывает справку и делает
 // действие строки, как меню клавиш lazygit (#119).
-func helpBox(colors theme.Theme, text i18n.Dictionary, screenWidth, screenHeight, top int, keys keymap.Keymap) string {
+func helpBox(p paint, screenWidth, screenHeight, top int) string {
 	width := max(min(helpWidth, screenWidth-2*helpPaddingX), 1)
 
 	// заголовок как у всех окон; клавиши цветом текста, подписи
 	// приглушённые, как в подвале (#89)
-	rows := []string{windowTitle(colors, width, text.Text("help.title", nil), closeHint(colors, keys, text, keymap.HelpClose))}
+	rows := []string{p.title(width, p.text.Text("help.title", nil), p.close(keymap.HelpClose))}
 
-	body := helpBody(colors, text, width, keys)
+	body := helpBody(p, width)
 	if page := helpPage(screenHeight); len(body) > page {
 		start := min(top, len(body)-page)
 		body = body[start : start+page]
 	}
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
 	// MaxHeight держит окно в теле и на экране ниже трёх строк, где под отступы
 	// и заголовок места нет
-	return panel.Padding(1, helpPaddingX).MaxHeight(screenHeight).Render(strings.Join(append(rows, body...), "\n"))
+	return p.panel().Padding(1, helpPaddingX).MaxHeight(screenHeight).Render(strings.Join(append(rows, body...), "\n"))
 }
 
 // helpPage это сколько строк под заголовком помещается в теле высотой height.
@@ -63,7 +60,7 @@ func (m Model) helpOverflow() int {
 		return 0
 	}
 
-	body := helpBody(m.colors, m.text, m.width, m.keys)
+	body := helpBody(m.paint(), m.width)
 	return max(len(body)-helpPage(m.bodyHeight()), 0)
 }
 
@@ -107,17 +104,16 @@ func (m Model) wheelHelp(button tea.MouseButton) Model {
 
 // helpBody это строки под заголовком: группы действий, перед каждой пустая
 // строка.
-func helpBody(colors theme.Theme, text i18n.Dictionary, width int, keys keymap.Keymap) []string {
+func helpBody(p paint, width int) []string {
 	// Каждый кусок строки несёт фон сам: Lip Gloss закрывает жирный полным
 	// сбросом стиля, и без этого фон панели гаснет до конца строки.
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	heading := panel.Bold(true).Foreground(colors.Accent)
-	dim := panel.Foreground(colors.TextMuted)
+	panel, dim := p.panel(), p.muted()
+	heading := panel.Bold(true).Foreground(p.colors.Accent)
 
 	var rows []string
-	order, groups := groupByCategory(keys.Bindings())
+	order, groups := groupByCategory(p.keys.Bindings())
 	for _, category := range order {
-		rows = append(rows, "", justify(panel, width, heading.Render(text.Text(categoryKey(category), nil)), ""))
+		rows = append(rows, "", justify(panel, width, heading.Render(p.text.Text(categoryKey(category), nil)), ""))
 
 		for _, binding := range groups[category] {
 			displayed := make([]string, len(binding.Keys))
@@ -125,7 +121,7 @@ func helpBody(colors theme.Theme, text i18n.Dictionary, width int, keys keymap.K
 				displayed[index] = displayKey(key)
 			}
 
-			description := text.Text(helpKey(binding.Action), nil)
+			description := p.text.Text(helpKey(binding.Action), nil)
 			row := justify(panel, width, dim.Render(description), panel.Render(strings.Join(displayed, ", ")))
 			rows = append(rows, zone.Mark(helpTarget+string(binding.Action), row))
 		}

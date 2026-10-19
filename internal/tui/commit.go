@@ -208,18 +208,18 @@ func commitFieldSize(screenWidth, bodyHeight int) (width, height int) {
 // commitBox рисует окно коммита: тему и описание, у каждого подпись, активное
 // поле с курсором и подписью accent. Подсказка внизу называет поле, куда ведёт
 // commit.field. Заголовок называет режим окна (commitTitle).
-func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, heading, subject string, description editor.Model, field commitField, screenWidth int) string {
+func commitBox(p paint, heading, subject string, description editor.Model, field commitField, screenWidth int) string {
 	width := commitWidth(screenWidth)
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+	panel := p.panel()
 	content := width - 2*windowPaddingX
-	title := windowTitle(colors, content, heading, closeHint(colors, keys, text, keymap.CommitClose))
+	title := p.title(content, heading, p.close(keymap.CommitClose))
 	label := func(key string, active bool) string {
-		color := colors.TextMuted
+		color := p.colors.TextMuted
 		if active {
-			color = colors.Accent
+			color = p.colors.Accent
 		}
-		return panel.Foreground(color).Render(text.Text(key, nil))
+		return panel.Foreground(color).Render(p.text.Text(key, nil))
 	}
 
 	input := "> " + visible(subject)
@@ -236,7 +236,7 @@ func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, hea
 	cursorRow, cursorOffset := description.Cursor()
 	for row, line := range description.Rows() {
 		if field == descriptionField && row == cursorRow {
-			line = withCursor(colors, panel, line, cursorOffset)
+			line = withCursor(p.colors, panel, line, cursorOffset)
 		} else {
 			line = panel.Render(line)
 		}
@@ -244,7 +244,7 @@ func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, hea
 	}
 
 	// подсказка обрезается: длинная переназначенная клавиша перенесла бы строку
-	hint := ansi.Truncate(commitHint(colors, keys, text, field), content, panel.Foreground(colors.TextMuted).Render("…"))
+	hint := ansi.Truncate(commitHint(p, field), content, p.muted().Render("…"))
 	lines = append(lines, "", hint)
 
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))
@@ -265,19 +265,19 @@ func withCursor(colors theme.Theme, panel lipgloss.Style, line string, offset in
 
 // commitHint это подсказка окна: enter коммитит только из темы, а tab называет
 // поле, куда ведёт. Отключённое действие в подсказку не идёт.
-func commitHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, field commitField) string {
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+func commitHint(p paint, field commitField) string {
+	panel := p.panel()
 
 	var hints []string
 	if field == subjectField {
-		hints = append(hints, windowHint(colors, keys, text, keymap.CommitSubmit))
+		hints = append(hints, p.hint(keymap.CommitSubmit))
 	}
-	if key := firstKey(keys, keymap.CommitField); key != "" {
+	if key := firstKey(p.keys, keymap.CommitField); key != "" {
 		target := "commit.hintDescription"
 		if field == descriptionField {
 			target = "commit.hintSubject"
 		}
-		hints = append(hints, pressable(keymap.CommitField, keyHint(panel, colors, key, text.Text(target, nil))))
+		hints = append(hints, pressable(keymap.CommitField, keyHint(panel, p.colors, key, p.text.Text(target, nil))))
 	}
 
 	return strings.Join(slices.DeleteFunc(hints, func(hint string) bool { return hint == "" }), panel.Render("   "))

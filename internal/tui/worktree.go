@@ -11,9 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/git"
-	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // worktreesMsg несёт список рабочих деревьев или ошибку git.
@@ -112,20 +110,19 @@ const maxNameColumn = 24
 // ветка в окне веток. Ширина имени и ветки по самому длинному значению, но не
 // больше maxNameColumn, путь занимает остаток и обрезается «…». Каждый кусок
 // несёт фон окна сам.
-func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, worktrees []git.Worktree, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
+func worktreeBox(p paint, worktrees []git.Worktree, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
 	box := list{
-		title:  text.Text("worktrees.title", nil),
-		close:  closeHint(colors, keys, text, keymap.ListClose),
+		title:  p.text.Text("worktrees.title", nil),
+		close:  p.close(keymap.ListClose),
 		width:  90,
 		cursor: cursor,
-		hint:   windowHint(colors, keys, text, keymap.WorktreesSwitch, keymap.ListSearch),
-	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
+		hint:   p.hint(keymap.WorktreesSwitch, keymap.ListSearch),
+	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
-	current := text.Text("worktrees.current", nil)
+	panel, muted := p.panel(), p.muted()
+	current := p.text.Text("worktrees.current", nil)
 
-	titles := []string{text.Text("worktrees.column.name", nil), text.Text("worktrees.column.branch", nil), text.Text("worktrees.column.path", nil)}
+	titles := []string{p.text.Text("worktrees.column.name", nil), p.text.Text("worktrees.column.branch", nil), p.text.Text("worktrees.column.path", nil)}
 	nameWidth, branchWidth := ansi.StringWidth(titles[0]), ansi.StringWidth(titles[1])
 	for _, worktree := range worktrees {
 		cell := visible(filepath.Base(worktree.Path))
@@ -140,13 +137,13 @@ func worktreeBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, w
 
 	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted}, titles...)
 
-	name := panel.Foreground(colors.Worktree)
+	name := panel.Foreground(p.colors.Worktree)
 	gap := panel.Render(strings.Repeat(" ", columnGap))
-	styles := []lipgloss.Style{panel.Foreground(colors.Accent), muted}
+	styles := []lipgloss.Style{panel.Foreground(p.colors.Accent), muted}
 	box.rows = make([]string, len(worktrees))
 	for index, worktree := range worktrees {
 		box.rows[index] = markedCell(panel, name, widths[0], filepath.Base(worktree.Path), worktree.Current, current) + gap + tableRow(panel, widths[1:], styles, worktree.Branch, worktree.Path)
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }

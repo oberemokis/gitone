@@ -9,9 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 	"gitone/internal/tui/zone"
 )
 
@@ -103,42 +101,42 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // discard своего рисунка не имеет: он стоит в подвале, а справка остаётся видна.
 // Общий вопрос рисуется последней строкой окна, над которым задан (asking).
 func (m Model) windowBox() string {
-	width, height := m.width, m.bodyHeight()
+	p, width, height := m.paint(), m.width, m.bodyHeight()
 
 	shown, question := m.asking()
 	switch shown {
 	case promptWindow:
-		return promptBox(m.colors, m.text, m.keys, m.prompt, width)
+		return promptBox(p, m.prompt, width)
 	case menuWindow:
-		return menuBox(m.colors, m.text, m.keys, m.menu, width, height)
+		return menuBox(p, m.menu, width, height)
 	case pickerWindow:
-		return pickerBox(m.colors, m.text, m.keys, m.picker, len(m.files) == 0, width, height)
+		return pickerBox(p, m.picker, len(m.files) == 0, width, height)
 	case commitWindow:
-		return commitBox(m.colors, m.text, m.keys, m.commitTitle(), m.subject, m.description, m.commitField, width)
+		return commitBox(p, m.commitTitle(), m.subject, m.description, m.commitField, width)
 	case logWindow:
-		return logBox(m.colors, m.text, m.keys, m.logShown(), m.logFilter, m.cursor, m.query, m.searching, question, width, height)
+		return logBox(p, m.logShown(), m.logFilter, m.cursor, m.query, m.searching, question, width, height)
 	case branchWindow:
-		return branchBox(m.colors, m.text, m.keys, m.branchesShown(), m.cursor, m.query, m.searching, question, width, height)
+		return branchBox(p, m.branchesShown(), m.cursor, m.query, m.searching, question, width, height)
 	case worktreeWindow:
-		return worktreeBox(m.colors, m.text, m.keys, m.worktreesShown(), m.cursor, m.query, m.searching, width, height)
+		return worktreeBox(p, m.worktreesShown(), m.cursor, m.query, m.searching, width, height)
 	case stashWindow, stashDropWindow:
-		return stashBox(m.colors, m.text, m.keys, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
+		return stashBox(p, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
 	case tagWindow:
-		return tagBox(m.colors, m.text, m.keys, m.tagsShown(), m.cursor, m.query, m.searching, question, width, height)
+		return tagBox(p, m.tagsShown(), m.cursor, m.query, m.searching, question, width, height)
 	case remoteWindow:
-		return remoteBox(m.colors, m.text, m.keys, m.remotes, m.cursor, question, width, height)
+		return remoteBox(p, m.remotes, m.cursor, question, width, height)
 	case reflogWindow:
-		return reflogBox(m.colors, m.text, m.keys, m.reflogShown(), m.cursor, m.query, m.searching, width, height)
+		return reflogBox(p, m.reflogShown(), m.cursor, m.query, m.searching, width, height)
 	case submoduleWindow:
-		return submoduleBox(m.colors, m.text, m.keys, m.submodules, m.cursor, width, height)
+		return submoduleBox(p, m.submodules, m.cursor, width, height)
 	case journalWindow:
-		return journalBox(m.colors, m.text, m.keys, m.journal, m.cursor, width, height)
+		return journalBox(p, m.journal, m.cursor, width, height)
 	case recentWindow:
-		return recentBox(m.colors, m.text, m.keys, m.recent, m.cursor, width, height)
+		return recentBox(p, m.recent, m.cursor, width, height)
 	}
 
 	if m.helpOpen {
-		return helpBox(m.colors, m.text, width, height, m.helpTop, m.keys)
+		return helpBox(p, width, height, m.helpTop)
 	}
 	return ""
 }
@@ -353,16 +351,16 @@ const (
 // снят: «/ запрос», при наборе с курсором и подсказкой поля. Пустой список под
 // запросом говорит noMatches. Открытое поле с пустым запросом фильтром не
 // считается, там остаётся текст пустого списка (#153).
-func (l list) withSearch(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, query string, typing bool, noMatches string) list {
+func (l list) withSearch(p paint, query string, typing bool, noMatches string) list {
 	if !typing && query == "" {
 		return l
 	}
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	l.search = panel.Foreground(colors.TextMuted).Render("/ ") + panel.Render(query)
+	panel := p.panel()
+	l.search = p.muted().Render("/ ") + panel.Render(query)
 	if typing {
-		l.search += panel.Background(colors.Primary).Render(" ")
-		l.hint = windowHint(colors, keys, text, keymap.ListSearchDone, keymap.ListSearchCancel)
+		l.search += panel.Background(p.colors.Primary).Render(" ")
+		l.hint = p.hint(keymap.ListSearchDone, keymap.ListSearchCancel)
 	}
 	if query != "" {
 		l.empty = []string{noMatches}
@@ -387,20 +385,19 @@ func (l list) rowWidth(screenWidth int) int {
 
 // view рисует список по центру. Строки обрезаются по ширине, а окно
 // прокручивается так, чтобы курсор оставался видимым.
-func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
+func (l list) view(p paint, screenWidth, screenHeight int) string {
 	width := l.windowWidth(screenWidth)
 	// Lip Gloss считает отступы в ширину окна, текст помещается в остаток
 	content := width - 2*windowPaddingX
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
+	panel, muted := p.panel(), p.muted()
 
 	// вопрос обрезается, как строки: иначе окно вылезло бы за экран. Подсказка
 	// переносится по парам «клавиша подпись», когда действий больше, чем
 	// помещается в строку (#229)
 	bottom := packHint(panel, muted, l.hint, content)
 	if l.question != "" {
-		bottom = []string{panel.Foreground(colors.Error).Render(ansi.Truncate(l.question, content, "…"))}
+		bottom = []string{panel.Foreground(p.colors.Error).Render(ansi.Truncate(l.question, content, "…"))}
 	}
 
 	// без двух отступов окна, заголовка с пустой строкой под ним, пустой строки
@@ -419,7 +416,7 @@ func (l list) view(colors theme.Theme, screenWidth, screenHeight int) string {
 	}
 	start := max(0, l.cursor-shown+1)
 
-	lines := []string{windowTitle(colors, content, l.title, l.close), ""}
+	lines := []string{p.title(content, l.title, l.close), ""}
 	// поиск отделён пустыми строками сверху и снизу (#133)
 	if l.search != "" {
 		lines = append(lines, ansi.Truncate(l.search, content, "…"), "")

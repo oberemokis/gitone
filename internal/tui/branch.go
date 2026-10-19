@@ -11,7 +11,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // branchesMsg несёт список локальных веток или ошибку git. edit значит, что
@@ -193,22 +192,21 @@ func (m Model) branchesShown() []git.Branch {
 // забирает остаток ширины, автор и время стоят у правого края, как в логе
 // (#131). Текущая помечена словом сразу за именем, а не цветом: так видно и
 // без цветов.
-func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, branches []git.Branch, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
+func branchBox(p paint, branches []git.Branch, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
 	box := list{
-		title:    text.Text("branches.title", nil),
-		close:    closeHint(colors, keys, text, keymap.ListClose),
+		title:    p.text.Text("branches.title", nil),
+		close:    p.close(keymap.ListClose),
 		width:    90,
 		cursor:   cursor,
-		empty:    []string{text.Text("branches.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset, keymap.BranchesUpstream, keymap.CherryPickPaste, keymap.CompareWith, keymap.ListSearch),
+		empty:    []string{p.text.Text("branches.empty", nil)},
+		hint:     p.hint(keymap.BranchesSwitch, keymap.BranchesNew, keymap.BranchesRename, keymap.BranchesDelete, keymap.BranchesMerge, keymap.BranchesRebase, keymap.BranchesReset, keymap.BranchesUpstream, keymap.CherryPickPaste, keymap.CompareWith, keymap.ListSearch),
 		question: question,
-	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
+	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
-	current := text.Text("branches.current", nil)
+	panel, muted := p.panel(), p.muted()
+	current := p.text.Text("branches.current", nil)
 
-	titles := []string{text.Text("branches.column.name", nil), text.Text("branches.column.author", nil), text.Text("branches.column.date", nil)}
+	titles := []string{p.text.Text("branches.column.name", nil), p.text.Text("branches.column.author", nil), p.text.Text("branches.column.date", nil)}
 	authorWidth, dateWidth := ansi.StringWidth(titles[1]), ansi.StringWidth(titles[2])
 	for _, branch := range branches {
 		authorWidth = max(authorWidth, ansi.StringWidth(visible(branch.Author)))
@@ -219,14 +217,14 @@ func branchBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, bra
 
 	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted}, titles...)
 
-	name := panel.Foreground(colors.Accent)
+	name := panel.Foreground(p.colors.Accent)
 	gap := panel.Render(strings.Repeat(" ", columnGap))
 	box.rows = make([]string, len(branches))
 	for index, branch := range branches {
 		box.rows[index] = markedCell(panel, name, widths[0], branch.Name, branch.Current, current) + gap + tableRow(panel, widths[1:], []lipgloss.Style{muted, muted}, branch.Author, branch.When)
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }
 
 // markedCell это ячейка имени шириной width для окон веток и worktree: имя

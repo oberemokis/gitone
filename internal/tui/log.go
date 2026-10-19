@@ -12,7 +12,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // logLimit ограничивает лог: большой репозиторий без предела грузился бы
@@ -297,21 +296,20 @@ const (
 // таблицей, пока поле открыто или фильтр не снят (#110). Под фильтром граф
 // скрыт: его линии соединяли бы несоседние коммиты (#111). Фильтр по автору и
 // пути (#226) стоит в заголовке.
-func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.LogEntry, filter git.LogFilter, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
+func logBox(p paint, entries []git.LogEntry, filter git.LogFilter, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
 	box := list{
-		title:    logTitle(text, filter),
-		close:    closeHint(colors, keys, text, keymap.ListClose),
+		title:    logTitle(p.text, filter),
+		close:    p.close(keymap.ListClose),
 		cursor:   cursor,
-		empty:    []string{text.Text("log.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.LogSquash, keymap.LogFixup, keymap.LogReword, keymap.LogDrop, keymap.LogMoveUp, keymap.LogMoveDown, keymap.LogFixupCommit, keymap.LogAutosquash, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.LogBisect, keymap.ListSearch, keymap.LogFilter),
+		empty:    []string{p.text.Text("log.empty", nil)},
+		hint:     p.hint(keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.LogSquash, keymap.LogFixup, keymap.LogReword, keymap.LogDrop, keymap.LogMoveUp, keymap.LogMoveDown, keymap.LogFixupCommit, keymap.LogAutosquash, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.LogBisect, keymap.ListSearch, keymap.LogFilter),
 		fill:     true,
 		question: question,
-	}.withSearch(colors, text, keys, query, typing, text.Text("log.noMatches", nil))
+	}.withSearch(p, query, typing, p.text.Text("log.noMatches", nil))
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
+	panel, muted := p.panel(), p.muted()
 
-	titles := []string{text.Text("log.column.commit", nil), text.Text("log.column.message", nil), text.Text("log.column.author", nil), text.Text("log.column.date", nil)}
+	titles := []string{p.text.Text("log.column.commit", nil), p.text.Text("log.column.message", nil), p.text.Text("log.column.author", nil), p.text.Text("log.column.date", nil)}
 	authorWidth, dateWidth := ansi.StringWidth(titles[2]), ansi.StringWidth(titles[3])
 	for _, entry := range entries {
 		authorWidth = max(authorWidth, ansi.StringWidth(visible(entry.Author)))
@@ -332,7 +330,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 	widths := []int{hashColumn, 0, min(authorWidth, maxAuthorColumn), min(dateWidth, maxDateColumn)}
 	widths[1] = max(box.rowWidth(screenWidth)-graphColumn-widths[0]-widths[2]-widths[3]-3*columnGap, 1)
 
-	lanes := []color.Color{colors.Primary, colors.DiffAdded, colors.SyntaxFunction, colors.SyntaxString, colors.SyntaxType, colors.DiffRemoved}
+	lanes := []color.Color{p.colors.Primary, p.colors.DiffAdded, p.colors.SyntaxFunction, p.colors.SyntaxString, p.colors.SyntaxType, p.colors.DiffRemoved}
 	graph := func(entry git.LogEntry) string {
 		if graphWidth == 0 {
 			return ""
@@ -342,7 +340,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 
 	box.header = graph(git.LogEntry{}) + tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
 
-	styles := []lipgloss.Style{panel.Foreground(colors.Accent), panel, muted, muted}
+	styles := []lipgloss.Style{panel.Foreground(p.colors.Accent), panel, muted, muted}
 	box.rows = make([]string, len(entries))
 	for index, entry := range entries {
 		box.rows[index] = graph(entry)
@@ -351,7 +349,7 @@ func logBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entrie
 		}
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }
 
 // graphCell рисует граф git log --graph шириной width, каждый символ цветом
