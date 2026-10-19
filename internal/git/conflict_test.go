@@ -4,8 +4,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"gitone/internal/git"
 )
 
 // mergeConflict это слияние topic в main, остановленное на конфликте в a.txt
@@ -36,15 +34,15 @@ func mergeConflict(t *testing.T) string {
 func TestConflictedPathsAndResolveFile(t *testing.T) {
 	repo := mergeConflict(t)
 
-	paths, err := git.ConflictedPaths(repo)
+	paths, err := open(t, repo).ConflictedPaths()
 	if err != nil || strings.Join(paths, ",") != "a.txt,b.bin" {
 		t.Fatalf("ConflictedPaths = %q, %v", paths, err)
 	}
 
-	if err := git.ResolveFile(repo, "a.txt", true); err != nil {
+	if err := open(t, repo).ResolveFile("a.txt", true); err != nil {
 		t.Fatalf("ResolveFile theirs: %v", err)
 	}
-	if err := git.ResolveFile(repo, "b.bin", false); err != nil {
+	if err := open(t, repo).ResolveFile("b.bin", false); err != nil {
 		t.Fatalf("ResolveFile ours: %v", err)
 	}
 
@@ -54,7 +52,7 @@ func TestConflictedPathsAndResolveFile(t *testing.T) {
 	if got := readFile(t, filepath.Join(repo, "b.bin")); got != "main\x00\n" {
 		t.Fatalf("b.bin = %q, ожидалась наша сторона", got)
 	}
-	if paths, _ := git.ConflictedPaths(repo); len(paths) != 0 {
+	if paths, _ := open(t, repo).ConflictedPaths(); len(paths) != 0 {
 		t.Fatalf("конфликты остались: %q", paths)
 	}
 }
@@ -63,11 +61,11 @@ func TestConflictedPathsAndResolveFile(t *testing.T) {
 func TestWorktreeFile(t *testing.T) {
 	repo := mergeConflict(t)
 
-	text, err := git.WorktreeFile(repo, "a.txt")
+	text, err := open(t, repo).WorktreeFile("a.txt")
 	if err != nil || !strings.HasPrefix(text, "<<<<<<< HEAD\nmain\n") {
 		t.Fatalf("WorktreeFile = %q, %v", text, err)
 	}
-	if err := git.WriteWorktreeFile(repo, "a.txt", "resolved\n"); err != nil {
+	if err := open(t, repo).WriteWorktreeFile("a.txt", "resolved\n"); err != nil {
 		t.Fatalf("WriteWorktreeFile: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "resolved\n" {

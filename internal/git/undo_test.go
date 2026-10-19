@@ -11,11 +11,11 @@ import (
 func undo(t *testing.T, repo string) git.Step {
 	t.Helper()
 
-	step, err := git.UndoStep(repo)
+	step, err := open(t, repo).UndoStep()
 	if err != nil {
 		t.Fatalf("UndoStep: %v", err)
 	}
-	if err := git.ApplyStep(repo, step); err != nil {
+	if err := open(t, repo).ApplyStep(step); err != nil {
 		t.Fatalf("ApplyStep %+v: %v", step, err)
 	}
 	return step
@@ -24,11 +24,11 @@ func undo(t *testing.T, repo string) git.Step {
 func redo(t *testing.T, repo string) git.Step {
 	t.Helper()
 
-	step, err := git.RedoStep(repo)
+	step, err := open(t, repo).RedoStep()
 	if err != nil {
 		t.Fatalf("RedoStep: %v", err)
 	}
-	if err := git.ApplyStep(repo, step); err != nil {
+	if err := open(t, repo).ApplyStep(step); err != nil {
 		t.Fatalf("ApplyStep %+v: %v", step, err)
 	}
 	return step
@@ -124,7 +124,7 @@ func TestNewMoveDropsRedo(t *testing.T) {
 	undo(t, repo)
 	runGit(t, repo, "commit", "-q", "-m", "again")
 
-	if _, err := git.RedoStep(repo); errorKey(err) != "git.nothingToRedo" {
+	if _, err := open(t, repo).RedoStep(); errorKey(err) != "git.nothingToRedo" {
 		t.Fatalf("RedoStep = %v, ожидался отказ", err)
 	}
 }
@@ -140,12 +140,12 @@ func TestUndoAfterStash(t *testing.T) {
 	write(t, repo, "a.txt", "dirty\n")
 	runGit(t, repo, "stash", "push", "-q")
 
-	if _, err := git.UndoStep(repo); errorKey(err) != "git.undoStash" {
+	if _, err := open(t, repo).UndoStep(); errorKey(err) != "git.undoStash" {
 		t.Fatalf("UndoStep = %v, ожидался отказ из-за stash", err)
 	}
 
 	runGit(t, repo, "stash", "pop", "-q")
-	if step, err := git.UndoStep(repo); err != nil || step.Action != "commit" {
+	if step, err := open(t, repo).UndoStep(); err != nil || step.Action != "commit" {
 		t.Fatalf("UndoStep после pop = %+v, %v", step, err)
 	}
 }
@@ -156,10 +156,10 @@ func TestNothingToUndo(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	if _, err := git.UndoStep(repo); errorKey(err) != "git.nothingToUndo" {
+	if _, err := open(t, repo).UndoStep(); errorKey(err) != "git.nothingToUndo" {
 		t.Fatalf("UndoStep = %v, ожидался отказ", err)
 	}
-	if _, err := git.RedoStep(repo); errorKey(err) != "git.nothingToRedo" {
+	if _, err := open(t, repo).RedoStep(); errorKey(err) != "git.nothingToRedo" {
 		t.Fatalf("RedoStep = %v, ожидался отказ", err)
 	}
 }

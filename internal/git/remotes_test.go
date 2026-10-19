@@ -3,8 +3,6 @@ package git_test
 import (
 	"strings"
 	"testing"
-
-	"gitone/internal/git"
 )
 
 // Список отдаёт адреса fetch и push и помечает remote с upstream текущей
@@ -14,14 +12,14 @@ func TestRemotes(t *testing.T) {
 	origin, local := remotePair(t)
 	runGit(t, local, "remote", "set-url", "--push", "origin", "ssh://push.example/repo.git")
 
-	if err := git.AddRemote(local, "fork", "https://example.com/fork.git"); err != nil {
+	if err := open(t, local).AddRemote("fork", "https://example.com/fork.git"); err != nil {
 		t.Fatalf("AddRemote: %v", err)
 	}
-	if err := git.AddRemote(local, "fork", "https://example.com/other.git"); err == nil || !strings.Contains(err.Error(), "already exists") {
+	if err := open(t, local).AddRemote("fork", "https://example.com/other.git"); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("AddRemote занятого = %v, ожидался отказ", err)
 	}
 
-	remotes, err := git.Remotes(local)
+	remotes, err := open(t, local).Remotes()
 	if err != nil || len(remotes) != 2 {
 		t.Fatalf("Remotes = %+v, %v", remotes, err)
 	}
@@ -32,10 +30,10 @@ func TestRemotes(t *testing.T) {
 		t.Fatalf("origin = %+v, ожидались два адреса и upstream", got)
 	}
 
-	if err := git.RemoveRemote(local, "origin"); err != nil {
+	if err := open(t, local).RemoveRemote("origin"); err != nil {
 		t.Fatalf("RemoveRemote: %v", err)
 	}
-	if remotes, _ := git.Remotes(local); len(remotes) != 1 || remotes[0].Name != "fork" {
+	if remotes, _ := open(t, local).Remotes(); len(remotes) != 1 || remotes[0].Name != "fork" {
 		t.Fatalf("после удаления %+v, ожидался один fork", remotes)
 	}
 }
@@ -44,7 +42,7 @@ func TestRemotes(t *testing.T) {
 func TestRemotesEmpty(t *testing.T) {
 	repo := newRepo(t)
 
-	if remotes, err := git.Remotes(repo); err != nil || len(remotes) != 0 {
+	if remotes, err := open(t, repo).Remotes(); err != nil || len(remotes) != 0 {
 		t.Fatalf("Remotes = %+v, %v", remotes, err)
 	}
 }

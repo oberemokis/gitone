@@ -20,13 +20,13 @@ type Stash struct {
 }
 
 // Stashes возвращает stash от новых к старым.
-func Stashes(dir string) ([]Stash, error) {
-	stashes, err := stashList(dir)
+func (r Repo) Stashes() ([]Stash, error) {
+	stashes, err := r.stashList()
 	return stashes, failed("stash list", err)
 }
 
-func stashList(dir string) ([]Stash, error) {
-	out, err := inRoot(dir, "stash", "list", "--format=%gd%x1f%H%x1f%gs")
+func (r Repo) stashList() ([]Stash, error) {
+	out, err := r.inRoot("stash", "list", "--format=%gd%x1f%H%x1f%gs")
 	if err != nil {
 		return nil, err
 	}
@@ -59,17 +59,12 @@ type StashOptions struct {
 // пользователь думал бы, что правки сохранены. Подмодули в проверке не
 // считаются: git stash push их игнорирует и на одном сдвинутом указателе
 // отвечает «No local changes to save» с кодом 0.
-func StashPush(dir string, opts StashOptions) error {
-	return failed("stash push", stashPush(dir, opts))
+func (r Repo) StashPush(opts StashOptions) error {
+	return failed("stash push", r.stashPush(opts))
 }
 
-func stashPush(dir string, opts StashOptions) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	if !hasChanges(root, opts.Untracked) {
+func (r Repo) stashPush(opts StashOptions) error {
+	if !hasChanges(r.root, opts.Untracked) {
 		return i18n.New("git.nothingToStash", nil)
 	}
 
@@ -84,7 +79,7 @@ func stashPush(dir string, opts StashOptions) error {
 		args = append(args, "--message", opts.Message)
 	}
 
-	_, err = run(call{dir: root}, args...)
+	_, err := r.inRoot(args...)
 	return err
 }
 
@@ -106,17 +101,17 @@ func hasChanges(root string, untracked bool) bool {
 // другой коммит, чем у строки списка, отказывает и ничего не применяет. Отказ
 // git сводится к одной строке: при конфликте git начинает вывод с
 // «Auto-merging a.txt», и причина стоит в нём не первой.
-func StashApply(dir string, stash Stash) error {
-	return failed("stash apply", headline(stashAt(dir, stash, "apply")))
+func (r Repo) StashApply(stash Stash) error {
+	return failed("stash apply", headline(r.stashAt(stash, "apply")))
 }
 
 // StashPop применяет stash и удаляет его одним действием, `git stash pop`
 // (#235). На конфликте git правки применяет с маркерами, а запись оставляет:
 // отказ тогда говорит именно это, строка CONFLICT называла бы один файл.
 // Правку, которой мешает дерево, git отвергает до начала, и stash остаётся.
-func StashPop(dir string, stash Stash) error {
-	err := headline(stashAt(dir, stash, "pop"))
-	if err != nil && conflicted(dir) {
+func (r Repo) StashPop(stash Stash) error {
+	err := headline(r.stashAt(stash, "pop"))
+	if err != nil && r.conflicted() {
 		err = i18n.New("git.stashKept", nil)
 	}
 	return failed("stash pop", err)
@@ -127,20 +122,16 @@ func StashPop(dir string, stash Stash) error {
 // кладутся обратно `git stash store` в прежнем порядке, эта с новым
 // сообщением. Коммиты stash остаются те же. Пустое сообщение отвергается,
 // запись, сдвинутая чужим git stash push, тоже.
-func StashRename(dir string, stash Stash, message string) error {
-	return failed("stash rename", stashRename(dir, stash, message))
+func (r Repo) StashRename(stash Stash, message string) error {
+	return failed("stash rename", r.stashRename(stash, message))
 }
 
-func stashRename(dir string, stash Stash, message string) error {
+func (r Repo) stashRename(stash Stash, message string) error {
 	if strings.TrimSpace(message) == "" {
 		return i18n.New("git.emptyStashMessage", nil)
 	}
 
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-	stashes, err := stashList(root)
+	stashes, err := r.stashList()
 	if err != nil {
 		return err
 	}
@@ -154,7 +145,7 @@ func stashRename(dir string, stash Stash, message string) error {
 	// отказывают разве что при сломанном репозитории
 	above := stashes[:index+1]
 	for range above {
-		if _, err := run(call{dir: root}, "stash", "drop", "--quiet", "stash@{0}"); err != nil {
+		if _, err := r.inRoot("stash", "drop", "--quiet", "stash@{0}"); err != nil {
 			return err
 		}
 	}
@@ -163,7 +154,7 @@ func stashRename(dir string, stash Stash, message string) error {
 		if at == index {
 			subject = message
 		}
-		if _, err := run(call{dir: root}, "stash", "store", "--message", subject, above[at].Hash); err != nil {
+		if _, err := r.inRoot("stash", "store", "--message", subject, above[at].Hash); err != nil {
 			return err
 		}
 	}
@@ -172,8 +163,8 @@ func stashRename(dir string, stash Stash, message string) error {
 }
 
 // conflicted говорит, что в индексе есть неслитые пути.
-func conflicted(dir string) bool {
-	out, err := inRoot(dir, "diff", "--name-only", "--diff-filter=U")
+func (r Repo) conflicted() bool {
+	out, err := r.inRoot("diff", "--name-only", "--diff-filter=U")
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
@@ -210,8 +201,8 @@ const unreadable = "fatal: Could not read from remote repository."
 // StashDrop удаляет stash без применения. Вернуть его можно только через
 // reflog, поэтому удаление спрашивается заранее. Если stash@{N} уже другой
 // коммит, чем у строки списка, отказывает и ничего не удаляет.
-func StashDrop(dir string, stash Stash) error {
-	return failed("stash drop", stashAt(dir, stash, "drop"))
+func (r Repo) StashDrop(stash Stash) error {
+	return failed("stash drop", r.stashAt(stash, "drop"))
 }
 
 // stashAt выполняет git stash <действие> stash@{N}, только пока ссылка указывает
@@ -219,18 +210,13 @@ func StashDrop(dir string, stash Stash) error {
 // соседнего терминала сдвигает номера, и позиция из списка попала бы в чужой
 // stash. Между проверкой и действием остаётся окно в миллисекунды, закрыть его
 // git не даёт: drop принимает только ссылку.
-func stashAt(dir string, stash Stash, action string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	hash, err := run(call{dir: root}, "rev-parse", "--verify", "--quiet", stash.Ref)
+func (r Repo) stashAt(stash Stash, action string) error {
+	hash, err := r.inRoot("rev-parse", "--verify", "--quiet", stash.Ref)
 	if err != nil || strings.TrimSpace(hash) != stash.Hash {
 		return i18n.New("git.stashChanged", nil)
 	}
 
-	_, err = run(call{dir: root}, "stash", action, stash.Ref)
+	_, err = r.inRoot("stash", action, stash.Ref)
 	return err
 }
 
@@ -238,17 +224,13 @@ func stashAt(dir string, stash Stash, action string) error {
 // если в нём неотслеженные файлы (третий родитель, stash -u), дерево stash
 // вместе с ними. git diff по самому stash неотслеженных не видит. Дерево
 // собирается во временном индексе, настоящий индекс не трогается.
-func StashTree(dir, hash string) (string, error) {
-	tree, err := stashTree(dir, hash)
+func (r Repo) StashTree(hash string) (string, error) {
+	tree, err := r.stashTree(hash)
 	return tree, failed("stash", err)
 }
 
-func stashTree(dir, hash string) (string, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return "", err
-	}
-	untracked, err := run(call{dir: root}, "ls-tree", "-r", "-z", hash+"^3")
+func (r Repo) stashTree(hash string) (string, error) {
+	untracked, err := r.inRoot("ls-tree", "-r", "-z", hash+"^3")
 	if err != nil {
 		return hash, nil
 	}
@@ -259,7 +241,7 @@ func stashTree(dir, hash string) (string, error) {
 	}
 	defer os.RemoveAll(temp)
 
-	index := call{dir: root, env: []string{"GIT_INDEX_FILE=" + filepath.Join(temp, "index")}}
+	index := call{dir: r.root, env: []string{"GIT_INDEX_FILE=" + filepath.Join(temp, "index")}}
 	if _, err := run(index, "read-tree", hash); err != nil {
 		return "", err
 	}

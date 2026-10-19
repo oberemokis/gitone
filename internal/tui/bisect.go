@@ -21,7 +21,7 @@ func (m Model) askBisect(hash, label string) Model {
 	}
 	if m.location.Operation == "bisect" {
 		items = append(items, menuItem{label: m.text.Text("bisect.reset", nil), run: func(m Model) (tea.Model, tea.Cmd) {
-			return m.changeHistory(m.text.Text("bisect.resetDone", nil), git.BisectReset)
+			return m.changeHistory(m.text.Text("bisect.resetDone", nil), git.Repo.BisectReset)
 		}})
 	}
 	return m.openMenu(m.text.Text("bisect.title", nil), items)
@@ -36,9 +36,9 @@ func (m Model) markBisect(hash string, good bool) (tea.Model, tea.Cmd) {
 	}
 
 	m.active = noWindow
-	dir, text := m.dir, m.text
+	repo, text := m.repo, m.text
 	return m, func() tea.Msg {
-		step, err := git.BisectMark(dir, hash, good)
+		step, err := repo.BisectMark(hash, good)
 		if err != nil {
 			return actionDoneMsg{err: err}
 		}

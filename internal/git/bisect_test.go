@@ -3,8 +3,6 @@ package git_test
 import (
 	"fmt"
 	"testing"
-
-	"gitone/internal/git"
 )
 
 // eightCommits это ветка main из коммитов c1…c8, правящих a.txt.
@@ -27,7 +25,7 @@ func TestBisect(t *testing.T) {
 	repo := eightCommits(t)
 	c1, c4 := revision(t, repo, "HEAD~7"), revision(t, repo, "HEAD~4")
 
-	step, err := git.BisectMark(repo, "HEAD", false)
+	step, err := open(t, repo).BisectMark("HEAD", false)
 	if err != nil || step.Commit != "" || step.Found {
 		t.Fatalf("первая отметка = %+v, %v, ожидалось ожидание второй", step, err)
 	}
@@ -35,13 +33,13 @@ func TestBisect(t *testing.T) {
 		t.Fatalf("Operation = %q, ожидался bisect", got)
 	}
 
-	step, err = git.BisectMark(repo, c1, true)
+	step, err = open(t, repo).BisectMark(c1, true)
 	if err != nil || step.Commit != c4 || step.Subject != "c4" || step.Left != 3 {
 		t.Fatalf("вторая отметка = %+v, %v, ожидался переход на c4", step, err)
 	}
 
 	for _, good := range []bool{false, true} {
-		if step, err = git.BisectMark(repo, "HEAD", good); err != nil {
+		if step, err = open(t, repo).BisectMark("HEAD", good); err != nil {
 			t.Fatalf("BisectMark: %v", err)
 		}
 	}
@@ -49,7 +47,7 @@ func TestBisect(t *testing.T) {
 		t.Fatalf("итог = %+v, ожидался найденный c4", step)
 	}
 
-	if err := git.BisectReset(repo); err != nil {
+	if err := open(t, repo).BisectReset(); err != nil {
 		t.Fatalf("BisectReset: %v", err)
 	}
 	if got := runGit(t, repo, "branch", "--show-current"); got != "main\n" {
@@ -69,10 +67,10 @@ func TestBisectInOtherLanguage(t *testing.T) {
 	t.Setenv("LANGUAGE", "ru")
 	t.Setenv("LC_ALL", "ru_RU.UTF-8")
 
-	if _, err := git.BisectMark(repo, "HEAD", false); err != nil {
+	if _, err := open(t, repo).BisectMark("HEAD", false); err != nil {
 		t.Fatalf("BisectMark: %v", err)
 	}
-	step, err := git.BisectMark(repo, "HEAD~7", true)
+	step, err := open(t, repo).BisectMark("HEAD~7", true)
 	if err != nil || step.Left != 3 || step.Subject != "c4" {
 		t.Fatalf("вторая отметка = %+v, %v, ожидались c4 и 3", step, err)
 	}
@@ -84,10 +82,10 @@ func TestBisectDirtyTree(t *testing.T) {
 	c1 := revision(t, repo, "HEAD~7")
 	write(t, repo, "a.txt", "dirty\n")
 
-	if _, err := git.BisectMark(repo, "HEAD", false); err != nil {
+	if _, err := open(t, repo).BisectMark("HEAD", false); err != nil {
 		t.Fatalf("первая отметка: %v", err)
 	}
-	if _, err := git.BisectMark(repo, c1, true); err == nil {
+	if _, err := open(t, repo).BisectMark(c1, true); err == nil {
 		t.Fatal("bisect перешёл на коммит поверх грязного дерева")
 	}
 }

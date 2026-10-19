@@ -4,11 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gitone/internal/i18n"
 )
 
 // ConflictedPaths возвращает пути с нерешённым конфликтом слияния (#242).
-func ConflictedPaths(dir string) ([]string, error) {
-	out, err := inRoot(dir, "diff", "--name-only", "--diff-filter=U", "-z")
+func (r Repo) ConflictedPaths() ([]string, error) {
+	out, err := r.inRoot("diff", "--name-only", "--diff-filter=U", "-z")
 	if err != nil {
 		return nil, failed("diff", err)
 	}
@@ -25,56 +27,54 @@ func ConflictedPaths(dir string) ([]string, error) {
 // ResolveFile решает конфликт файла целиком: берёт нашу или их версию из
 // индекса и ставит её, то есть помечает конфликт решённым. Бинарный файл
 // решается только так.
-func ResolveFile(dir, path string, theirs bool) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return failed("checkout", err)
-	}
-
+func (r Repo) ResolveFile(path string, theirs bool) error {
 	side := "--ours"
 	if theirs {
 		side = "--theirs"
 	}
-	if _, err := run(literal(root), "checkout", side, "--", path); err != nil {
+	if _, err := run(literal(r.root), "checkout", side, "--", path); err != nil {
 		return failed("checkout", headline(err))
 	}
-	_, err = run(literal(root), "add", "--", path)
+	_, err := run(literal(r.root), "add", "--", path)
 	return failed("add", headline(err))
+}
+
+// file это имя файла рабочего дерева по пути от корня. Нулевой Repo не
+// репозиторий: имени в текущем каталоге процесса он не даёт.
+func (r Repo) file(path string) (string, error) {
+	if r.root == "" {
+		return "", i18n.New("git.noRepository", nil)
+	}
+	return filepath.Join(r.root, filepath.FromSlash(path)), nil
 }
 
 // WorktreeFile читает файл рабочего дерева по пути от корня: решение конфликта
 // по хунку правит его текст.
-func WorktreeFile(dir, path string) (string, error) {
-	root, err := topLevel(dir)
+func (r Repo) WorktreeFile(path string) (string, error) {
+	name, err := r.file(path)
 	if err != nil {
 		return "", err
 	}
 
-	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	content, err := os.ReadFile(name)
 	return string(content), err
 }
 
 // HeadFile читает файл из HEAD по пути от корня, пустой текст, если его там
 // нет: маркеры конфликта, которые уже лежали в HEAD, решать не нужно.
-func HeadFile(dir, path string) string {
-	root, err := topLevel(dir)
-	if err != nil {
-		return ""
-	}
-
-	content, _ := run(call{dir: root}, "cat-file", "blob", "HEAD:"+path)
+func (r Repo) HeadFile(path string) string {
+	content, _ := r.inRoot("cat-file", "blob", "HEAD:"+path)
 	return content
 }
 
 // WriteWorktreeFile записывает текст в файл рабочего дерева, права файла
 // остаются прежними.
-func WriteWorktreeFile(dir, path, text string) error {
-	root, err := topLevel(dir)
+func (r Repo) WriteWorktreeFile(path, text string) error {
+	name, err := r.file(path)
 	if err != nil {
 		return err
 	}
 
-	name := filepath.Join(root, filepath.FromSlash(path))
 	info, err := os.Stat(name)
 	if err != nil {
 		return err

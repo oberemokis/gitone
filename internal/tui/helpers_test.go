@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/config"
+	"gitone/internal/git"
 	"gitone/internal/keymap"
 	"gitone/internal/layout"
 	"gitone/internal/tui"
@@ -119,27 +120,48 @@ func numberedLines(count int) string {
 // дифф, и тесты диффа не видят панель файлов. Заметки подвала в нём не гаснут:
 // settle доводит команды до конца и ждал бы таймер в пять секунд, а потом
 // стёр бы заметку, которую тест хочет увидеть. Гашение проверяет notice_test.go.
+// Репозиторий открывается сразу: каталог repo создан тестом, и отказ git здесь
+// значит сломанный тест, а не проверяемое поведение. Пустой repo это модель
+// без репозитория для тестов одного экрана: git на нулевом Repo отказывает.
 func options(repo string, root layout.Node) tui.Options {
-	return tui.Options{Dir: repo, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true}
+	var opened git.Repo
+	if repo != "" {
+		var err error
+		if opened, err = tui.Open(repo); err != nil {
+			panic(fmt.Sprintf("Open(%s): %v", repo, err))
+		}
+	}
+	return tui.Options{Repo: opened, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true}
 }
 
-// open загружает дифф каталога opts.Dir с аргументами opts.Args, индекс и
+// open загружает дифф репозитория opts.Repo с аргументами opts.Args, индекс и
 // место подвала так же, как cmd/gitone при запуске: space решает по индексу.
 func open(t *testing.T, opts tui.Options) tea.Model {
 	t.Helper()
 
-	files, err := tui.Load(opts.Dir, opts.Args)
+	files, err := tui.Load(opts.Repo, opts.Args)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if opts.Index, err = tui.ReadIndex(opts.Dir); err != nil {
+	if opts.Index, err = tui.ReadIndex(opts.Repo); err != nil {
 		t.Fatalf("ReadIndex: %v", err)
 	}
-	if opts.Location, err = tui.Locate(opts.Dir); err != nil {
+	if opts.Location, err = tui.Locate(opts.Repo); err != nil {
 		t.Fatalf("Locate: %v", err)
 	}
 
 	return tui.New(opts, files)
+}
+
+// openedRepo открывает репозиторий каталога dir для проверок через git.
+func openedRepo(t *testing.T, dir string) git.Repo {
+	t.Helper()
+
+	repo, err := git.Open(dir)
+	if err != nil {
+		t.Fatalf("Open(%s): %v", dir, err)
+	}
+	return repo
 }
 
 func resize(model tea.Model, width, height int) tea.Model {

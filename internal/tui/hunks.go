@@ -25,10 +25,10 @@ type unstagedMsg struct {
 func (msg unstagedMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.unstagedArrived(msg), nil }
 
 func (m Model) unstagedCmd(path string, refresh bool) tea.Cmd {
-	dir, flags := m.dir, m.diffFlags()
-	view := reloadMsg{dir: dir, args: m.args, flags: flags}
+	repo, flags := m.repo, m.diffFlags()
+	view := reloadMsg{repo: repo, args: m.args, flags: flags}
 	return func() tea.Msg {
-		text, err := git.UnstagedDiff(dir, path, flags...)
+		text, err := repo.UnstagedDiff(path, flags...)
 		msg := unstagedMsg{view: view, path: path, refresh: refresh, err: err}
 		if files := diff.Parse(text); len(files) > 0 {
 			msg.file, msg.found = files[0], true
@@ -177,7 +177,7 @@ func (m Model) stageSelection() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, applySelection(m.dir, stagedKey(m.files[m.current]), selected, false, m.text.Text("select.staged", nil))
+	return m, applySelection(m.repo, stagedKey(m.files[m.current]), selected, false, m.text.Text("select.staged", nil))
 }
 
 // askDiscardSelection спрашивает, прежде чем вернуть выделенные строки
@@ -193,12 +193,12 @@ func (m Model) askDiscardSelection() (tea.Model, tea.Cmd) {
 	}
 
 	file := m.files[m.current]
-	dir, path := m.dir, stagedKey(file)
+	repo, path := m.repo, stagedKey(file)
 	args := questionArgs(m.keys)
 	args["file"] = fileTitle(file, m.text)
 	note := m.text.Text("select.discarded", nil)
 	return m.ask(m.text.Text("select.discardQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
-		return m, applySelection(dir, path, selected, true, note)
+		return m, applySelection(repo, path, selected, true, note)
 	}), nil
 }
 
@@ -214,9 +214,9 @@ func (m Model) selectedSet() map[diff.LineRef]bool {
 // рабочем дереве к индексу обратным патчем. Патч собирается из свежего диффа
 // без флагов вида: строки ищутся по номерам. Контекст задан явно, а не взят из
 // diff.context: хунк без контекста git apply ставит не на своё место.
-func applySelection(dir, path string, selected map[diff.LineRef]bool, discard bool, note string) tea.Cmd {
+func applySelection(repo git.Repo, path string, selected map[diff.LineRef]bool, discard bool, note string) tea.Cmd {
 	return func() tea.Msg {
-		text, err := git.UnstagedDiff(dir, path, "--unified=3")
+		text, err := repo.UnstagedDiff(path, "--unified=3")
 		if err != nil {
 			return actionDoneMsg{err: err}
 		}
@@ -224,6 +224,6 @@ func applySelection(dir, path string, selected map[diff.LineRef]bool, discard bo
 		if patch == "" {
 			return actionDoneMsg{err: i18n.New("select.gone", nil)}
 		}
-		return actionDoneMsg{err: git.ApplyPatch(dir, patch, !discard, discard), note: note}
+		return actionDoneMsg{err: repo.ApplyPatch(patch, !discard, discard), note: note}
 	}
 }

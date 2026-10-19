@@ -39,7 +39,7 @@ func TestCancelStopsGitAndItsChildren(t *testing.T) {
 	cases := []struct {
 		name    string
 		prepare func(t *testing.T, origin, local, script string)
-		run     func(ctx context.Context, repo string) error
+		run     func(ctx context.Context, repo git.Repo) error
 	}{
 		{
 			name: "pull",
@@ -47,8 +47,8 @@ func TestCancelStopsGitAndItsChildren(t *testing.T) {
 				publish(t, origin, "b.txt", "two\n")
 				runGit(t, local, "config", "remote.origin.uploadpack", script)
 			},
-			run: func(ctx context.Context, repo string) error {
-				_, err := git.Pull(ctx, repo)
+			run: func(ctx context.Context, repo git.Repo) error {
+				_, err := repo.Pull(ctx)
 				return err
 			},
 		},
@@ -59,8 +59,8 @@ func TestCancelStopsGitAndItsChildren(t *testing.T) {
 				commitAll(t, local)
 				runGit(t, local, "config", "remote.origin.receivepack", script)
 			},
-			run: func(ctx context.Context, repo string) error {
-				_, err := git.Push(ctx, repo)
+			run: func(ctx context.Context, repo git.Repo) error {
+				_, err := repo.Push(ctx)
 				return err
 			},
 		},
@@ -85,7 +85,8 @@ func TestCancelStopsGitAndItsChildren(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			done := make(chan error, 1)
-			go func() { done <- tc.run(ctx, local) }()
+			repo := open(t, local)
+			go func() { done <- tc.run(ctx, repo) }()
 
 			running := make(chan struct{})
 			go func() {

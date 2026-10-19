@@ -22,9 +22,9 @@ type worktreesMsg struct {
 
 func (msg worktreesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.worktreesArrived(msg), nil }
 
-func worktreesCmd(dir string) tea.Cmd {
+func worktreesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		worktrees, err := git.Worktrees(dir)
+		worktrees, err := repo.Worktrees()
 		return worktreesMsg{worktrees: worktrees, err: err}
 	}
 }
@@ -39,22 +39,25 @@ func currentWorktree(worktrees []git.Worktree) int {
 	return max(slices.IndexFunc(worktrees, func(w git.Worktree) bool { return w.Current }), 0)
 }
 
-// worktreeCheckedMsg несёт итог проверки каталога выбранного дерева: ошибку
-// os или nil.
+// worktreeCheckedMsg несёт открытый репозиторий выбранного дерева или ошибку
+// проверки его каталога.
 type worktreeCheckedMsg struct {
-	path string
+	repo git.Repo
 	err  error
 }
 
 func (msg worktreeCheckedMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.worktreeChecked(msg) }
 
-// checkWorktreeCmd проверяет каталог дерева до переключения. Запертое дерево на
-// отключённом диске git держит в списке без prunable, и выбор такого дерева
-// оставил бы gitone в каталоге, которого нет.
+// checkWorktreeCmd проверяет каталог дерева до переключения и открывает его
+// репозиторий. Запертое дерево на отключённом диске git держит в списке без
+// prunable, и выбор такого дерева оставил бы gitone в каталоге, которого нет.
 func checkWorktreeCmd(path string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := os.Stat(path)
-		return worktreeCheckedMsg{path: path, err: err}
+		if _, err := os.Stat(path); err != nil {
+			return worktreeCheckedMsg{err: err}
+		}
+		repo, err := git.Open(path)
+		return worktreeCheckedMsg{repo: repo, err: err}
 	}
 }
 
@@ -67,7 +70,7 @@ func (m Model) worktreeChecked(msg worktreeCheckedMsg) (tea.Model, tea.Cmd) {
 		return m.say(m.text.Error(msg.err)), nil
 	}
 
-	m.dir = msg.path
+	m.repo = msg.repo
 	m.args, m.baseArgs = nil, nil
 	return m.startReload()
 }

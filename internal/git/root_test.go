@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"gitone/internal/diff"
-	"gitone/internal/git"
 )
 
 // Аргументы из подкаталога считаются от него, как в git: gitone file.txt в
@@ -32,7 +31,7 @@ func TestGitErrorKeepsExitCode(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	_, err := git.Diff(repo, []string{"main..nope"})
+	_, err := open(t, repo).Diff([]string{"main..nope"})
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {

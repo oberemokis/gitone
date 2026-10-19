@@ -4,15 +4,14 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"gitone/internal/i18n"
 )
 
 // Stage добавляет пути в индекс. Удалённый файл тоже: add -A берёт и удаление.
-func Stage(dir string, paths []string) error {
-	return failed("add", stage(dir, paths))
+func (r Repo) Stage(paths []string) error {
+	return failed("add", r.stage(paths))
 }
 
 // noPaths это отказ пустому списку путей до вызова git: `git add -A --` без
@@ -21,42 +20,32 @@ func noPaths() error {
 	return i18n.New("git.noPaths", nil)
 }
 
-func stage(dir string, paths []string) error {
+func (r Repo) stage(paths []string) error {
 	if len(paths) == 0 {
 		return noPaths()
 	}
 
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	_, err = run(literal(root), append([]string{"add", "-A", "--"}, paths...)...)
+	_, err := run(literal(r.root), append([]string{"add", "-A", "--"}, paths...)...)
 	return err
 }
 
 // Unstage убирает пути из индекса. Правка в рабочем дереве остаётся на месте.
-func Unstage(dir string, paths []string) error {
-	return failed("restore", unstage(dir, paths))
+func (r Repo) Unstage(paths []string) error {
+	return failed("restore", r.unstage(paths))
 }
 
-func unstage(dir string, paths []string) error {
+func (r Repo) unstage(paths []string) error {
 	if len(paths) == 0 {
 		return noPaths()
 	}
 
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
 	command := []string{"restore", "--staged", "--"}
-	if !hasCommits(root) {
+	if !hasCommits(r.root) {
 		// Без HEAD восстанавливать не из чего: запись просто выходит из индекса.
 		command = []string{"rm", "--cached", "--quiet", "--"}
 	}
 
-	_, err = run(literal(root), append(command, paths...)...)
+	_, err := run(literal(r.root), append(command, paths...)...)
 	return err
 }
 
@@ -70,20 +59,16 @@ const submoduleMode = "160000"
 // каталоге на диске.
 // Ошибка git на файле из HEAD не трогает диск: решается по ls-tree, а не по
 // сбою restore, чтобы сбой не стёр правку.
-func Discard(dir string, paths []string) error {
-	return failed("restore", discard(dir, paths))
+func (r Repo) Discard(paths []string) error {
+	return failed("restore", r.discard(paths))
 }
 
-func discard(dir string, paths []string) error {
+func (r Repo) discard(paths []string) error {
 	if len(paths) == 0 {
 		return noPaths()
 	}
 
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
+	root := r.root
 	base, err := baseRevision(root)
 	if err != nil {
 		return err
@@ -123,7 +108,11 @@ func discard(dir string, paths []string) error {
 		if _, err := run(literal(root), "rm", "-f", "--cached", "--ignore-unmatch", "--quiet", "--", path); err != nil {
 			return err
 		}
-		if err := os.Remove(filepath.Join(root, path)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		name, err := r.file(path)
+		if err != nil {
+			return err
+		}
+		if err := os.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 	}
@@ -151,8 +140,8 @@ func indexMode(root, path string) (string, error) {
 // StagedPaths возвращает пути, у которых индекс отличается от HEAD. Неслитые
 // пути (конфликт слияния) не в счёте: их ещё нужно пометить разрешёнными, то
 // есть поставить, а не убрать из индекса.
-func StagedPaths(dir string) ([]string, error) {
-	out, err := inRoot(dir, "diff", "--cached", "--name-only", "-z", "--diff-filter=u")
+func (r Repo) StagedPaths() ([]string, error) {
+	out, err := r.inRoot("diff", "--cached", "--name-only", "-z", "--diff-filter=u")
 	if err != nil {
 		return nil, failed("diff", err)
 	}

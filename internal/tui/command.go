@@ -11,7 +11,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
 )
@@ -39,13 +38,8 @@ func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
 		path = stagedKey(m.files[m.current])
 	}
 
-	dir, done := m.dir, m.text.Text("command.done", i18n.Args{"name": visible(name)})
+	root, done := m.repo.Root(), m.text.Text("command.done", i18n.Args{"name": visible(name)})
 	return m, func() tea.Msg {
-		root, err := git.Root(dir)
-		if err != nil {
-			return actionDoneMsg{err: err}
-		}
-
 		output, err := runShell(root, script, path)
 		if err != nil {
 			return actionDoneMsg{err: err}

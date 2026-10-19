@@ -32,9 +32,9 @@ type logMsg struct {
 
 func (msg logMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.logArrived(msg), nil }
 
-func logCmd(dir string, filter git.LogFilter) tea.Cmd {
+func logCmd(repo git.Repo, filter git.LogFilter) tea.Cmd {
 	return func() tea.Msg {
-		entries, err := git.Log(dir, logLimit, filter)
+		entries, err := repo.Log(logLimit, filter)
 		return logMsg{entries: entries, filter: filter, err: err, at: -1}
 	}
 }
@@ -66,7 +66,7 @@ func (m Model) fileHistory() (tea.Model, tea.Cmd) {
 	if path == "" {
 		return m.putNotice(m.text.Text("stage.noFile", nil), true), nil
 	}
-	return m, logCmd(m.dir, git.LogFilter{Path: path, File: true})
+	return m, logCmd(m.repo, git.LogFilter{Path: path, File: true})
 }
 
 // refilterLog ставит в открытый лог список под новым фильтром (#226). Курсор
@@ -118,7 +118,7 @@ func abs(number int) int {
 func (m Model) askLogFilter() Model {
 	filter := m.logFilter
 	reload := func(m Model, next git.LogFilter) (tea.Model, tea.Cmd) {
-		return m, logCmd(m.dir, next)
+		return m, logCmd(m.repo, next)
 	}
 	field := func(titleKey, value string, set func(text string) git.LogFilter) menuItem {
 		title := m.text.Text(titleKey, nil)
@@ -164,16 +164,16 @@ func logTitle(text i18n.Dictionary, filter git.LogFilter) string {
 var logActions = []windowAction[git.LogEntry]{
 	{action: keymap.LogOpen, run: Model.showCommit},
 	{action: keymap.LogCheckout, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
-			return git.CheckoutCommit(dir, entry.Hash)
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+			return repo.CheckoutCommit(entry.Hash)
 		})
 	}},
 	{action: keymap.LogNewBranch, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
 	}},
 	{action: keymap.LogRevert, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
-			return git.Revert(dir, entry.Hash)
+		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+			return repo.Revert(entry.Hash)
 		})
 	}},
 	{action: keymap.LogReset, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
@@ -250,22 +250,22 @@ func (m Model) pasteCommit() (tea.Model, tea.Cmd) {
 		return m.putNotice(m.text.Text("log.nothingCopied", i18n.Args{"key": firstKey(m.keys, keymap.CherryPickCopy)}), false), nil
 	}
 
-	return m.changeHistory(m.text.Text("log.picked", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
-		return git.CherryPick(dir, entry.Hash)
+	return m.changeHistory(m.text.Text("log.picked", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+		return repo.CherryPick(entry.Hash)
 	})
 }
 
 // changeHistory закрывает лог и выполняет правку истории change, подвал говорит
 // итог note. Пока идёт pull или push, правка отказывает, окно остаётся.
-func (m Model) changeHistory(note string, change func(dir string) error) (tea.Model, tea.Cmd) {
+func (m Model) changeHistory(note string, change func(repo git.Repo) error) (tea.Model, tea.Cmd) {
 	if next, refused := m.refuseWhileRemote(); refused {
 		return next, nil
 	}
 
 	m.active = noWindow
-	dir := m.dir
+	repo := m.repo
 	return m, func() tea.Msg {
-		return actionDoneMsg{err: change(dir), note: note}
+		return actionDoneMsg{err: change(repo), note: note}
 	}
 }
 

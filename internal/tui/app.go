@@ -32,8 +32,8 @@ const wheelStep = 3
 const shiftStep = 8
 
 type Model struct {
-	// dir и args нужны для перечитывания по r: тот же git diff, что при запуске
-	dir     string
+	// repo и args нужны для перечитывания по r: тот же git diff, что при запуске
+	repo    git.Repo
 	args    []string
 	loading bool
 	// load номер последней начатой загрузки: шаги спиннера других загрузок
@@ -139,11 +139,11 @@ type Model struct {
 	exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd
 }
 
-// Options это всё, что корню нужно до запуска: каталог и аргументы для
-// перечитывания по r, настройки, клавиши, раскладка и текст ошибок их загрузки
-// для подвала. Пустая раскладка значит один дифф на весь экран.
+// Options это всё, что корню нужно до запуска: репозиторий (Open) и аргументы
+// для перечитывания по r, настройки, клавиши, раскладка и текст ошибок их
+// загрузки для подвала. Пустая раскладка значит один дифф на весь экран.
 type Options struct {
-	Dir    string
+	Repo   git.Repo
 	Args   []string
 	Config config.Config
 	Keys   keymap.Keymap
@@ -203,7 +203,7 @@ func New(opts Options, files []diff.File) Model {
 		now:      now,
 		exec:     run,
 		noFade:   opts.KeepNotices,
-		dir:      opts.Dir,
+		repo:     opts.Repo,
 		args:     opts.Args,
 		baseArgs: opts.Args,
 		context:  -1,
@@ -224,7 +224,7 @@ func New(opts Options, files []diff.File) Model {
 
 // Init ждёт тик опроса и записывает открытый репозиторий в недавние (#248).
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(waitTick(m.ticks), rememberRepoCmd(m.stateDir, m.dir))
+	return tea.Batch(waitTick(m.ticks), rememberRepoCmd(m.stateDir, m.repo.Root()))
 }
 
 // Update разбирает сообщение, а после него следит, чтобы открытый
@@ -331,7 +331,7 @@ func (m Model) startReload() (Model, tea.Cmd) {
 	m.stale = false
 	m.spin = 0
 	m = m.dropQuestion()
-	return m, tea.Batch(spinTick(m.load), reload(m.dir, m.args, m.diffFlags()))
+	return m, tea.Batch(spinTick(m.load), reload(m.repo, m.args, m.diffFlags()))
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать

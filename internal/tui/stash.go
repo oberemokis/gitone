@@ -21,9 +21,9 @@ type stashesMsg struct {
 
 func (msg stashesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.stashesArrived(msg) }
 
-func stashListCmd(dir string) tea.Cmd {
+func stashListCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		stashes, err := git.Stashes(dir)
+		stashes, err := repo.Stashes()
 		return stashesMsg{stashes: stashes, err: err}
 	}
 }
@@ -54,9 +54,9 @@ type stashTreeMsg struct {
 
 func (msg stashTreeMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.openStashDiff(msg) }
 
-func stashTreeCmd(dir, hash string) tea.Cmd {
+func stashTreeCmd(repo git.Repo, hash string) tea.Cmd {
 	return func() tea.Msg {
-		tree, err := git.StashTree(dir, hash)
+		tree, err := repo.StashTree(hash)
 		return stashTreeMsg{hash: hash, tree: tree, err: err}
 	}
 }
@@ -79,20 +79,20 @@ func (m Model) openStashDiff(msg stashTreeMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
-func stashPushCmd(dir string) tea.Cmd {
+func stashPushCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.StashPush(dir, git.StashOptions{})}
+		return actionDoneMsg{err: repo.StashPush(git.StashOptions{})}
 	}
 }
 
 // stashNewCmd сохраняет stash с параметрами и отвечает новым списком: окно
 // stash остаётся открытым, и новая запись видна сразу.
-func stashNewCmd(dir string, opts git.StashOptions) tea.Cmd {
+func stashNewCmd(repo git.Repo, opts git.StashOptions) tea.Cmd {
 	return func() tea.Msg {
-		if err := git.StashPush(dir, opts); err != nil {
+		if err := repo.StashPush(opts); err != nil {
 			return stashesMsg{err: err}
 		}
-		msg := stashListCmd(dir)().(stashesMsg)
+		msg := stashListCmd(repo)().(stashesMsg)
 		msg.edit = true
 		return msg
 	}
@@ -100,25 +100,25 @@ func stashNewCmd(dir string, opts git.StashOptions) tea.Cmd {
 
 // stashRenameCmd меняет сообщение записи и отвечает новым списком с курсором
 // на ней же: порядок записей переименование не меняет.
-func stashRenameCmd(dir string, stash git.Stash, at int, message string) tea.Cmd {
+func stashRenameCmd(repo git.Repo, stash git.Stash, at int, message string) tea.Cmd {
 	return func() tea.Msg {
-		if err := git.StashRename(dir, stash, message); err != nil {
+		if err := repo.StashRename(stash, message); err != nil {
 			return stashesMsg{err: err}
 		}
-		msg := stashListCmd(dir)().(stashesMsg)
+		msg := stashListCmd(repo)().(stashesMsg)
 		msg.edit, msg.at = true, at
 		return msg
 	}
 }
 
 // askStashMessage спрашивает новое сообщение записи (#237), в поле стоит
-// прежнее. Пустое поле не закрывается молча: git.StashRename отвечает
+// прежнее. Пустое поле не закрывается молча: Repo.StashRename отвечает
 // причиной в подвале.
 func (m Model) askStashMessage(stash git.Stash) Model {
 	at := m.cursor
 	title := m.text.Text("stash.renameTitle", i18n.Args{"ref": visible(stash.Ref)})
 	m = m.openPrompt(title, stash.Subject, func(m Model, message string) (tea.Model, tea.Cmd) {
-		return m, stashRenameCmd(m.dir, stash, at, message)
+		return m, stashRenameCmd(m.repo, stash, at, message)
 	})
 	m.prompt.empty = true
 	return m
@@ -132,7 +132,7 @@ func (m Model) askStashOptions() Model {
 		return menuItem{label: label, run: func(m Model) (tea.Model, tea.Cmd) {
 			m = m.openPrompt(label, "", func(m Model, message string) (tea.Model, tea.Cmd) {
 				opts.Message = message
-				return m, stashNewCmd(m.dir, opts)
+				return m, stashNewCmd(m.repo, opts)
 			})
 			m.prompt.empty = true
 			return m, nil
@@ -146,21 +146,21 @@ func (m Model) askStashOptions() Model {
 	})
 }
 
-func stashApplyCmd(dir string, stash git.Stash) tea.Cmd {
+func stashApplyCmd(repo git.Repo, stash git.Stash) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.StashApply(dir, stash)}
+		return actionDoneMsg{err: repo.StashApply(stash)}
 	}
 }
 
-func stashDropCmd(dir string, stash git.Stash) tea.Cmd {
+func stashDropCmd(repo git.Repo, stash git.Stash) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.StashDrop(dir, stash)}
+		return actionDoneMsg{err: repo.StashDrop(stash)}
 	}
 }
 
-func stashPopCmd(dir string, stash git.Stash) tea.Cmd {
+func stashPopCmd(repo git.Repo, stash git.Stash) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.StashPop(dir, stash)}
+		return actionDoneMsg{err: repo.StashPop(stash)}
 	}
 }
 
@@ -175,15 +175,15 @@ var stashActions = []windowAction[git.Stash]{
 		m.active = noWindow
 		m.args = []string{stash.Hash + "^1", stash.Hash}
 		next, reload := m.startReload()
-		return next, tea.Batch(reload, stashTreeCmd(m.dir, stash.Hash))
+		return next, tea.Batch(reload, stashTreeCmd(m.repo, stash.Hash))
 	}},
 	{action: keymap.StashApply, changesRepo: true, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
 		m.active = noWindow
-		return m, stashApplyCmd(m.dir, stash)
+		return m, stashApplyCmd(m.repo, stash)
 	}},
 	{action: keymap.StashPop, changesRepo: true, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
 		m.active = noWindow
-		return m, stashPopCmd(m.dir, stash)
+		return m, stashPopCmd(m.repo, stash)
 	}},
 	{action: keymap.StashDrop, changesRepo: true, run: func(m Model, _ git.Stash) (tea.Model, tea.Cmd) {
 		m.active = stashDropWindow
@@ -216,7 +216,7 @@ func (m Model) answerStashDrop(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.active = noWindow
-	return m, stashDropCmd(m.dir, m.stashes[m.cursor])
+	return m, stashDropCmd(m.repo, m.stashes[m.cursor])
 }
 
 // stashBox рисует список stash. Вопрос об удалении стоит в последней строке

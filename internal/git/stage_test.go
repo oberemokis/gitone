@@ -19,14 +19,14 @@ func TestStageAndUnstage(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
 
-	if err := git.Stage(repo, []string{"a.txt"}); err != nil {
+	if err := open(t, repo).Stage([]string{"a.txt"}); err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 	if staged := mustStaged(t, repo); !slices.Equal(staged, []string{"a.txt"}) {
 		t.Fatalf("в индексе %q, ожидался a.txt", staged)
 	}
 
-	if err := git.Unstage(repo, []string{"a.txt"}); err != nil {
+	if err := open(t, repo).Unstage([]string{"a.txt"}); err != nil {
 		t.Fatalf("Unstage: %v", err)
 	}
 	if staged := mustStaged(t, repo); len(staged) != 0 {
@@ -44,7 +44,7 @@ func TestDiscardRestoresTrackedFile(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "two\n")
 
-	if err := git.Discard(repo, []string{"a.txt"}); err != nil {
+	if err := open(t, repo).Discard([]string{"a.txt"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "one\n" {
@@ -59,7 +59,7 @@ func TestDiscardRemovesUntrackedFile(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "new.txt", "fresh\n")
 
-	if err := git.Discard(repo, []string{"new.txt"}); err != nil {
+	if err := open(t, repo).Discard([]string{"new.txt"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(repo, "new.txt")); !os.IsNotExist(err) {
@@ -75,7 +75,7 @@ func TestDiscardDropsStagedNewFile(t *testing.T) {
 	write(t, repo, "new.txt", "fresh\n")
 	runGit(t, repo, "add", "new.txt")
 
-	if err := git.Discard(repo, []string{"new.txt"}); err != nil {
+	if err := open(t, repo).Discard([]string{"new.txt"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if staged := mustStaged(t, repo); len(staged) != 0 {
@@ -94,7 +94,7 @@ func TestDiscardRestoresTrackedFileWithLeadingColon(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, ":note.md", "two\n")
 
-	if err := git.Discard(repo, []string{":note.md"}); err != nil {
+	if err := open(t, repo).Discard([]string{":note.md"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, ":note.md")); got != "one\n" {
@@ -103,24 +103,22 @@ func TestDiscardRestoresTrackedFileWithLeadingColon(t *testing.T) {
 }
 
 // `git add -A --` без путей ставит в индекс всё дерево, поэтому пустой список
-// отказывает до git. Каталог вне репозитория это доказывает: вызов git дал бы
-// «not a git repository», а не отказ из словаря.
+// отказывает до git. Нулевой Repo это доказывает: вызов git дал бы
+// git.noRepository, а не git.noPaths.
 func TestEmptyPathListIsRefusedBeforeGit(t *testing.T) {
+	var none git.Repo
 	tests := []struct {
 		name string
-		call func(dir string, paths []string) error
+		call func(paths []string) error
 	}{
-		{name: "Stage", call: git.Stage},
-		{name: "Unstage", call: git.Unstage},
-		{name: "Discard", call: git.Discard},
+		{name: "Stage", call: none.Stage},
+		{name: "Unstage", call: none.Unstage},
+		{name: "Discard", call: none.Discard},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			outside := t.TempDir()
-			t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(outside))
-
-			err := tc.call(outside, nil)
+			err := tc.call(nil)
 
 			var refusal *i18n.Error
 			if !errors.As(err, &refusal) || refusal.Key != "git.noPaths" {
@@ -130,6 +128,24 @@ func TestEmptyPathListIsRefusedBeforeGit(t *testing.T) {
 	}
 }
 
+// Нулевой Repo не репозиторий: команда отказывает до запуска git, а не идёт в
+// текущий каталог процесса, где лежит чужой репозиторий (#356).
+func TestZeroRepoRefusesBeforeGit(t *testing.T) {
+	var none git.Repo
+
+	if err := none.Stage([]string{"a.txt"}); !isRefusal(err, "git.noRepository") {
+		t.Errorf("Stage на нулевом Repo = %v, ожидался отказ git.noRepository", err)
+	}
+	if _, err := none.WorktreeFile("a.txt"); !isRefusal(err, "git.noRepository") {
+		t.Errorf("WorktreeFile на нулевом Repo = %v, ожидался отказ git.noRepository", err)
+	}
+}
+
+func isRefusal(err error, key string) bool {
+	var refusal *i18n.Error
+	return errors.As(err, &refusal) && refusal.Key == key
+}
+
 // До первого коммита restore --staged падает: восстанавливать не из чего. Файл
 // всё равно должен уходить из индекса, а правка на диске оставаться.
 func TestUnstageBeforeFirstCommit(t *testing.T) {
@@ -137,7 +153,7 @@ func TestUnstageBeforeFirstCommit(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Unstage(repo, []string{"a.txt"}); err != nil {
+	if err := open(t, repo).Unstage([]string{"a.txt"}); err != nil {
 		t.Fatalf("Unstage: %v", err)
 	}
 	if staged := mustStaged(t, repo); len(staged) != 0 {
@@ -157,7 +173,7 @@ func TestDiscardRestoresStagedChange(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Discard(repo, []string{"a.txt"}); err != nil {
+	if err := open(t, repo).Discard([]string{"a.txt"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if staged := mustStaged(t, repo); len(staged) != 0 {
@@ -175,7 +191,7 @@ func TestDiscardRemovesUntrackedFileFromSubdirectory(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "sub/new.txt", "fresh\n")
 
-	if err := git.Discard(filepath.Join(repo, "sub"), []string{"sub/new.txt"}); err != nil {
+	if err := open(t, filepath.Join(repo, "sub")).Discard([]string{"sub/new.txt"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(repo, "sub", "new.txt")); !os.IsNotExist(err) {
@@ -201,7 +217,7 @@ func TestDiscardRefusesSubmodule(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	before := runGit(t, repo, "status", "--porcelain=v2")
 
-	err := git.Discard(repo, []string{"a.txt", "sub"})
+	err := open(t, repo).Discard([]string{"a.txt", "sub"})
 
 	var refusal *i18n.Error
 	if !errors.As(err, &refusal) || refusal.Key != "git.submoduleDiscard" {
@@ -225,7 +241,7 @@ func TestDiscardRefusesNewStagedSubmodule(t *testing.T) {
 	runGit(t, repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", upstream, "sub")
 	before := runGit(t, repo, "status", "--porcelain=v2")
 
-	err := git.Discard(repo, []string{"sub"})
+	err := open(t, repo).Discard([]string{"sub"})
 
 	var refusal *i18n.Error
 	if !errors.As(err, &refusal) || refusal.Key != "git.submoduleDiscard" {
@@ -249,7 +265,7 @@ func TestDiscardTreatsPathAsLiteral(t *testing.T) {
 	write(t, repo, "pages/[id].vue", "two\n")
 	write(t, repo, "pages/i.vue", "two\n")
 
-	if err := git.Discard(repo, []string{"pages/[id].vue"}); err != nil {
+	if err := open(t, repo).Discard([]string{"pages/[id].vue"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if got := readFile(t, filepath.Join(repo, "pages", "[id].vue")); got != "one\n" {
@@ -270,7 +286,7 @@ func TestDiscardUntrackedKeepsNeighbourInIndex(t *testing.T) {
 	runGit(t, repo, "add", "pages/i.vue")
 	write(t, repo, "pages/[id].vue", "fresh\n")
 
-	if err := git.Discard(repo, []string{"pages/[id].vue"}); err != nil {
+	if err := open(t, repo).Discard([]string{"pages/[id].vue"}); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	// В индексе стоит правка, а не удаление файла: StagedPaths назвал бы
@@ -294,7 +310,7 @@ func TestStageTreatsPathAsLiteral(t *testing.T) {
 	write(t, repo, "pages/[id].vue", "two\n")
 	write(t, repo, "pages/i.vue", "two\n")
 
-	if err := git.Stage(repo, []string{"pages/[id].vue"}); err != nil {
+	if err := open(t, repo).Stage([]string{"pages/[id].vue"}); err != nil {
 		t.Fatalf("Stage: %v", err)
 	}
 	if staged := mustStaged(t, repo); !slices.Equal(staged, []string{"pages/[id].vue"}) {
@@ -311,7 +327,7 @@ func TestUnstageTreatsPathAsLiteral(t *testing.T) {
 	write(t, repo, "pages/i.vue", "two\n")
 	runGit(t, repo, "add", "-A")
 
-	if err := git.Unstage(repo, []string{"pages/[id].vue"}); err != nil {
+	if err := open(t, repo).Unstage([]string{"pages/[id].vue"}); err != nil {
 		t.Fatalf("Unstage: %v", err)
 	}
 	if staged := mustStaged(t, repo); !slices.Equal(staged, []string{"pages/i.vue"}) {
@@ -357,7 +373,7 @@ func conflictedRepo(t *testing.T) string {
 func mustStaged(t *testing.T, repo string) []string {
 	t.Helper()
 
-	staged, err := git.StagedPaths(repo)
+	staged, err := open(t, repo).StagedPaths()
 	if err != nil {
 		t.Fatalf("StagedPaths: %v", err)
 	}

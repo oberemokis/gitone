@@ -53,7 +53,7 @@ func TestLocate(t *testing.T) {
 			write(t, repo, "a.txt", "one\n")
 			commitAll(t, repo)
 
-			got, err := git.Locate(tc.prepare(t, repo))
+			got, err := open(t, tc.prepare(t, repo)).Locate()
 			if err != nil {
 				t.Fatalf("Locate: %v", err)
 			}
@@ -72,7 +72,7 @@ func TestLocateDetachedShowsShortHash(t *testing.T) {
 	hash := strings.TrimSpace(runGit(t, repo, "rev-parse", "--short", "HEAD"))
 	runGit(t, repo, "switch", "-q", "--detach")
 
-	got, err := git.Locate(repo)
+	got, err := open(t, repo).Locate()
 	if err != nil {
 		t.Fatalf("Locate: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestLocateDetachedHashMatchesWorktreesDespiteAbbrev(t *testing.T) {
 	hash := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
 	runGit(t, repo, "switch", "-q", "--detach")
 
-	got, err := git.Locate(repo)
+	got, err := open(t, repo).Locate()
 	if err != nil {
 		t.Fatalf("Locate: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestLocateDetachedHashMatchesWorktreesDespiteAbbrev(t *testing.T) {
 		t.Fatalf("Locate.Branch = %q, want %q", got.Branch, hash[:7])
 	}
 
-	worktrees, err := git.Worktrees(repo)
+	worktrees, err := open(t, repo).Worktrees()
 	if err != nil {
 		t.Fatalf("Worktrees: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestLocateDetachedHashMatchesWorktreesOnPrefixCollision(t *testing.T) {
 		t.Fatalf("rev-parse --short=7 отдал %q: коллизия префикса не создана", short)
 	}
 
-	got, err := git.Locate(repo)
+	got, err := open(t, repo).Locate()
 	if err != nil {
 		t.Fatalf("Locate: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestLocateDetachedHashMatchesWorktreesOnPrefixCollision(t *testing.T) {
 		t.Fatalf("Locate.Branch = %q, want %q", got.Branch, hash[:7])
 	}
 
-	worktrees, err := git.Worktrees(repo)
+	worktrees, err := open(t, repo).Worktrees()
 	if err != nil {
 		t.Fatalf("Worktrees: %v", err)
 	}
@@ -157,7 +157,7 @@ func plantPrefixCollision(t *testing.T, repo, hash string) {
 func TestLocateUnbornBranch(t *testing.T) {
 	repo := newRepo(t)
 
-	got, err := git.Locate(repo)
+	got, err := open(t, repo).Locate()
 	if err != nil {
 		t.Fatalf("Locate: %v", err)
 	}

@@ -50,8 +50,8 @@ func TestMainPrintsGitErrorWithoutControlCharacters(t *testing.T) {
 	if !errors.As(err, &exit) || exit.ExitCode() != 1 {
 		t.Fatalf("gitone: %v, want выход с кодом 1", err)
 	}
-	// надпись о загрузке медленного git в начале stderr не часть ошибки
-	if want := "diff: fatal: ␛[31mboom␛[0m\nhint: one␍two\n"; !strings.HasSuffix(stderr.String(), want) {
+	// подставной git отказывает уже на поиске корня репозитория (git.Open)
+	if want := "rev-parse: fatal: ␛[31mboom␛[0m\nhint: one␍two\n"; !strings.HasSuffix(stderr.String(), want) {
 		t.Errorf("stderr = %q, want окончание %q", stderr.String(), want)
 	}
 }

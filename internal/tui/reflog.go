@@ -18,9 +18,9 @@ type reflogMsg struct {
 
 func (msg reflogMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.reflogArrived(msg), nil }
 
-func reflogCmd(dir string) tea.Cmd {
+func reflogCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		entries, err := git.Reflog(dir)
+		entries, err := repo.Reflog()
 		return reflogMsg{entries: entries, err: err}
 	}
 }
@@ -39,8 +39,8 @@ var reflogActions = []windowAction[git.ReflogEntry]{
 		return m.showCommit(git.LogEntry{Hash: entry.Hash, Root: entry.Root})
 	}},
 	{action: keymap.LogCheckout, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
-		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
-			return git.CheckoutCommit(dir, entry.Hash)
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+			return repo.CheckoutCommit(entry.Hash)
 		})
 	}},
 	{action: keymap.LogNewBranch, changesRepo: true, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {

@@ -37,12 +37,12 @@ type move struct {
 // UndoStep находит последнее движение HEAD, которое ещё не откачено. Последнее
 // изменение, не двигавшее HEAD (stash), откатить этим нельзя, и шаг не
 // отменяет вместо него более старое движение.
-func UndoStep(dir string) (Step, error) {
-	entries, err := Reflog(dir)
+func (r Repo) UndoStep() (Step, error) {
+	entries, err := r.Reflog()
 	if err != nil {
 		return Step{}, err
 	}
-	if stashedLast(dir, entries) {
+	if r.stashedLast(entries) {
 		return Step{}, i18n.New("git.undoStash", nil)
 	}
 
@@ -65,8 +65,8 @@ func UndoStep(dir string) (Step, error) {
 
 // RedoStep находит движение, откаченное последним. Новое движение HEAD после
 // отката повтор сбрасывает: оно стоит в reflog раньше записи отката.
-func RedoStep(dir string) (Step, error) {
-	entries, err := Reflog(dir)
+func (r Repo) RedoStep() (Step, error) {
+	entries, err := r.Reflog()
 	if err != nil {
 		return Step{}, err
 	}
@@ -165,24 +165,19 @@ func movesHead(action string) bool {
 // stashedLast говорит, что последним изменением был stash: git stash пишет в
 // reflog reset на тот же HEAD, а верхняя запись stash стоит на HEAD. После
 // pop или drop запись уходит, и откат снова работает.
-func stashedLast(dir string, entries []ReflogEntry) bool {
+func (r Repo) stashedLast(entries []ReflogEntry) bool {
 	if len(entries) < 2 || entries[0].Action != "reset" || entries[0].Hash != entries[1].Hash {
 		return false
 	}
 
-	parent, err := run(call{dir: dir}, "rev-parse", "-q", "--verify", "refs/stash^1")
+	parent, err := r.inDir("rev-parse", "-q", "--verify", "refs/stash^1")
 	return err == nil && strings.TrimSpace(parent) == entries[0].Hash
 }
 
 // ApplyStep делает шаг. Запись reflog получает метку отката или повтора через
 // GIT_REFLOG_ACTION, как в lazygit. Переход с правками, которые мешают, git
 // отвергает сам.
-func ApplyStep(dir string, step Step) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
+func (r Repo) ApplyStep(step Step) error {
 	action := undoAction
 	if step.Redo {
 		action = redoAction
@@ -192,6 +187,6 @@ func ApplyStep(dir string, step Step) error {
 		args = []string{"checkout", "-q", step.Target, "--"}
 	}
 
-	_, err = run(call{dir: root, env: []string{"GIT_REFLOG_ACTION=" + action}}, args...)
+	_, err := run(call{dir: r.root, env: []string{"GIT_REFLOG_ACTION=" + action}}, args...)
 	return failed(args[0], headline(err))
 }

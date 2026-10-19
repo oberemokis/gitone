@@ -12,13 +12,8 @@ type Worktree struct {
 
 // Worktrees перечисляет рабочие деревья репозитория в порядке git: основное
 // первым.
-func Worktrees(dir string) ([]Worktree, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return nil, failed("worktree", err)
-	}
-
-	out, err := run(call{dir: root}, "worktree", "list", "--porcelain")
+func (r Repo) Worktrees() ([]Worktree, error) {
+	out, err := r.inRoot("worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, failed("worktree", err)
 	}
@@ -26,7 +21,7 @@ func Worktrees(dir string) ([]Worktree, error) {
 	var worktrees []Worktree
 	for _, block := range strings.Split(strings.TrimSpace(out), "\n\n") {
 		if worktree, found := parseWorktree(block); found {
-			worktree.Current = worktree.Path == root
+			worktree.Current = worktree.Path == r.root
 			worktrees = append(worktrees, worktree)
 		}
 	}

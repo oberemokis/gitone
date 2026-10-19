@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"gitone/internal/i18n"
 )
 
 // Ставятся до подкоманды. Пути в UTF-8 без восьмеричных кавычек. Файл больше
@@ -28,40 +30,75 @@ var diffFlags = []string{
 	"--src-prefix=a/", "--dst-prefix=b/", "--full-index",
 }
 
-// Diff возвращает текст `git diff` для каталога. С аргументами они уходят в
-// git как есть (`--staged`, `main..feature`, коммит, пути). Без аргументов
-// это всё незакоммиченное вместе с неотслеженными файлами. flags это флаги вида
-// (#217): `--ignore-all-space`, `--unified=N`. Они идут перед аргументами и не
-// переводят дифф рабочего дерева в дифф по аргументам.
-func Diff(dir string, args []string, flags ...string) (string, error) {
-	text, err := diffText(dir, args, flags)
+// Repo это репозиторий, с которым работает gitone (#356): каталог запуска, от
+// которого считаются пути, что пишет пользователь, и корень, найденный один
+// раз в Open. Команды правки идут из корня: пути в диффе идут от него, а
+// gitone может быть запущен из подкаталога. Нулевое значение не репозиторий:
+// любая команда на нём отказывает, а не уходит в текущий каталог процесса.
+type Repo struct {
+	dir  string
+	root string
+}
+
+// Open находит корень репозитория, в котором лежит dir.
+func Open(dir string) (Repo, error) {
+	root, err := topLevel(dir)
+	if err != nil {
+		return Repo{}, failed("rev-parse", err)
+	}
+	return Repo{dir: dir, root: root}, nil
+}
+
+// Dir это каталог запуска.
+func (r Repo) Dir() string {
+	return r.dir
+}
+
+// Root это корень репозитория.
+func (r Repo) Root() string {
+	return r.root
+}
+
+// inRoot запускает одну команду git из корня репозитория.
+func (r Repo) inRoot(args ...string) (string, error) {
+	return run(call{dir: r.root}, args...)
+}
+
+// inDir запускает одну команду git из каталога запуска: так идут команды,
+// которым каталог не важен (pull, push, config), как и до Repo.
+func (r Repo) inDir(args ...string) (string, error) {
+	return run(call{dir: r.dir}, args...)
+}
+
+// Diff возвращает текст `git diff` для каталога запуска. С аргументами они
+// уходят в git как есть (`--staged`, `main..feature`, коммит, пути). Без
+// аргументов это всё незакоммиченное вместе с неотслеженными файлами. flags это
+// флаги вида (#217): `--ignore-all-space`, `--unified=N`. Они идут перед
+// аргументами и не переводят дифф рабочего дерева в дифф по аргументам.
+func (r Repo) Diff(args []string, flags ...string) (string, error) {
+	text, err := r.diffText(args, flags)
 	return text, failed("diff", err)
 }
 
-func diffText(dir string, args, flags []string) (string, error) {
+func (r Repo) diffText(args, flags []string) (string, error) {
 	if len(args) > 0 {
-		return run(call{dir: dir, diffExit: true}, diffCommand(flags, args...)...)
+		return run(call{dir: r.dir, diffExit: true}, diffCommand(flags, args...)...)
 	}
 
-	root, err := topLevel(dir)
-	if err != nil {
-		return "", err
-	}
-
-	index, cleanup, err := indexWithUntracked(root)
+	index, cleanup, err := indexWithUntracked(r.root)
 	if err != nil {
 		return "", err
 	}
 	defer cleanup()
 
-	base, err := baseRevision(dir)
+	base, err := baseRevision(r.dir)
 	if err != nil {
 		return "", err
 	}
 
 	// `--` отделяет ревизию от путей: без него файл с именем HEAD в рабочем
 	// дереве делает вызов неоднозначным.
-	return run(call{dir: dir, env: []string{"GIT_INDEX_FILE=" + index}}, diffCommand(flags, base, "--")...)
+	return run(call{dir: r.dir, env: []string{"GIT_INDEX_FILE=" + index}}, diffCommand(flags, base, "--")...)
 }
 
 // baseRevision это HEAD, а в репозитории без коммитов пустое дерево: тогда
@@ -177,9 +214,8 @@ func withoutDirectories(listed string) string {
 	return strings.Join(kept, "\x00")
 }
 
-// topLevel возвращает корень репозитория, в котором лежит dir. Пути в diff идут
-// от корня, а gitone может быть запущен из подкаталога, поэтому команды правки
-// идут из корня: иначе относительный путь указывал бы не на тот файл.
+// topLevel возвращает корень репозитория, в котором лежит dir. Его ищут только
+// Open и Root, операции берут корень из Repo.
 func topLevel(dir string) (string, error) {
 	root, err := run(call{dir: dir}, "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -187,16 +223,6 @@ func topLevel(dir string) (string, error) {
 	}
 
 	return strings.TrimSuffix(root, "\n"), nil
-}
-
-// inRoot запускает одну команду git из корня репозитория, в котором лежит dir.
-func inRoot(dir string, args ...string) (string, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return "", err
-	}
-
-	return run(call{dir: root}, args...)
 }
 
 type call struct {
@@ -254,8 +280,14 @@ func failed(operation string, err error) error {
 // run запускает git и возвращает его вывод. Отказ git приходит как *gitError.
 // Вызов пишется в журнал команд (journal.go), кроме работы с временным
 // индексом (GIT_INDEX_FILE): это служебная копия для диффа, репозиторий она
-// не меняет, а опрос делает её каждые две секунды.
+// не меняет, а опрос делает её каждые две секунды. Без каталога git ушёл бы в
+// текущий каталог процесса, поэтому вызов на нулевом Repo отказывает до
+// запуска.
 func run(options call, args ...string) (string, error) {
+	if options.dir == "" {
+		return "", i18n.New("git.noRepository", nil)
+	}
+
 	out, err := execute(options, args)
 	if slices.ContainsFunc(options.env, func(env string) bool { return strings.HasPrefix(env, "GIT_INDEX_FILE=") }) {
 		return out, err

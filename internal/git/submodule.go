@@ -22,12 +22,12 @@ type Submodule struct {
 // хэш и путь до конца строки, у клонированного с хвостом « (describe)». Путь
 // git печатает как есть, с пробелами. Адрес берётся из .gitmodules по имени
 // подмодуля.
-func Submodules(dir string) ([]Submodule, error) {
-	out, err := inRoot(dir, "submodule", "status")
+func (r Repo) Submodules() ([]Submodule, error) {
+	out, err := r.inRoot("submodule", "status")
 	if err != nil {
 		return nil, failed("submodule", err)
 	}
-	urls := submoduleURLs(dir)
+	urls := r.submoduleURLs()
 
 	var submodules []Submodule
 	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
@@ -57,8 +57,8 @@ func Submodules(dir string) ([]Submodule, error) {
 // имени подмодуля, путь и адрес у имени свои. Имя по умолчанию совпадает с
 // путём и бывает с пробелом, поэтому записи читаются через --null: ключ от
 // значения отделяет перевод строки, записи друг от друга NUL.
-func submoduleURLs(dir string) map[string]string {
-	out, err := inRoot(dir, "config", "--null", "--file", ".gitmodules", "--get-regexp", `^submodule\..*\.(path|url)$`)
+func (r Repo) submoduleURLs() map[string]string {
+	out, err := r.inRoot("config", "--null", "--file", ".gitmodules", "--get-regexp", `^submodule\..*\.(path|url)$`)
 	if err != nil {
 		return nil
 	}
@@ -83,10 +83,6 @@ func submoduleURLs(dir string) map[string]string {
 // UpdateSubmodule клонирует подмодуль path, если его нет, и ставит в нём
 // коммит, записанный в суперпроекте: `git submodule update --init`. Сеть
 // нужна для клона, отмена ctx убивает git.
-func UpdateSubmodule(ctx context.Context, dir, path string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return failed("submodule", err)
-	}
-	return failed("submodule", headline(network(ctx, root, "submodule", "update", "--init", "--", path)))
+func (r Repo) UpdateSubmodule(ctx context.Context, path string) error {
+	return failed("submodule", headline(r.network(ctx, r.root, "submodule", "update", "--init", "--", path)))
 }

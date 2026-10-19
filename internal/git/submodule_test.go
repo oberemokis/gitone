@@ -4,8 +4,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-
-	"gitone/internal/git"
 )
 
 // withSubmodule это репозиторий с подмодулем libs/lib из соседнего
@@ -41,7 +39,7 @@ func TestSubmodules(t *testing.T) {
 	repo, lib := withSubmodule(t)
 	commit := revision(t, lib, "HEAD")
 
-	submodules, err := git.Submodules(repo)
+	submodules, err := open(t, repo).Submodules()
 	if err != nil || len(submodules) != 1 {
 		t.Fatalf("Submodules = %+v, %v", submodules, err)
 	}
@@ -51,12 +49,12 @@ func TestSubmodules(t *testing.T) {
 
 	clone := filepath.Join(t.TempDir(), "clone")
 	runGit(t, filepath.Dir(clone), "clone", "-q", repo, clone)
-	submodules, _ = git.Submodules(clone)
+	submodules, _ = open(t, clone).Submodules()
 	if len(submodules) != 1 || submodules[0].Initialized {
 		t.Fatalf("в клоне без --recursive подмодуль %+v, ожидался не клонированный", submodules)
 	}
 
-	if err := git.UpdateSubmodule(context.Background(), clone, "libs/lib"); err != nil {
+	if err := open(t, clone).UpdateSubmodule(context.Background(), "libs/lib"); err != nil {
 		t.Fatalf("UpdateSubmodule: %v", err)
 	}
 	if got := readFile(t, filepath.Join(clone, "libs", "lib", "x.txt")); got != "lib\n" {
@@ -69,18 +67,18 @@ func TestSubmodules(t *testing.T) {
 func TestSubmoduleWithSpaceInPath(t *testing.T) {
 	repo, lib := withSubmoduleAt(t, "my lib")
 
-	submodules, err := git.Submodules(repo)
+	submodules, err := open(t, repo).Submodules()
 	if err != nil || len(submodules) != 1 || submodules[0].Path != "my lib" || submodules[0].URL != lib {
 		t.Fatalf("Submodules = %+v, %v", submodules, err)
 	}
 
 	clone := filepath.Join(t.TempDir(), "clone")
 	runGit(t, filepath.Dir(clone), "clone", "-q", repo, clone)
-	submodules, _ = git.Submodules(clone)
+	submodules, _ = open(t, clone).Submodules()
 	if len(submodules) != 1 || submodules[0].Path != "my lib" || submodules[0].Initialized {
 		t.Fatalf("в клоне подмодуль %+v, ожидался не клонированный «my lib»", submodules)
 	}
-	if err := git.UpdateSubmodule(context.Background(), clone, submodules[0].Path); err != nil {
+	if err := open(t, clone).UpdateSubmodule(context.Background(), submodules[0].Path); err != nil {
 		t.Fatalf("UpdateSubmodule: %v", err)
 	}
 	if got := readFile(t, filepath.Join(clone, "my lib", "x.txt")); got != "lib\n" {
@@ -94,7 +92,7 @@ func TestSubmodulesEmpty(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	if submodules, err := git.Submodules(repo); err != nil || len(submodules) != 0 {
+	if submodules, err := open(t, repo).Submodules(); err != nil || len(submodules) != 0 {
 		t.Fatalf("Submodules = %+v, %v", submodules, err)
 	}
 }

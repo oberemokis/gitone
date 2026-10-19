@@ -49,7 +49,7 @@ func TestLogFilter(t *testing.T) {
 		{name: "файл за переименованием", filter: git.LogFilter{Path: "src/b.txt", File: true}, want: []string{"rename", "bob src", "ann src"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			entries, err := git.Log(repo, 200, tc.filter)
+			entries, err := open(t, repo).Log(200, tc.filter)
 			if got := subjects(entries); err != nil || strings.Join(got, "|") != strings.Join(tc.want, "|") {
 				t.Fatalf("Log = %q, %v; ожидались %q", got, err, tc.want)
 			}
@@ -65,7 +65,7 @@ func TestLogListsNewestFirst(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	commitAll(t, repo)
 
-	commits, err := git.Log(repo, 200, git.LogFilter{})
+	commits, err := open(t, repo).Log(200, git.LogFilter{})
 	if err != nil {
 		t.Fatalf("Log: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestLogDrawsGraphOfMerge(t *testing.T) {
 	commitAll(t, repo)
 	runGit(t, repo, "merge", "-q", "--no-ff", "-m", "merge", "side")
 
-	entries, err := git.Log(repo, 200, git.LogFilter{})
+	entries, err := open(t, repo).Log(200, git.LogFilter{})
 	if err != nil {
 		t.Fatalf("Log: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestLogIgnoresShowSignatureOfSignedCommits(t *testing.T) {
 	commitAll(t, repo)
 	runGit(t, repo, "config", "log.showSignature", "true")
 
-	entries, err := git.Log(repo, 200, git.LogFilter{})
+	entries, err := open(t, repo).Log(200, git.LogFilter{})
 	if err != nil {
 		t.Fatalf("Log: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestLogKeepsCommitWithSeparatorInSubject(t *testing.T) {
 	runGit(t, repo, "add", "-A")
 	runGit(t, repo, "commit", "-q", "-m", "fix\x1fthing")
 
-	entries, err := git.Log(repo, 200, git.LogFilter{})
+	entries, err := open(t, repo).Log(200, git.LogFilter{})
 	if err != nil {
 		t.Fatalf("Log: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestLogKeepsFieldsWithSeparatorInAuthor(t *testing.T) {
 	write(t, repo, "a.txt", "one\n")
 	commitAll(t, repo)
 
-	entries, err := git.Log(repo, 200, git.LogFilter{})
+	entries, err := open(t, repo).Log(200, git.LogFilter{})
 	if err != nil {
 		t.Fatalf("Log: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestLogKeepsFieldsWithSeparatorInAuthor(t *testing.T) {
 func TestLogOfEmptyRepositoryIsEmpty(t *testing.T) {
 	repo := newRepo(t)
 
-	commits, err := git.Log(repo, 200, git.LogFilter{})
+	commits, err := open(t, repo).Log(200, git.LogFilter{})
 	if err != nil || len(commits) != 0 {
 		t.Fatalf("коммиты %v, ошибка %v; ожидался пустой список без ошибки", commits, err)
 	}

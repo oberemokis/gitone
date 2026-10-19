@@ -4,8 +4,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"gitone/internal/git"
 )
 
 // Патч коммита сохраняется в корень файлом 0001-<тема>.patch и возвращается
@@ -16,7 +14,7 @@ func TestPatch(t *testing.T) {
 	runGit(t, repo, "add", "-A")
 	runGit(t, repo, "commit", "-q", "-m", "first change")
 
-	name, patch, err := git.Patch(repo, revision(t, repo, "HEAD"))
+	name, patch, err := open(t, repo).Patch(revision(t, repo, "HEAD"))
 	if err != nil {
 		t.Fatalf("Patch: %v", err)
 	}
@@ -37,7 +35,7 @@ func TestPatchRefusesMerge(t *testing.T) {
 	repo := divergedRepo(t)
 	runGit(t, repo, "merge", "-q", "--no-edit", "feature")
 
-	_, _, err := git.Patch(repo, revision(t, repo, "HEAD"))
+	_, _, err := open(t, repo).Patch(revision(t, repo, "HEAD"))
 	refusedWith(t, err, "git.patchMerge")
 	if patches, _ := filepath.Glob(filepath.Join(repo, "*.patch")); len(patches) != 0 {
 		t.Fatalf("файлы патча остались: %q", patches)

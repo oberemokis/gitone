@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"gitone/internal/diff"
-	"gitone/internal/git"
 )
 
 // fileAt это файл диффа с новым путём path.
@@ -40,7 +39,7 @@ func TestVersionReadsBothSides(t *testing.T) {
 		{hash: changed.OldBlob, want: "old\n"},
 		{hash: changed.NewBlob, path: changed.NewPath, want: "new\n"},
 	} {
-		if got, err := git.Version(repo, side.hash, side.path); err != nil || string(got) != side.want {
+		if got, err := open(t, repo).Version(side.hash, side.path); err != nil || string(got) != side.want {
 			t.Errorf("Version(%s) = %q, %v; want %q", side.hash, got, err, side.want)
 		}
 	}
@@ -49,7 +48,7 @@ func TestVersionReadsBothSides(t *testing.T) {
 	if fresh.OldBlob != "" {
 		t.Errorf("у нового файла хэш старой версии %q", fresh.OldBlob)
 	}
-	if got, err := git.Version(repo, fresh.NewBlob, fresh.NewPath); err != nil || string(got) != "fresh\n" {
+	if got, err := open(t, repo).Version(fresh.NewBlob, fresh.NewPath); err != nil || string(got) != "fresh\n" {
 		t.Errorf("новый файл: %q, %v", got, err)
 	}
 }
@@ -66,7 +65,7 @@ func TestVersionPrefersGitObjectOverWorkingTree(t *testing.T) {
 	write(t, repo, "App.vue", "dirty\n")
 	changed := fileAt(t, load(t, repo, []string{"HEAD^!"}), "App.vue")
 
-	got, err := git.Version(repo, changed.NewBlob, changed.NewPath)
+	got, err := open(t, repo).Version(changed.NewBlob, changed.NewPath)
 
 	if err != nil || string(got) != "committed\n" {
 		t.Errorf("Version(NewBlob, NewPath) = %q, %v; want %q", got, err, "committed\n")
@@ -78,10 +77,10 @@ func TestVersionPrefersGitObjectOverWorkingTree(t *testing.T) {
 func TestVersionWithoutObject(t *testing.T) {
 	repo := newRepo(t)
 
-	if got, err := git.Version(repo, "", ""); got != nil || err != nil {
+	if got, err := open(t, repo).Version("", ""); got != nil || err != nil {
 		t.Errorf("пустой хэш: %q, %v", got, err)
 	}
-	if _, err := git.Version(repo, "1234567890123456789012345678901234567890", ""); err == nil {
+	if _, err := open(t, repo).Version("1234567890123456789012345678901234567890", ""); err == nil {
 		t.Error("хэша нет в git, а ошибки нет")
 	}
 }

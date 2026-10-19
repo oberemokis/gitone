@@ -91,8 +91,8 @@ var globalActions = map[keymap.Action]globalAction{
 	keymap.GitFetch:     {run: remoteAction(fetching), changesRepo: true},
 	keymap.GitPush:      {run: remoteAction(pushing), changesRepo: true},
 	keymap.GitOperation: {run: stay(Model.askOperation), changesRepo: true},
-	keymap.GitUndo:      {run: inDir(func(dir string) tea.Cmd { return undoStepCmd(dir, false) }), changesRepo: true},
-	keymap.GitRedo:      {run: inDir(func(dir string) tea.Cmd { return undoStepCmd(dir, true) }), changesRepo: true},
+	keymap.GitUndo:      {run: inRepo(func(repo git.Repo) tea.Cmd { return undoStepCmd(repo, false) }), changesRepo: true},
+	keymap.GitRedo:      {run: inRepo(func(repo git.Repo) tea.Cmd { return undoStepCmd(repo, true) }), changesRepo: true},
 
 	keymap.FilesPick: {run: stay(Model.openPicker)},
 	keymap.FilesToggle: {run: stay(func(m Model) Model {
@@ -104,22 +104,22 @@ var globalActions = map[keymap.Action]globalAction{
 	keymap.FilesStage:    {run: Model.toggleStage, changesRepo: true},
 	keymap.FilesDiscard:  {run: stay(Model.askDiscard), changesRepo: true},
 	keymap.FilesCommit:   {run: stay(Model.openCommit), changesRepo: true},
-	keymap.FilesAmend:    {run: inDir(lastMessageCmd), changesRepo: true},
+	keymap.FilesAmend:    {run: inRepo(lastMessageCmd), changesRepo: true},
 	keymap.FilesHistory:  {run: Model.fileHistory},
 	keymap.FilesEdit:     {run: Model.editFile},
 	keymap.FilesIgnore:   {run: Model.ignoreFile, changesRepo: true},
 
-	keymap.AppLog:        {run: inDir(func(dir string) tea.Cmd { return logCmd(dir, git.LogFilter{}) })},
-	keymap.AppBranches:   {run: inDir(branchesCmd)},
-	keymap.AppWorktrees:  {run: inDir(worktreesCmd)},
-	keymap.AppTags:       {run: inDir(tagsCmd)},
-	keymap.AppRemotes:    {run: inDir(remotesCmd)},
-	keymap.AppReflog:     {run: inDir(reflogCmd)},
-	keymap.AppSubmodules: {run: inDir(submodulesCmd)},
+	keymap.AppLog:        {run: inRepo(func(repo git.Repo) tea.Cmd { return logCmd(repo, git.LogFilter{}) })},
+	keymap.AppBranches:   {run: inRepo(branchesCmd)},
+	keymap.AppWorktrees:  {run: inRepo(worktreesCmd)},
+	keymap.AppTags:       {run: inRepo(tagsCmd)},
+	keymap.AppRemotes:    {run: inRepo(remotesCmd)},
+	keymap.AppReflog:     {run: inRepo(reflogCmd)},
+	keymap.AppSubmodules: {run: inRepo(submodulesCmd)},
 	keymap.AppJournal:    {run: func(m Model) (tea.Model, tea.Cmd) { return m, journalCmd() }},
-	keymap.AppRecent:     {run: func(m Model) (tea.Model, tea.Cmd) { return m, recentCmd(m.stateDir, m.dir) }},
-	keymap.StashPush:     {run: inDir(stashPushCmd), changesRepo: true},
-	keymap.StashList:     {run: inDir(stashListCmd)},
+	keymap.AppRecent:     {run: func(m Model) (tea.Model, tea.Cmd) { return m, recentCmd(m.stateDir, m.repo) }},
+	keymap.StashPush:     {run: inRepo(stashPushCmd), changesRepo: true},
+	keymap.StashList:     {run: inRepo(stashListCmd)},
 
 	keymap.DiffToggleMode:       {run: onView(diffview.Model.ToggleMode)},
 	keymap.DiffToggleWrap:       {run: onView(diffview.Model.ToggleWrap)},
@@ -163,10 +163,10 @@ func onView(change func(diffview.Model) diffview.Model) actionFunc {
 	}
 }
 
-// inDir запускает команду над каталогом репозитория.
-func inDir(command func(dir string) tea.Cmd) actionFunc {
+// inRepo запускает команду над открытым репозиторием.
+func inRepo(command func(git.Repo) tea.Cmd) actionFunc {
 	return func(m Model) (tea.Model, tea.Cmd) {
-		return m, command(m.dir)
+		return m, command(m.repo)
 	}
 }
 

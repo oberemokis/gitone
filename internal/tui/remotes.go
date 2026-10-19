@@ -20,21 +20,21 @@ type remotesMsg struct {
 
 func (msg remotesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.remotesArrived(msg), nil }
 
-func remotesCmd(dir string) tea.Cmd {
+func remotesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		remotes, err := git.Remotes(dir)
+		remotes, err := repo.Remotes()
 		return remotesMsg{remotes: remotes, err: err}
 	}
 }
 
 // thenRemotes выполняет правку remote и отвечает новым списком с итогом note,
 // а отказ git ошибкой: окно остаётся открытым.
-func thenRemotes(dir, note string, change func() error) tea.Cmd {
+func thenRemotes(repo git.Repo, note string, change func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := change(); err != nil {
 			return remotesMsg{err: err}
 		}
-		msg := remotesCmd(dir)().(remotesMsg)
+		msg := remotesCmd(repo)().(remotesMsg)
 		msg.note = note
 		return msg
 	}
@@ -78,7 +78,7 @@ func (m Model) askRemote() Model {
 		title := m.text.Text("remotes.urlTitle", i18n.Args{"name": visible(name)})
 		return m.openPrompt(title, "", func(m Model, url string) (tea.Model, tea.Cmd) {
 			note := m.text.Text("remotes.added", i18n.Args{"name": visible(name)})
-			return m, thenRemotes(m.dir, note, func() error { return git.AddRemote(m.dir, name, url) })
+			return m, thenRemotes(m.repo, note, func() error { return m.repo.AddRemote(name, url) })
 		}), nil
 	})
 }
@@ -95,7 +95,7 @@ func (m Model) askRemoveRemote(remote git.Remote) Model {
 
 	note := m.text.Text("remotes.deleted", i18n.Args{"name": visible(remote.Name)})
 	return m.ask(m.text.Text(question, args), func(m Model) (tea.Model, tea.Cmd) {
-		return m, thenRemotes(m.dir, note, func() error { return git.RemoveRemote(m.dir, remote.Name) })
+		return m, thenRemotes(m.repo, note, func() error { return m.repo.RemoveRemote(remote.Name) })
 	})
 }
 

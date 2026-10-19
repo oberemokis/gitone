@@ -7,7 +7,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/git"
 	"gitone/internal/layout"
 )
 
@@ -60,7 +59,7 @@ func TestTickLearnsStageFromOutside(t *testing.T) {
 	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	settle(model, cmd, 4)
 
-	if staged, err := git.StagedPaths(repo); err != nil || len(staged) != 0 {
+	if staged, err := openedRepo(t, repo).StagedPaths(); err != nil || len(staged) != 0 {
 		t.Fatalf("в индексе %q, ошибка %v, want пробел убрал файл", staged, err)
 	}
 }

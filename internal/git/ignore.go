@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"gitone/internal/i18n"
@@ -15,26 +14,24 @@ import (
 // путём от корня, а не шаблоном. Файла .gitignore нет, и он создаётся.
 // Отслеженный файл git не игнорирует, Ignore тогда отказывает. Путь, который
 // уже игнорируется, .gitignore не меняет.
-func Ignore(dir, path string) error {
-	return failed("ignore", ignore(dir, path))
+func (r Repo) Ignore(path string) error {
+	return failed("ignore", r.ignore(path))
 }
 
-func ignore(dir, path string) (err error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	if _, err := run(literal(root), "ls-files", "--error-unmatch", "--", path); err == nil {
+func (r Repo) ignore(path string) (err error) {
+	if _, err := run(literal(r.root), "ls-files", "--error-unmatch", "--", path); err == nil {
 		return i18n.New("git.ignoreTracked", i18n.Args{"path": path})
 	}
 	// check-ignore не знает GIT_LITERAL_PATHSPECS, и «:» в начале пути он
 	// читал бы магией pathspec: «./» её снимает
-	if _, err := run(call{dir: root}, "check-ignore", "--quiet", "--no-index", "--", "./"+path); err == nil {
+	if _, err := r.inRoot("check-ignore", "--quiet", "--no-index", "--", "./"+path); err == nil {
 		return nil
 	}
 
-	name := filepath.Join(root, ".gitignore")
+	name, err := r.file(".gitignore")
+	if err != nil {
+		return err
+	}
 	content, err := os.ReadFile(name)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err

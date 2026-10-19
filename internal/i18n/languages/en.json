@@ -176,6 +176,7 @@
   "git.bisectNoContinue": "bisect has no continue or abort: mark commits or reset it from the bisect menu",
   "git.detachedHead": "HEAD is detached, switch to a branch first",
   "git.noPaths": "no files to change",
+  "git.noRepository": "not a git repository",
   "git.noCommits": "the repository has no commits yet",
   "git.nothingToCommit": "nothing to commit",
   "git.noOperation": "no merge, rebase, cherry-pick or revert is in progress",

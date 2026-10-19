@@ -36,18 +36,13 @@ const (
 // между целью и HEAD отвергаются: без --rebase-merges git их бы распрямил.
 // published говорит, что переписаны коммиты из upstream. Конфликт останавливает
 // rebase, ошибка тогда git.stoppedOnConflict.
-func RewriteHistory(dir, hash string, action Rewrite, message string) (published bool, err error) {
-	published, err = rewriteHistory(dir, hash, action, message)
+func (r Repo) RewriteHistory(hash string, action Rewrite, message string) (published bool, err error) {
+	published, err = r.rewriteHistory(hash, action, message)
 	return published, failed("rebase", err)
 }
 
-func rewriteHistory(dir, hash string, action Rewrite, message string) (bool, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return false, err
-	}
-
-	commits, err := branchCommits(root)
+func (r Repo) rewriteHistory(hash string, action Rewrite, message string) (bool, error) {
+	commits, err := branchCommits(r.root)
 	if err != nil {
 		return false, err
 	}
@@ -71,12 +66,12 @@ func rewriteHistory(dir, hash string, action Rewrite, message string) (bool, err
 		}
 	}
 
-	base, published := baseOf(root, commits[first])
-	if err := refuseMerges(root, base); err != nil {
+	base, published := baseOf(r.root, commits[first])
+	if err := refuseMerges(r.root, base); err != nil {
 		return false, err
 	}
 
-	return published, rebaseWith(root, base, todoLines(commits[first:], at-first, action), message)
+	return published, r.rebaseWith(base, todoLines(commits[first:], at-first, action), message)
 }
 
 // refuseMerges отвергает правку истории, если между base и HEAD есть
@@ -141,7 +136,7 @@ func baseOf(root, first string) (base string, published bool) {
 // Сообщение reword git не чистит (commit.cleanup=whitespace): строки с «#»
 // остаются, как у Commit и Amend через -m. Без своего списка git строит его
 // сам с --autosquash, и он принимается как есть.
-func rebaseWith(root, base string, todo []string, message string) error {
+func (r Repo) rebaseWith(base string, todo []string, message string) error {
 	temp, err := os.MkdirTemp("", "gitone-rebase-")
 	if err != nil {
 		return err
@@ -178,14 +173,14 @@ func rebaseWith(root, base string, todo []string, message string) error {
 
 	// при чужой незавершённой операции (merge) git откажет до начала, и
 	// остановкой rebase это не считается
-	before := unfinished(root)
-	_, err = run(call{dir: root, env: env}, args...)
+	before := unfinished(r.root)
+	_, err = run(call{dir: r.root, env: env}, args...)
 	switch {
-	case err != nil && !before && stoppedOnConflict(root):
+	case err != nil && !before && r.stoppedOnConflict():
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": "rebase"})
 	// --autostash выходит с 0, даже когда отложенные правки не встали обратно
 	case err == nil:
-		if conflicted, _ := ConflictedPaths(root); len(conflicted) > 0 {
+		if conflicted, _ := r.ConflictedPaths(); len(conflicted) > 0 {
 			return i18n.New("git.autostashConflict", i18n.Args{"operation": "rebase"})
 		}
 	}
@@ -195,24 +190,19 @@ func rebaseWith(root, base string, todo []string, message string) error {
 // Fixup создаёт из индекса коммит `fixup! <тема hash>` (#225), как
 // `git commit --fixup`: Autosquash потом сольёт его в hash. Пустой индекс и
 // коммит не из текущей ветки отвергаются, git сам бы создал коммит и на чужой.
-func Fixup(dir, hash string) error {
-	return failed("commit", fixup(dir, hash))
+func (r Repo) Fixup(hash string) error {
+	return failed("commit", r.fixup(hash))
 }
 
-func fixup(dir, hash string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
-	if _, err := run(call{dir: root}, "merge-base", "--is-ancestor", hash, "HEAD"); err != nil {
+func (r Repo) fixup(hash string) error {
+	if _, err := r.inRoot("merge-base", "--is-ancestor", hash, "HEAD"); err != nil {
 		return i18n.New("git.rewriteNotInBranch", nil)
 	}
-	if _, err := run(call{dir: root}, "diff", "--cached", "--quiet"); err == nil {
+	if _, err := r.inRoot("diff", "--cached", "--quiet"); err == nil {
 		return i18n.New("git.nothingToCommit", nil)
 	}
 
-	_, err = run(call{dir: root}, "commit", "--fixup="+hash)
+	_, err := r.inRoot("commit", "--fixup="+hash)
 	return err
 }
 
@@ -221,18 +211,13 @@ func fixup(dir, hash string) error {
 // строит сам. Проверки те же, что у RewriteHistory: коммит в ветке, выше
 // него нет merge-коммитов. published говорит, что переписаны коммиты из
 // upstream.
-func Autosquash(dir, hash string) (published bool, err error) {
-	published, err = autosquash(dir, hash)
+func (r Repo) Autosquash(hash string) (published bool, err error) {
+	published, err = r.autosquash(hash)
 	return published, failed("rebase", err)
 }
 
-func autosquash(dir, hash string) (bool, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return false, err
-	}
-
-	commits, err := branchCommits(root)
+func (r Repo) autosquash(hash string) (bool, error) {
+	commits, err := branchCommits(r.root)
 	if err != nil {
 		return false, err
 	}
@@ -240,11 +225,11 @@ func autosquash(dir, hash string) (bool, error) {
 		return false, i18n.New("git.rewriteNotInBranch", nil)
 	}
 
-	base, published := baseOf(root, hash)
-	if err := refuseMerges(root, base); err != nil {
+	base, published := baseOf(r.root, hash)
+	if err := refuseMerges(r.root, base); err != nil {
 		return false, err
 	}
-	return published, rebaseWith(root, base, nil, "")
+	return published, r.rebaseWith(base, nil, "")
 }
 
 // shellQuote берёт путь в одинарные кавычки для sh: пробел в каталоге

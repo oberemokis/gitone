@@ -21,8 +21,8 @@ type Tag struct {
 // Tags возвращает теги от новых к старым. Коммит аннотированного тега и его
 // родители берутся через %(*objectname) и %(*parent): сам тег это отдельный
 // объект.
-func Tags(dir string) ([]Tag, error) {
-	out, err := inRoot(dir, "for-each-ref", "--sort=-creatordate",
+func (r Repo) Tags() ([]Tag, error) {
+	out, err := r.inRoot("for-each-ref", "--sort=-creatordate",
 		"--format=%(refname:lstrip=2)%1f%(objecttype)%1f%(objectname)%1f%(*objectname)%1f%(parent)%1f%(*parent)%1f%(creatordate:relative)%1f%(contents:subject)", "refs/tags")
 	if err != nil {
 		return nil, failed("tag", err)
@@ -46,25 +46,25 @@ func Tags(dir string) ([]Tag, error) {
 
 // CreateTag ставит тег name на HEAD: аннотированный с сообщением, лёгкий без
 // него. Занятое имя git отвергает, тег не перезаписывается.
-func CreateTag(dir, name, message string) error {
+func (r Repo) CreateTag(name, message string) error {
 	args := []string{"tag", name}
 	if message != "" {
 		args = []string{"tag", "--annotate", "--message", message, name}
 	}
 
-	_, err := inRoot(dir, args...)
+	_, err := r.inRoot(args...)
 	return failed("tag", headline(err))
 }
 
 // DeleteTag удаляет локальный тег. Тег на remote остаётся: его удаление это
 // отдельная отправка на remote.
-func DeleteTag(dir, name string) error {
-	_, err := inRoot(dir, "tag", "--delete", name)
+func (r Repo) DeleteTag(name string) error {
+	_, err := r.inRoot("tag", "--delete", name)
 	return failed("tag", headline(err))
 }
 
 // PushTag отправляет тег на origin. Отмена ctx убивает git, ошибка тогда
 // context.Canceled.
-func PushTag(ctx context.Context, dir, name string) error {
-	return failed("push", headline(network(ctx, dir, "push", "origin", "refs/tags/"+name)))
+func (r Repo) PushTag(ctx context.Context, name string) error {
+	return failed("push", headline(r.network(ctx, r.dir, "push", "origin", "refs/tags/"+name)))
 }

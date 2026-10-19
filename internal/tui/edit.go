@@ -12,7 +12,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/git"
 	"gitone/internal/i18n"
 )
 
@@ -37,24 +36,20 @@ func (m Model) editFile() (tea.Model, tea.Cmd) {
 	if path == "" {
 		return m.putNotice(m.text.Text("stage.noFile", nil), true), nil
 	}
-	return m, editorCmd(m.dir, path)
+	return m, editorCmd(m.repo.Root(), path)
 }
 
 // editorCmd находит редактор и файл в команде, а не в Update: и окружение, и
 // файловая система это ввод-вывод. Редактор берётся из VISUAL, потом из
 // EDITOR, как у git. Файл, удалённый после выбора, редактор создал бы заново,
-// поэтому его отсутствие это ошибка.
-func editorCmd(dir, path string) tea.Cmd {
+// поэтому его отсутствие это ошибка. path идёт от корня репозитория root.
+func editorCmd(root, path string) tea.Cmd {
 	return func() tea.Msg {
 		editor := strings.TrimSpace(cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR")))
 		if editor == "" {
 			return editorMsg{err: i18n.New("editor.notSet", nil)}
 		}
 
-		root, err := git.Root(dir)
-		if err != nil {
-			return editorMsg{err: err}
-		}
 		// путь от корня, а не полный: полный из os.Stat не влез бы в подвал
 		file := filepath.Join(root, path)
 		if _, err := os.Stat(file); errors.Is(err, fs.ErrNotExist) {

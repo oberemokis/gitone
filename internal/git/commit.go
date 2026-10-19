@@ -14,27 +14,22 @@ import (
 // приходит ошибкой git. Пустой индекс проверяется заранее: на пустом git commit
 // пишет отчёт `git status`, и причина стоит в нём не первой строкой. Пока идёт
 // слияние, cherry-pick или revert, проверки нет.
-func Commit(dir string, subject string, description string) error {
-	return failed("commit", commit(dir, subject, description))
+func (r Repo) Commit(subject string, description string) error {
+	return failed("commit", r.commit(subject, description))
 }
 
-func commit(dir string, subject string, description string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-
+func (r Repo) commit(subject string, description string) error {
 	// код 0 значит, что индекс не отличается от HEAD. Любая другая ошибка
 	// проверки идёт дальше: git commit назовёт причину сам. Незавершённое
 	// слияние, cherry-pick или revert коммитят и с индексом, равным HEAD
 	// (`merge -s ours`): их git commit решает сам, отказ приходит его ошибкой.
-	if !inProgress(root) {
-		if _, err := run(call{dir: root}, "diff", "--cached", "--quiet"); err == nil {
+	if !inProgress(r.root) {
+		if _, err := r.inRoot("diff", "--cached", "--quiet"); err == nil {
 			return i18n.New("git.nothingToCommit", nil)
 		}
 	}
 
-	_, err = run(call{dir: root}, messageArgs([]string{"commit"}, subject, description)...)
+	_, err := r.inRoot(messageArgs([]string{"commit"}, subject, description)...)
 	return err
 }
 
@@ -50,17 +45,17 @@ func messageArgs(args []string, subject, description string) []string {
 
 // LastMessage возвращает тему и описание последнего коммита (#218): окно
 // amend открывается с ними. В репозитории без коммитов исправлять нечего.
-func LastMessage(dir string) (subject, description string, err error) {
-	return Message(dir, "HEAD")
+func (r Repo) LastMessage() (subject, description string, err error) {
+	return r.Message("HEAD")
 }
 
 // Message возвращает тему и описание коммита rev: amend и reword (#219)
 // открывают окно коммита с ними. Тема это первая строка сообщения, описание
 // всё после неё: %s склеил бы первый абзац из нескольких строк в одну.
-func Message(dir, rev string) (subject, description string, err error) {
-	out, err := inRoot(dir, "log", "-1", "--format=%B", rev, "--")
+func (r Repo) Message(rev string) (subject, description string, err error) {
+	out, err := r.inRoot("log", "-1", "--format=%B", rev, "--")
 	if err != nil {
-		if !hasCommits(dir) {
+		if !hasCommits(r.root) {
 			err = i18n.New("git.noCommits", nil)
 		}
 		return "", "", failed("log", err)
@@ -75,23 +70,18 @@ func Message(dir, rev string) (subject, description string, err error) {
 // (--no-edit). published говорит, что прежний коммит уже лежал в upstream:
 // после amend ветка разошлась с remote, и обычный push её не отправит. Хуки
 // выполняются, как у Commit.
-func Amend(dir, subject, description string) (published bool, err error) {
-	published, err = amend(dir, subject, description)
+func (r Repo) Amend(subject, description string) (published bool, err error) {
+	published, err = r.amend(subject, description)
 	return published, failed("commit", err)
 }
 
-func amend(dir, subject, description string) (bool, error) {
-	root, err := topLevel(dir)
-	if err != nil {
-		return false, err
-	}
-
+func (r Repo) amend(subject, description string) (bool, error) {
 	args := []string{"commit", "--amend", "--no-edit"}
 	if subject != "" {
 		args = messageArgs([]string{"commit", "--amend"}, subject, description)
 	}
-	_, pushedErr := run(call{dir: root}, "merge-base", "--is-ancestor", "HEAD", "@{upstream}")
-	_, err = run(call{dir: root}, args...)
+	_, pushedErr := r.inRoot("merge-base", "--is-ancestor", "HEAD", "@{upstream}")
+	_, err := r.inRoot(args...)
 	return err == nil && pushedErr == nil, headline(err)
 }
 
@@ -140,18 +130,14 @@ func unfinished(root string) bool {
 // называет один файл, а знать нужно, что операция не закончена. Отказ до
 // начала (грязное дерево, незавершённая прежняя операция) сводится к одной
 // строке (headline).
-func stopping(dir, operation string, args ...string) error {
-	root, err := topLevel(dir)
-	if err != nil {
-		return err
-	}
-	if unfinished(root) {
-		_, err = run(call{dir: root}, args...)
+func (r Repo) stopping(operation string, args ...string) error {
+	if unfinished(r.root) {
+		_, err := r.inRoot(args...)
 		return headline(err)
 	}
 
-	_, err = run(call{dir: root}, args...)
-	if err != nil && unfinished(root) {
+	_, err := r.inRoot(args...)
+	if err != nil && unfinished(r.root) {
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": operation})
 	}
 	return headline(err)

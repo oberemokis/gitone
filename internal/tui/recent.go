@@ -29,9 +29,9 @@ func (msg recentMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.recentArrive
 
 // recentCmd читает список и проверяет каждый каталог: пропавший помечается,
 // но из списка сам не убирается, диск мог быть просто не подключён.
-func recentCmd(stateDir, dir string) tea.Cmd {
+func recentCmd(stateDir string, repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		current, _ := git.Root(dir)
+		current := repo.Root()
 
 		var repos []recentRepo
 		for _, path := range config.ReadState(stateDir).RecentRepos {
@@ -42,17 +42,16 @@ func recentCmd(stateDir, dir string) tea.Cmd {
 	}
 }
 
-// rememberRepoCmd ставит репозиторий каталога dir первым в state.json. Без
-// каталога состояния (тесты) или вне репозитория записывать нечего. Ошибка
-// записи интерфейс не останавливает: список недавних это удобство.
-func rememberRepoCmd(stateDir, dir string) tea.Cmd {
-	if stateDir == "" {
+// rememberRepoCmd ставит корень репозитория root первым в state.json: при
+// запуске корень открытого, из окна недавних путь из самого списка. Без
+// каталога состояния (тесты) записывать нечего. Ошибка записи интерфейс не
+// останавливает: список недавних это удобство.
+func rememberRepoCmd(stateDir, root string) tea.Cmd {
+	if stateDir == "" || root == "" {
 		return nil
 	}
 	return func() tea.Msg {
-		if root, err := git.Root(dir); err == nil {
-			_ = config.RememberRepo(stateDir, root)
-		}
+		_ = config.RememberRepo(stateDir, root)
 		return nil
 	}
 }

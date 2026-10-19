@@ -26,15 +26,15 @@ type versionsMsg struct {
 
 func (msg versionsMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.storeVersions(msg), nil }
 
-func versionsCmd(dir, key string, file diff.File) tea.Cmd {
+func versionsCmd(repo git.Repo, key string, file diff.File) tea.Cmd {
 	return func() tea.Msg {
 		path := cmp.Or(file.NewPath, file.OldPath)
-		old, err := git.Version(dir, file.OldBlob, "")
+		old, err := repo.Version(file.OldBlob, "")
 		if err != nil {
 			return versionsMsg{key: key, path: path, err: err}
 		}
 
-		new, err := git.Version(dir, file.NewBlob, file.NewPath)
+		new, err := repo.Version(file.NewBlob, file.NewPath)
 		return versionsMsg{key: key, path: path, old: old, new: new, err: err}
 	}
 }
@@ -86,5 +86,5 @@ func (m Model) wantVersions(cmd tea.Cmd) (Model, tea.Cmd) {
 	}
 
 	m.reading = key
-	return m, tea.Batch(cmd, versionsCmd(m.dir, key, file))
+	return m, tea.Batch(cmd, versionsCmd(m.repo, key, file))
 }

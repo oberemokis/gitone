@@ -21,9 +21,9 @@ func (msg resetTargetMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.resetTa
 // resetTargetCmd находит цель reset из окна веток (#231): у текущей ветки её
 // upstream, у другой она сама, и считает снимаемые коммиты. Другая ветка
 // приходит полной ссылкой, а в подвале названа коротким именем.
-func resetTargetCmd(dir string, branch git.Branch) tea.Cmd {
+func resetTargetCmd(repo git.Repo, branch git.Branch) tea.Cmd {
 	return func() tea.Msg {
-		target, drops, err := git.ResetTarget(dir, branch.Name, branch.Current)
+		target, drops, err := repo.ResetTarget(branch.Name, branch.Current)
 		label := target
 		if !branch.Current {
 			label = branch.Name
@@ -85,11 +85,11 @@ func (m Model) resetTo(target, label string, mode git.ResetMode) (tea.Model, tea
 	}
 
 	m.active = noWindow
-	dir := m.dir
+	repo := m.repo
 	note := m.text.Text("reset.done", i18n.Args{"target": label, "mode": string(mode)})
 	warning := m.text.Text("reset.published", i18n.Args{"target": label})
 	return m, func() tea.Msg {
-		published, err := git.Reset(dir, target, mode)
+		published, err := repo.Reset(target, mode)
 		if !published {
 			warning = ""
 		}

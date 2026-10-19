@@ -27,17 +27,17 @@ const (
 
 // commitCmd записывает индекс с темой и описанием. Команда, а не Update: хук
 // может работать долго, и экран не должен висеть.
-func commitCmd(dir, subject, description string) tea.Cmd {
+func commitCmd(repo git.Repo, subject, description string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: git.Commit(dir, subject, description)}
+		return actionDoneMsg{err: repo.Commit(subject, description)}
 	}
 }
 
 // amendCmd переписывает последний коммит. Если прежний коммит уже лежал в
 // upstream, подвал держит предупреждение: обычный push ветку не отправит.
-func amendCmd(dir, subject, description, note, warning string) tea.Cmd {
+func amendCmd(repo git.Repo, subject, description, note, warning string) tea.Cmd {
 	return func() tea.Msg {
-		published, err := git.Amend(dir, subject, description)
+		published, err := repo.Amend(subject, description)
 		if !published {
 			warning = ""
 		}
@@ -55,9 +55,9 @@ type lastMessageMsg struct {
 
 func (msg lastMessageMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.openAmend(msg), nil }
 
-func lastMessageCmd(dir string) tea.Cmd {
+func lastMessageCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
-		subject, description, err := git.LastMessage(dir)
+		subject, description, err := repo.LastMessage()
 		return lastMessageMsg{subject: subject, description: description, err: err}
 	}
 }
@@ -160,10 +160,10 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		switch {
 		case amending && unchanged:
 			note := m.text.Text("commit.amended", nil)
-			return m, amendCmd(m.dir, "", "", note, m.text.Text("commit.amendPublished", nil))
+			return m, amendCmd(m.repo, "", "", note, m.text.Text("commit.amendPublished", nil))
 		case amending:
 			note := m.text.Text("commit.amended", nil)
-			return m, amendCmd(m.dir, subject, description, note, m.text.Text("commit.amendPublished", nil))
+			return m, amendCmd(m.repo, subject, description, note, m.text.Text("commit.amendPublished", nil))
 		case rewording != "" && unchanged:
 			return m, nil
 		case rewording != "":
@@ -171,7 +171,7 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			follow.Subject = subject
 			return m, m.rewrite(rewording, git.RewriteReword, fullMessage(subject, description), follow, m.cursor)
 		}
-		return m, commitCmd(m.dir, subject, description)
+		return m, commitCmd(m.repo, subject, description)
 	case pressed == "backspace":
 		_, size := utf8.DecodeLastRuneInString(m.subject)
 		m.subject = m.subject[:len(m.subject)-size]

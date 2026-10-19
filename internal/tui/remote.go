@@ -99,27 +99,27 @@ func remoteSpinTick(id int) tea.Cmd {
 
 // pullCmd и pushCmd запускают git в команде, а не в Update: сеть бывает
 // медленной, и экран не должен висеть.
-func pullCmd(ctx context.Context, dir string, id int) tea.Cmd {
+func pullCmd(ctx context.Context, repo git.Repo, id int) tea.Cmd {
 	return func() tea.Msg {
-		updated, err := git.Pull(ctx, dir)
+		updated, err := repo.Pull(ctx)
 		return remoteDoneMsg{id: id, kind: pulling, updated: updated, err: err}
 	}
 }
 
-func pushCmd(ctx context.Context, dir string, id int, kind remoteKind) tea.Cmd {
-	push := git.Push
+func pushCmd(ctx context.Context, repo git.Repo, id int, kind remoteKind) tea.Cmd {
+	push := repo.Push
 	if kind == forcePushing {
-		push = git.PushForceLease
+		push = repo.PushForceLease
 	}
 	return func() tea.Msg {
-		target, err := push(ctx, dir)
+		target, err := push(ctx)
 		return remoteDoneMsg{id: id, kind: kind, target: target, err: err}
 	}
 }
 
-func fetchCmd(ctx context.Context, dir string, id int) tea.Cmd {
+func fetchCmd(ctx context.Context, repo git.Repo, id int) tea.Cmd {
 	return func() tea.Msg {
-		return remoteDoneMsg{id: id, kind: fetching, err: git.Fetch(ctx, dir)}
+		return remoteDoneMsg{id: id, kind: fetching, err: repo.Fetch(ctx)}
 	}
 }
 
@@ -129,12 +129,12 @@ func (m Model) startRemote(kind remoteKind) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.remote = remote{kind: kind, id: m.remote.id + 1, cancel: cancel}
 
-	run := pullCmd(ctx, m.dir, m.remote.id)
+	run := pullCmd(ctx, m.repo, m.remote.id)
 	switch kind {
 	case pushing, forcePushing:
-		run = pushCmd(ctx, m.dir, m.remote.id, kind)
+		run = pushCmd(ctx, m.repo, m.remote.id, kind)
 	case fetching:
-		run = fetchCmd(ctx, m.dir, m.remote.id)
+		run = fetchCmd(ctx, m.repo, m.remote.id)
 	}
 
 	return m, tea.Batch(remoteSpinTick(m.remote.id), run)
@@ -179,7 +179,7 @@ func (m Model) remoteDone(msg remoteDoneMsg) (tea.Model, tea.Cmd) {
 	next, reload := m.startReload()
 	// открытое окно подмодулей показывает новое состояние
 	if msg.kind == updatingSubmodule && m.active == submoduleWindow {
-		return next, tea.Batch(reload, submodulesCmd(m.dir))
+		return next, tea.Batch(reload, submodulesCmd(m.repo))
 	}
 	return next, reload
 }
