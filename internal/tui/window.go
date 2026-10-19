@@ -39,49 +39,20 @@ const (
 	// questionWindow общий вопрос (question.go), stashDropWindow старше него
 	stashDropWindow
 	questionWindow
+	// windowEnd не окно, а конец перечисления: до него тест полноты ищет у
+	// каждого окна запись в windowKinds
+	windowEnd
 )
 
 // keyPress отдаёт нажатие открытому окну, а без окна переводит его в действие.
+// Окна подвал не гасят: сообщение, пришедшее при открытом окне, должно
+// пережить работу в нём.
 func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch m.active {
-	case questionWindow:
-		return m.answerQuestion(key)
-	case promptWindow:
-		return m.typePrompt(key)
-	case menuWindow:
-		return m.menuKey(key)
-	case stashDropWindow:
-		return m.answerStashDrop(key)
-	case commitWindow:
-		return m.typeCommit(key)
-	case logWindow:
-		return m.logKey(key)
-	case branchWindow:
-		return m.branchKey(key)
-	case worktreeWindow:
-		return m.worktreeKey(key)
-	case stashWindow:
-		return m.stashKey(key)
-	case tagWindow:
-		return m.tagKey(key)
-	case remoteWindow:
-		return m.remoteKey(key)
-	case reflogWindow:
-		return m.reflogKey(key)
-	case submoduleWindow:
-		return m.submoduleKey(key)
-	case journalWindow:
-		return m.journalKey(key)
-	case recentWindow:
-		return m.recentKey(key)
+	if kind, open := windowKinds[m.active]; open {
+		return kind.key(m, key)
 	}
 
-	// окна выше подвал не гасят: сообщение, пришедшее при открытом окне,
-	// должно пережить работу в нём
 	m.notice = ""
-	if m.active == pickerWindow {
-		return m.pickerKey(key)
-	}
 	// ctrl+c зашит и здесь, как в окнах: app.quit можно отключить, а выход
 	// из приложения не должен теряться из-за конфига
 	if key.String() == "ctrl+c" {
@@ -101,42 +72,13 @@ func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // discard своего рисунка не имеет: он стоит в подвале, а справка остаётся видна.
 // Общий вопрос рисуется последней строкой окна, над которым задан (asking).
 func (m Model) windowBox() string {
-	p, width, height := m.paint(), m.width, m.bodyHeight()
-
 	shown, question := m.asking()
-	switch shown {
-	case promptWindow:
-		return promptBox(p, m.prompt, width)
-	case menuWindow:
-		return menuBox(p, m.menu, width, height)
-	case pickerWindow:
-		return pickerBox(p, m.picker, len(m.files) == 0, width, height)
-	case commitWindow:
-		return commitBox(p, m.commitTitle(), m.subject, m.description, m.commitField, width)
-	case logWindow:
-		return logBox(p, m.logShown(), m.logFilter, m.cursor, m.query, m.searching, question, width, height)
-	case branchWindow:
-		return branchBox(p, m.branchesShown(), m.cursor, m.query, m.searching, question, width, height)
-	case worktreeWindow:
-		return worktreeBox(p, m.worktreesShown(), m.cursor, m.query, m.searching, width, height)
-	case stashWindow, stashDropWindow:
-		return stashBox(p, m.stashes, m.cursor, m.active == stashDropWindow, width, height)
-	case tagWindow:
-		return tagBox(p, m.tagsShown(), m.cursor, m.query, m.searching, question, width, height)
-	case remoteWindow:
-		return remoteBox(p, m.remotes, m.cursor, question, width, height)
-	case reflogWindow:
-		return reflogBox(p, m.reflogShown(), m.cursor, m.query, m.searching, width, height)
-	case submoduleWindow:
-		return submoduleBox(p, m.submodules, m.cursor, width, height)
-	case journalWindow:
-		return journalBox(p, m.journal, m.cursor, width, height)
-	case recentWindow:
-		return recentBox(p, m.recent, m.cursor, width, height)
+	if kind := windowKinds[shown]; kind.box != nil {
+		return kind.box(m, m.paint(), question)
 	}
 
 	if m.helpOpen {
-		return helpBox(p, width, height, m.helpTop)
+		return helpBox(m.paint(), m.width, m.bodyHeight(), m.helpTop)
 	}
 	return ""
 }
@@ -169,53 +111,18 @@ func (m Model) moveCursor(delta, count int) Model {
 }
 
 // wheelList двигает курсор открытого списка колесом: щелчок это wheelStep
-// нажатий list.down или list.up подряд. Вбок списку двигаться некуда. Вопрос
-// об удалении stash курсора не имеет, колесо его пропускает. Окно коммита до
-// сюда не доходит: его колесо прокручивает описание (wheelCommit).
-// Список прокручивается при рисовании за курсором, поле поиска колесу не
-// мешает: курсор ходит по найденному.
+// нажатий list.down или list.up подряд. Вбок списку двигаться некуда. Окно без
+// списка (вопросы, поле ввода) колесо пропускает. Окно коммита до сюда не
+// доходит: его колесо прокручивает описание (wheelCommit). Список
+// прокручивается при рисовании за курсором, поле поиска колесу не мешает:
+// курсор ходит по найденному.
 func (m Model) wheelList(button tea.MouseButton) Model {
-	var delta int
 	switch button {
 	case tea.MouseWheelDown:
-		delta = 1
+		return windowKinds[m.active].moveBy(m, wheelStep)
 	case tea.MouseWheelUp:
-		delta = -1
-	default:
-		return m
+		return windowKinds[m.active].moveBy(m, -wheelStep)
 	}
-
-	switch m.active {
-	case pickerWindow:
-		m.picker = m.picker.Move(delta * wheelStep)
-	case logWindow:
-		// шаг за шагом, как клавиши: строки соединения графа курсор перешагивает
-		shown := m.logShown()
-		for range wheelStep {
-			m.cursor = commitRow(shown, m.cursor, m.moveCursor(delta, len(shown)).cursor)
-		}
-	case branchWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.branchesShown()))
-	case worktreeWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.worktreesShown()))
-	case stashWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.stashes))
-	case tagWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.tagsShown()))
-	case remoteWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.remotes))
-	case reflogWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.reflogShown()))
-	case submoduleWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.submodules))
-	case journalWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.journal))
-	case recentWindow:
-		m = m.moveCursor(delta*wheelStep, len(m.recent))
-	case menuWindow:
-		m.menu = m.menu.move(delta * wheelStep)
-	}
-
 	return m
 }
 

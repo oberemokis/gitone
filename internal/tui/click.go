@@ -121,51 +121,18 @@ func (m Model) press(action keymap.Action) (tea.Model, tea.Cmd) {
 	return m.keyPress(tea.KeyPressMsg{Text: keys[0]})
 }
 
-// clickRow ставит курсор на строку и сразу делает enter окна: пользователь
-// выбрал действие с первого клика. Без окна строки есть только у панели
-// файлов. Строка соединения графа в логе коммитом не является.
+// clickRow ставит курсор на строку и сразу делает enter окна (windowKind.enter):
+// пользователь выбрал действие с первого клика. Без окна строки есть только у
+// панели файлов.
 func (m Model) clickRow(index int) (tea.Model, tea.Cmd) {
-	switch m.active {
-	case noWindow:
+	if m.active == noWindow {
 		return m.openFile(index), nil
-	case pickerWindow:
-		m.picker = m.picker.Select(index)
-		return m.press(keymap.SearchChoose)
-	case logWindow:
-		if m.logShown()[index].Hash == "" {
-			return m, nil
-		}
-		m.cursor = index
-		return m.press(keymap.LogOpen)
-	case branchWindow:
-		m.cursor = index
-		return m.press(keymap.BranchesSwitch)
-	case worktreeWindow:
-		m.cursor = index
-		return m.press(keymap.WorktreesSwitch)
-	case stashWindow:
-		m.cursor = index
-		return m.press(keymap.StashDiff)
-	case tagWindow:
-		m.cursor = index
-		return m.press(keymap.TagsDiff)
-	case remoteWindow:
-		// у remote нет действия на enter, клик только ставит курсор
-		m.cursor = index
-		return m, nil
-	case submoduleWindow, journalWindow:
-		m.cursor = index
-		return m, nil
-	case recentWindow:
-		m.cursor = index
-		return m.press(keymap.RecentOpen)
-	case reflogWindow:
-		m.cursor = index
-		return m.press(keymap.LogOpen)
-	case menuWindow:
-		m.menu.cursor = index
-		return m.press(keymap.MenuChoose)
 	}
 
-	return m, nil
+	kind := windowKinds[m.active]
+	m, picked := kind.pickRow(m, index)
+	if !picked || kind.enter == "" {
+		return m, nil
+	}
+	return m.press(kind.enter)
 }
