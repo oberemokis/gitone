@@ -25,6 +25,8 @@ type recentMsg struct {
 	repos []recentRepo
 }
 
+func (msg recentMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.recentArrived(msg), nil }
+
 // recentCmd читает список и проверяет каждый каталог: пропавший помечается,
 // но из списка сам не убирается, диск мог быть просто не подключён.
 func recentCmd(stateDir, dir string) tea.Cmd {

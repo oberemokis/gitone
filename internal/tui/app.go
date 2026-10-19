@@ -238,10 +238,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, cmd
 }
 
+// applier это сообщение пакета: его вернула команда, и оно само знает, как
+// лечь в модель (#355). Так сообщение и его разбор живут в файле своего окна
+// или своей команды, а update разбирает только сообщения Bubble Tea.
+type applier interface {
+	apply(Model) (tea.Model, tea.Cmd)
+}
+
 func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if own, ok := msg.(applier); ok {
+		return own.apply(m)
+	}
+
 	switch msg := msg.(type) {
-	case versionsMsg:
-		m = m.storeVersions(msg)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m = m.resize()
@@ -269,78 +278,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.MouseMotionMsg, tea.MouseReleaseMsg:
 		m = m.mouseDrag(msg)
-	case tickMsg:
-		return m.ticked()
 	// возврат в терминал из редактора: правка видна сразу, а не к тику
 	case tea.FocusMsg:
 		if m.ticks != nil {
 			return m.poll()
 		}
-	case polledMsg:
-		return m.polled(msg)
-	case unstagedMsg:
-		m = m.unstagedArrived(msg)
-	case conflictLabelsMsg:
-		m = m.sidesArrived(msg)
-	case spinMsg:
-		if m.loading && msg.load == m.load {
-			m.spin++
-			return m, spinTick(m.load)
-		}
-	case remoteSpinMsg:
-		if m.remote.running() && msg.id == m.remote.id {
-			m.remote.spin++
-			return m, remoteSpinTick(msg.id)
-		}
-	case remoteDoneMsg:
-		return m.remoteDone(msg)
-	case noticeExpiredMsg:
-		m = m.expire(msg)
-	case reloadMsg:
-		return m.reloaded(msg)
-	case worktreeCheckedMsg:
-		return m.worktreeChecked(msg)
-	case editorMsg:
-		return m.startEditor(msg)
-	case patchMsg:
-		return m.patchSaved(msg)
-	case resetTargetMsg:
-		m = m.resetTargetFound(msg)
-	case remoteBranchesMsg:
-		m = m.chooseUpstream(msg)
-	case undoStepMsg:
-		m = m.askUndo(msg)
-	case tagsMsg:
-		m = m.tagsArrived(msg)
-	case remotesMsg:
-		m = m.remotesArrived(msg)
-	case reflogMsg:
-		m = m.reflogArrived(msg)
-	case journalMsg:
-		m = m.journalArrived(msg)
-	case recentMsg:
-		m = m.recentArrived(msg)
-	case submodulesMsg:
-		m = m.submodulesArrived(msg)
-	case lastMessageMsg:
-		m = m.openAmend(msg)
-	case rewordMsg:
-		m = m.openReword(msg)
-	case rewrittenMsg:
-		return m.rewritten(msg)
-	case actionDoneMsg:
-		return m.actionDone(msg)
-	case stashTreeMsg:
-		return m.openStashDiff(msg)
-	// списки приходят асинхронно, общее у всех окон-списков делает arrived
-	case stashesMsg:
-		return m.stashesArrived(msg)
-	case branchesMsg:
-		return m.branchesArrived(msg)
-	case worktreesMsg:
-		m = m.worktreesArrived(msg)
-	case logMsg:
-		m = m.logArrived(msg)
 	}
 
 	return m, nil

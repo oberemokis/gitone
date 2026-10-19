@@ -20,6 +20,8 @@ type submodulesMsg struct {
 	err        error
 }
 
+func (msg submodulesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.submodulesArrived(msg), nil }
+
 func submodulesCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		submodules, err := git.Submodules(dir)

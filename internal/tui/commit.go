@@ -53,6 +53,8 @@ type lastMessageMsg struct {
 	err         error
 }
 
+func (msg lastMessageMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.openAmend(msg), nil }
+
 func lastMessageCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		subject, description, err := git.LastMessage(dir)

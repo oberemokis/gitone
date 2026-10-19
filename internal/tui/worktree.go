@@ -20,6 +20,8 @@ type worktreesMsg struct {
 	err       error
 }
 
+func (msg worktreesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.worktreesArrived(msg), nil }
+
 func worktreesCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		worktrees, err := git.Worktrees(dir)
@@ -43,6 +45,8 @@ type worktreeCheckedMsg struct {
 	path string
 	err  error
 }
+
+func (msg worktreeCheckedMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.worktreeChecked(msg) }
 
 // checkWorktreeCmd проверяет каталог дерева до переключения. Запертое дерево на
 // отключённом диске git держит в списке без prunable, и выбор такого дерева

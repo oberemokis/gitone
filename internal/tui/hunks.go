@@ -22,6 +22,8 @@ type unstagedMsg struct {
 	err     error
 }
 
+func (msg unstagedMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.unstagedArrived(msg), nil }
+
 func (m Model) unstagedCmd(path string, refresh bool) tea.Cmd {
 	dir, flags := m.dir, m.diffFlags()
 	view := reloadMsg{dir: dir, args: m.args, flags: flags}

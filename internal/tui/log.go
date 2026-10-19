@@ -30,6 +30,8 @@ type logMsg struct {
 	at      int
 }
 
+func (msg logMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.logArrived(msg), nil }
+
 func logCmd(dir string, filter git.LogFilter) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := git.Log(dir, logLimit, filter)

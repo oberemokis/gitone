@@ -20,6 +20,8 @@ type tagsMsg struct {
 	note string
 }
 
+func (msg tagsMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.tagsArrived(msg), nil }
+
 func tagsCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		tags, err := git.Tags(dir)

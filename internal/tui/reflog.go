@@ -16,6 +16,8 @@ type reflogMsg struct {
 	err     error
 }
 
+func (msg reflogMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.reflogArrived(msg), nil }
+
 func reflogCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := git.Reflog(dir)

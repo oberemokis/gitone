@@ -16,6 +16,8 @@ type resetTargetMsg struct {
 	err    error
 }
 
+func (msg resetTargetMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.resetTargetFound(msg), nil }
+
 // resetTargetCmd находит цель reset из окна веток (#231): у текущей ветки её
 // upstream, у другой она сама, и считает снимаемые коммиты. Другая ветка
 // приходит полной ссылкой, а в подвале названа коротким именем.

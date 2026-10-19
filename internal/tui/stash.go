@@ -19,6 +19,8 @@ type stashesMsg struct {
 	at      int
 }
 
+func (msg stashesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.stashesArrived(msg) }
+
 func stashListCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		stashes, err := git.Stashes(dir)
@@ -49,6 +51,8 @@ type stashTreeMsg struct {
 	tree string
 	err  error
 }
+
+func (msg stashTreeMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.openStashDiff(msg) }
 
 func stashTreeCmd(dir, hash string) tea.Cmd {
 	return func() tea.Msg {

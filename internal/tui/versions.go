@@ -24,6 +24,8 @@ type versionsMsg struct {
 	err       error
 }
 
+func (msg versionsMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.storeVersions(msg), nil }
+
 func versionsCmd(dir, key string, file diff.File) tea.Cmd {
 	return func() tea.Msg {
 		path := cmp.Or(file.NewPath, file.OldPath)

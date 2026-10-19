@@ -22,6 +22,8 @@ type branchesMsg struct {
 	note     string
 }
 
+func (msg branchesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.branchesArrived(msg) }
+
 func branchesCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		branches, err := git.Branches(dir)

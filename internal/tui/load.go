@@ -117,6 +117,8 @@ type reloadMsg struct {
 	err      error
 }
 
+func (msg reloadMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.reloaded(msg) }
+
 // fits говорит, что ответ прочитан для диффа, который открыт сейчас: пока git
 // читал, W, лог, stash или b могли сменить каталог или аргументы, а клавиши
 // вида флаги.

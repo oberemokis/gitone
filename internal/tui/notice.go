@@ -17,6 +17,8 @@ type noticeExpiredMsg struct {
 	id int
 }
 
+func (msg noticeExpiredMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.expire(msg), nil }
+
 func noticeTick(id int) tea.Cmd {
 	return tea.Tick(noticeLifetime, func(time.Time) tea.Msg { return noticeExpiredMsg{id: id} })
 }
