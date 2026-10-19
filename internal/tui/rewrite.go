@@ -127,7 +127,8 @@ func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 
 	m.stale = true
 	next, reload := m.startReload()
-	if next.active != logWindow {
+	// ответ мог прийти, пока над логом висит вопрос: лог под ним тоже устарел
+	if next.beneath() != logWindow {
 		return next, reload
 	}
 

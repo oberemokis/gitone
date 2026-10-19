@@ -45,3 +45,22 @@ func (m Model) asking() (shown window, text string) {
 	}
 	return m.active, ""
 }
+
+// beneath это окно под вопросом, меню или полем ввода, а без них открытое:
+// ответ правки, пришедший, пока над списком висит вопрос, обновляет список под
+// ним. У меню и поля курсор свой, курсор списка они не трогают.
+func (m Model) beneath() window {
+	switch m.active {
+	case questionWindow:
+		return m.question.back
+	case menuWindow:
+		return m.menu.back
+	case promptWindow:
+		return m.prompt.back
+	case stashDropWindow:
+		return stashWindow
+	case discardWindow:
+		return noWindow
+	}
+	return m.active
+}
