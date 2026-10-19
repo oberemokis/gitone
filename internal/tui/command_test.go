@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -12,14 +13,20 @@ import (
 // keybinds.json, где своя команда стоит на o.
 func commandRepo(t *testing.T, command string) (string, tea.Model) {
 	t.Helper()
+	return commandRepoAt(t, "my file.txt", command)
+}
+
+// commandRepoAt это commandRepo с правленым файлом name.
+func commandRepoAt(t *testing.T, name, command string) (string, tea.Model) {
+	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("команды в тесте написаны для sh")
 	}
 
 	repo := newRepo(t)
-	write(t, repo, "my file.txt", "one\n")
+	write(t, repo, name, "one\n")
 	commitAll(t, repo)
-	write(t, repo, "my file.txt", "two\n")
+	write(t, repo, name, "two\n")
 
 	keybinds := `{"commands":[{"key":"o","name":"mine","command":` + strings.ReplaceAll(`"`+command+`"`, `\`, `\\`) + `}]}`
 	return repo, openWithKeybinds(t, repo, keybinds, 100)
@@ -55,5 +62,38 @@ func TestCustomCommandFailsAndDoesNotWait(t *testing.T) {
 	model = pressAndSettle(model, key('o'))
 	if footer := footerOf(model); !strings.Contains(footer, "exit 3: broken") {
 		t.Fatalf("подвал %q, ожидался код выхода и stderr", footer)
+	}
+}
+
+// Кавычка и $ в пути подставляются дословно: shell не разбирает путь
+// повторно (#298, случай 1).
+func TestCustomCommandPathIsLiteral(t *testing.T) {
+	_, model := commandRepoAt(t, "it's $HOME.txt", "echo {path}")
+
+	model = pressAndSettle(model, key('o'))
+	if footer := footerOf(model); !strings.Contains(footer, "mine: it's $HOME.txt") {
+		t.Fatalf("подвал %q, ожидался путь как есть", footer)
+	}
+}
+
+// stdin gitone команде не достаётся: go test сам даёт пустой stdin, поэтому
+// тест подменяет его трубой с данными (случай 3).
+func TestCustomCommandDoesNotReadOwnStdin(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.WriteString("secret\n"); err != nil {
+		t.Fatal(err)
+	}
+	writer.Close()
+	stdin := os.Stdin
+	os.Stdin = reader
+	t.Cleanup(func() { os.Stdin = stdin; reader.Close() })
+
+	_, model := commandRepo(t, "cat; echo end")
+	model = pressAndSettle(model, key('o'))
+	if footer := footerOf(model); !strings.Contains(footer, "mine: end") {
+		t.Fatalf("подвал %q, команда прочитала stdin gitone", footer)
 	}
 }

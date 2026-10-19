@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"cmp"
 	"errors"
+	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,9 +17,10 @@ import (
 
 // runCommand запускает свою команду пользователя (#246) из корня репозитория
 // через shell, как customCommands в lazygit: `sh -c`, а в Windows `cmd /C`.
-// {path} заменяется путём открытого файла в кавычках shell, пробелы и
-// кавычки в пути команду не ломают. stdin пустой: команда, которая ждёт
-// ввода, получает конец файла, а не висит. Подвал говорит первую строку
+// {path} заменяется переменной окружения с путём открытого файла в кавычках
+// shell: значение переменной shell повторно не разбирает, и пробелы,
+// кавычки и `$` в пути команду не ломают. stdin пустой: команда, которая
+// ждёт ввода, получает конец файла, а не висит. Подвал говорит первую строку
 // вывода, а при ошибке код выхода и первую строку stderr. После команды
 // дифф перечитывается: она могла поменять репозиторий.
 func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
@@ -28,12 +29,13 @@ func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
 	}
 
 	name := cmp.Or(command.Name, command.Run)
-	script := command.Run
+	script, path := command.Run, ""
 	if strings.Contains(script, "{path}") {
 		if len(m.files) == 0 || stagedKey(m.files[m.current]) == "" {
 			return m.putNotice(m.text.Text("command.noFile", i18n.Args{"name": visible(name)}), true), nil
 		}
-		script = strings.ReplaceAll(script, "{path}", shellQuote(stagedKey(m.files[m.current])))
+		script = strings.ReplaceAll(script, "{path}", pathVariable)
+		path = stagedKey(m.files[m.current])
 	}
 
 	dir, done := m.dir, m.text.Text("command.done", i18n.Args{"name": visible(name)})
@@ -43,7 +45,7 @@ func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
 			return actionDoneMsg{err: err}
 		}
 
-		output, err := runShell(root, script)
+		output, err := runShell(root, script, path)
 		if err != nil {
 			return actionDoneMsg{err: err}
 		}
@@ -54,15 +56,13 @@ func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
 	}
 }
 
-// runShell выполняет script в каталоге dir и отдаёт stdout. Выход с кодом
-// не ноль это ошибка из словаря с кодом и первой строкой stderr, а без неё
-// stdout.
-func runShell(dir, script string) (string, error) {
-	shell := exec.Command("sh", "-c", script)
-	if runtime.GOOS == "windows" {
-		shell = exec.Command("cmd", "/C", script)
-	}
+// runShell выполняет script в каталоге dir с путём path в GITONE_PATH и
+// отдаёт stdout. Выход с кодом не ноль это ошибка из словаря с кодом и первой
+// строкой stderr, а без неё stdout.
+func runShell(dir, script, path string) (string, error) {
+	shell := shellCommand(script)
 	shell.Dir = dir
+	shell.Env = append(os.Environ(), "GITONE_PATH="+path)
 
 	var stdout, stderr bytes.Buffer
 	shell.Stdout, shell.Stderr = &stdout, &stderr
@@ -84,13 +84,4 @@ func firstLine(text string) string {
 		}
 	}
 	return ""
-}
-
-// shellQuote берёт путь в кавычки shell: в sh одинарные, где одинарная
-// кавычка пути закрывается и экранируется, в cmd двойные.
-func shellQuote(path string) string {
-	if runtime.GOOS == "windows" {
-		return `"` + path + `"`
-	}
-	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
 }
