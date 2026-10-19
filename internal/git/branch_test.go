@@ -218,8 +218,6 @@ func TestBranchesListsLocalWithCurrent(t *testing.T) {
 	}
 }
 
-// Тег с именем ветки делает короткое имя неоднозначным: git отдаёт heads/v1.
-// В списке имя целое, и Switch по нему работает.
 // Checkout коммита отсоединяет HEAD на нём, правка, которой переход мешает,
 // его останавливает (#223, случаи 2 и 3).
 func TestCheckoutCommit(t *testing.T) {
@@ -247,6 +245,8 @@ func TestCheckoutCommit(t *testing.T) {
 	}
 }
 
+// Тег с именем ветки делает короткое имя неоднозначным: git отдаёт heads/v1.
+// В списке имя целое, и Switch по нему работает.
 func TestBranchesKeepNameWhenTagSharesIt(t *testing.T) {
 	repo := newRepo(t)
 	write(t, repo, "a.txt", "one\n")
@@ -305,6 +305,9 @@ func TestBranchesCarryLastCommit(t *testing.T) {
 		t.Fatalf("Branches: %v", err)
 	}
 	authors := map[string]string{"feature": "bob", "main": "ann"}
+	if len(branches) != len(authors) {
+		t.Fatalf("веток %d, ожидалось %d: пустой список прошёл бы цикл молча", len(branches), len(authors))
+	}
 	for _, branch := range branches {
 		if branch.Author != authors[branch.Name] || !strings.HasSuffix(branch.When, " ago") {
 			t.Errorf("ветка %s: автор %q, время %q; ожидался автор %q и «… ago»", branch.Name, branch.Author, branch.When, authors[branch.Name])

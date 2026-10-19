@@ -295,8 +295,8 @@ func TestFailingHookKeepsHead(t *testing.T) {
 	write(t, repo, "a.txt", "two\n")
 	runGit(t, repo, "add", "a.txt")
 
-	if err := git.Commit(repo, "с хуком", ""); err == nil {
-		t.Fatal("коммит прошёл, хотя хук упал")
+	if err := git.Commit(repo, "с хуком", ""); err == nil || !strings.Contains(err.Error(), "отказ хука") {
+		t.Fatalf("Commit = %v, ожидался отказ с текстом хука", err)
 	}
 	if after := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD")); after != before {
 		t.Fatal("HEAD сдвинулся при упавшем хуке")

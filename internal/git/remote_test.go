@@ -245,8 +245,9 @@ func TestPushWithoutOriginShowsGitError(t *testing.T) {
 	}
 }
 
-// Принудительного push нет: ветка, которую origin уже обогнал, отвергается, а
-// чужой коммит остаётся на месте.
+// Обычный push не переписывает remote: ветка, которую origin уже обогнал,
+// отвергается, а чужой коммит остаётся на месте. Принудительно отправляет
+// только PushForceLease после вопроса (#234).
 func TestPushNeverOverwritesRemoteCommits(t *testing.T) {
 	origin, local := remotePair(t)
 	publish(t, origin, "b.txt", "peer\n")
