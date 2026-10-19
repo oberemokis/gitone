@@ -13,11 +13,12 @@ import (
 
 // Цели мест клика, кроме строк списков (zone.Row): подсказка нажимает
 // клавишу действия, строка справки закрывает справку и делает своё действие,
-// стрелка заголовка открывает файл по номеру.
+// стрелка заголовка открывает файл по номеру, подложка закрывает окно.
 const (
-	pressTarget = "press:"
-	helpTarget  = "help:"
-	fileTarget  = "file:"
+	pressTarget    = "press:"
+	helpTarget     = "help:"
+	fileTarget     = "file:"
+	backdropTarget = "backdrop"
 )
 
 // Двойной клик по строке окна закрывает окно первым кликом, а вторым попадает
@@ -75,6 +76,12 @@ func (m Model) clickZone(x, y int) (tea.Model, tea.Cmd) {
 	}
 	if action, found := strings.CutPrefix(target, helpTarget); found {
 		return m.clickHelp(keymap.Action(action))
+	}
+	// клик мимо окна жмёт его закрытие, как в opencode (#367): поле ввода
+	// возвращает в окно под ним, вопрос в окне отменяется
+	if target == backdropTarget {
+		shown, _ := m.asking()
+		return m.press(windowKinds[shown].closeAction())
 	}
 	if target == filesEdgeTarget || target == splitEdgeTarget {
 		return m.startDrag(target, x), nil
