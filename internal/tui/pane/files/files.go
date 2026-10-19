@@ -46,11 +46,15 @@ func View(labels []string, current int, empty string, colors theme.Theme, width,
 		return style.Render(text + strings.Repeat(" ", max(width-ansi.StringWidth(text), 0)))
 	}
 
+	// без места под список отступ не ставится, строка «нет изменений» тоже
+	// только в пределах высоты: лишняя строка сдвинула бы подвал
 	rows := make([]string, 0, height)
-	for range min(paddingTop, height) {
-		rows = append(rows, row(panel, ""))
+	if height > paddingTop {
+		for range paddingTop {
+			rows = append(rows, row(panel, ""))
+		}
 	}
-	if len(labels) == 0 {
+	if len(labels) == 0 && len(rows) < height {
 		rows = append(rows, row(panel.Foreground(colors.TextMuted), "  "+empty))
 	}
 	for index := start; index < len(labels) && len(rows) < height; index++ {
