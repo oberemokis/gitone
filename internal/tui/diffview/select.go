@@ -4,23 +4,26 @@ import "gitone/internal/diff"
 
 // selection это выделение изменённых строк для индекса (#212). Курсор и якорь
 // это изменённые строки по номерам, а не по индексу на экране: так выделение
-// переживает смену вида, ширины и перенос. hunk значит, что выделен весь хунк
-// под курсором, иначе строки от якоря до курсора. conflict значит выбор
-// конфликтов (conflict.go): выделен конфликт под курсором.
+// переживает смену вида, ширины и перенос. at это место курсора на новой
+// стороне (newPositions): по нему курсор находит место, когда его строка
+// пропала. hunk значит, что выделен весь хунк под курсором, иначе строки от
+// якоря до курсора. conflict значит выбор конфликтов (conflict.go): выделен
+// конфликт под курсором.
 type selection struct {
 	on       bool
 	hunk     bool
 	conflict bool
 	cursor   diff.LineRef
+	at       int
 	anchor   diff.LineRef
 }
 
 // Select показывает file и ставит курсор на первую изменённую строку экрана,
-// выделен хунк под ней. Верх экрана держится по номеру строки, как при смене
-// вида: у диффа индекса и рабочего дерева новая сторона та же.
+// выделен хунк под ней. Верх экрана держится по новой стороне: она у диффа от
+// HEAD и диффа вне индекса одна, рабочее дерево, а старая у них разная.
 func (m Model) Select(file diff.File) Model {
-	top := m.topPosition()
-	m = m.withFile(file).rebuild().seek(top)
+	top := m.newTop()
+	m = m.withFile(file).rebuild().seekNew(top)
 
 	m.selection = selection{on: true, hunk: true}
 	index := m.changeFrom(m.scroll, 1)
@@ -28,7 +31,7 @@ func (m Model) Select(file diff.File) Model {
 		index = m.changeFrom(len(m.lines)-1, -1)
 	}
 	if index >= 0 {
-		m.selection.cursor = refs(m.lines[index])[0]
+		m = m.setCursor(index)
 	}
 	m.selection.anchor = m.selection.cursor
 	return m.follow()
@@ -39,11 +42,6 @@ func (m Model) Selecting() bool {
 	return m.selection.on
 }
 
-// SelectingHunk говорит, что выделен хунк целиком, а не строки.
-func (m Model) SelectingHunk() bool {
-	return m.selection.hunk
-}
-
 // ToggleLines переключает выделение хунка и строк: строки начинаются с
 // курсора.
 func (m Model) ToggleLines() Model {
@@ -52,11 +50,12 @@ func (m Model) ToggleLines() Model {
 	return m
 }
 
-// Deselect снимает выделение и показывает file, держа верх экрана.
+// Deselect снимает выделение и показывает file, держа верх экрана по новой
+// стороне, как Select.
 func (m Model) Deselect(file diff.File) Model {
-	top := m.topPosition()
+	top := m.newTop()
 	m.selection = selection{}
-	return m.withFile(file).rebuild().seek(top)
+	return m.withFile(file).rebuild().seekNew(top)
 }
 
 // MoveCursor переводит курсор на delta изменённых строк вниз или вверх, а при
@@ -97,8 +96,14 @@ func (m Model) MoveCursor(delta int) Model {
 		index = next
 	}
 
+	return m.setCursor(index).follow()
+}
+
+// setCursor ставит курсор на первую изменённую строку строки экрана index.
+func (m Model) setCursor(index int) Model {
 	m.selection.cursor = refs(m.lines[index])[0]
-	return m.follow()
+	m.selection.at = m.newPositions()[index]
+	return m
 }
 
 // Selected возвращает изменённые строки выделения.
@@ -167,7 +172,9 @@ func (m Model) follow() Model {
 
 // cursorIndex это строка экрана курсора. Курсор мог пропасть после
 // перечитывания: строку поставили в индекс. Тогда он встаёт на ближайшую
-// изменённую строку ниже, а без неё выше.
+// изменённую строку ниже по новой стороне, а без неё выше: номер на старой
+// стороне после правки индекса уже другой, а удалённые и добавленные строки
+// пронумерованы по разным сторонам.
 func (m Model) cursorIndex() int {
 	if m.selection.conflict {
 		block, found := m.conflictCursor()
@@ -179,17 +186,58 @@ func (m Model) cursorIndex() int {
 	if index := m.rowIndex(m.selection.cursor); index >= 0 {
 		return index
 	}
+	positions := m.newPositions()
 	for index, line := range m.lines {
-		if line.part != 0 {
-			continue
-		}
-		for _, ref := range refs(line) {
-			if ref.Number >= m.selection.cursor.Number {
-				return index
-			}
+		if line.part == 0 && len(refs(line)) > 0 && positions[index] >= m.selection.at {
+			return index
 		}
 	}
 	return m.changeFrom(len(m.lines)-1, -1)
+}
+
+// newPositions это место каждой строки экрана на новой стороне: её новый
+// номер, у удалённой строки номер ближайшей строки выше плюс один, у строки
+// без номеров 0.
+func (m Model) newPositions() []int {
+	positions := make([]int, len(m.lines))
+	last := 0
+	for index, line := range m.lines {
+		oldNumber, newNumber := line.numbers()
+		switch {
+		case newNumber > 0:
+			positions[index], last = newNumber, newNumber
+		case oldNumber > 0:
+			positions[index] = last + 1
+		}
+	}
+	return positions
+}
+
+// newTop это место верха экрана на новой стороне, 0 под служебной строкой.
+func (m Model) newTop() int {
+	if m.scroll >= len(m.lines) || m.lines[m.scroll].notice != nil {
+		return 0
+	}
+	for _, position := range m.newPositions()[m.scroll:] {
+		if position > 0 {
+			return position
+		}
+	}
+	return 0
+}
+
+// seekNew ставит наверх первую строку не выше места target на новой стороне.
+func (m Model) seekNew(target int) Model {
+	if target == 0 {
+		return m.clamp()
+	}
+	for index, position := range m.newPositions() {
+		if position >= target {
+			m.scroll = index
+			break
+		}
+	}
+	return m.clamp()
 }
 
 // rowIndex ищет первую строку экрана, в которой есть ref.
