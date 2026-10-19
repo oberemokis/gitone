@@ -9,7 +9,6 @@ import (
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
-	"gitone/internal/keymap"
 )
 
 // remoteKind это то, что делает идущая сетевая операция.
@@ -206,20 +205,6 @@ func (m Model) remoteResult(msg remoteDoneMsg) string {
 	}
 
 	return m.text.Text("remote.upToDate", nil)
-}
-
-// changesRepo говорит, что глобальное действие меняет репозиторий или само
-// запускает pull, push или fetch. Пока идёт сетевая операция, такое действие
-// отказывает: git pull меняет дерево, и x посреди него стёр бы не те правки.
-// Действия окон (переключение ветки и worktree, apply и drop у stash) проверяют
-// то же сами. Просмотр, окна и перечитывание диффа работают.
-func changesRepo(action keymap.Action) bool {
-	switch action {
-	case keymap.FilesStage, keymap.FilesDiscard, keymap.FilesCommit, keymap.FilesAmend, keymap.FilesIgnore, keymap.StashPush, keymap.GitPull, keymap.GitPush, keymap.GitFetch, keymap.GitUndo, keymap.GitRedo, keymap.GitOperation:
-		return true
-	}
-
-	return false
 }
 
 // refuseWhileRemote ставит в подвал отказ («pull is running»), пока идёт pull
