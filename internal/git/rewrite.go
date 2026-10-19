@@ -176,9 +176,18 @@ func rebaseWith(root, base string, todo []string, message string) error {
 		args = append(args, base)
 	}
 
+	// при чужой незавершённой операции (merge) git откажет до начала, и
+	// остановкой rebase это не считается
+	before := unfinished(root)
 	_, err = run(call{dir: root, env: env}, args...)
-	if err != nil && unfinished(root) {
+	switch {
+	case err != nil && !before && stoppedOnConflict(root):
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": "rebase"})
+	// --autostash выходит с 0, даже когда отложенные правки не встали обратно
+	case err == nil:
+		if conflicted, _ := ConflictedPaths(root); len(conflicted) > 0 {
+			return i18n.New("git.autostashConflict", i18n.Args{"operation": "rebase"})
+		}
 	}
 	return headline(err)
 }

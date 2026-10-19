@@ -120,6 +120,31 @@ func TestAutosquashRefusals(t *testing.T) {
 	}
 }
 
+// Reword во время слияния отвергает git своей причиной, а не остановкой
+// rebase, которого не было (#300, случай 5).
+func TestRewriteDuringMerge(t *testing.T) {
+	repo := conflictBranches(t)
+	stopsOnConflict(t, repo, "merge", "topic")
+
+	_, err := git.RewriteHistory(repo, revision(t, repo, "HEAD"), git.RewriteReword, "other")
+	if err == nil || errorKey(err) == "git.stoppedOnConflict" {
+		t.Fatalf("RewriteHistory = %v, ожидался отказ git", err)
+	}
+}
+
+// Отложенные правки, которые не встали после drop, дают ошибку, а не итог
+// «удалено»: правки остаются в stash (#300, случай 6).
+func TestRewriteAutostashConflict(t *testing.T) {
+	repo, hashes := historyRepo(t)
+	write(t, repo, "four.txt", "dirty\n")
+
+	_, err := git.RewriteHistory(repo, hashes[3], git.RewriteDrop, "")
+	refusedWith(t, err, "git.autostashConflict")
+	if stash := runGit(t, repo, "stash", "list"); stash == "" {
+		t.Fatal("отложенных правок нет в stash")
+	}
+}
+
 // Конфликт при переносе останавливает rebase (случай 5).
 func TestRewriteHistoryConflict(t *testing.T) {
 	repo := newRepo(t)
