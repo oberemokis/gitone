@@ -22,6 +22,8 @@ func TestLoad(t *testing.T) {
 		wantErr string
 	}{
 		{name: "нет файла", missing: true, want: defaultQuit},
+		// встроенный список проходит все проверки decode
+		{name: "пустой файл", content: `{}`, want: defaultQuit},
 		{name: "переназначение", content: `{"keybinds":{"app.quit":"Q"}}`, want: []string{"Q"}},
 		{name: "массив", content: `{"keybinds":{"app.quit":["Q","y"]}}`, want: []string{"Q", "y"}},
 		{name: "повтор клавиши в действии", content: `{"keybinds":{"app.quit":["q","ctrl+c","q"]}}`, want: []string{"q", "ctrl+c"}},
@@ -418,5 +420,23 @@ func TestActionForFollowsOverride(t *testing.T) {
 	}
 	if got := km.ActionFor("q"); got != "" {
 		t.Errorf("q ведёт к %q, ожидалось ничего", got)
+	}
+}
+
+// Поиск по нажатию идёт на каждую клавишу и память не выделяет: индексы
+// строятся один раз, в Default и Load (#348).
+func TestLookupsDoNotAllocate(t *testing.T) {
+	km := keymap.Default()
+
+	lookups := map[string]func(){
+		"ActionFor":  func() { km.ActionFor("]") },
+		"KeysFor":    func() { km.KeysFor(keymap.LogOpen) },
+		"Is":         func() { km.Is(keymap.ListDown, "j") },
+		"CommandFor": func() { km.CommandFor("ctrl+g") },
+	}
+	for name, lookup := range lookups {
+		if allocs := testing.AllocsPerRun(100, lookup); allocs != 0 {
+			t.Errorf("%s выделяет память %v раз на вызов", name, allocs)
+		}
 	}
 }
