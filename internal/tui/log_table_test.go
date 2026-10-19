@@ -187,11 +187,11 @@ func TestBranchColors(t *testing.T) {
 	raw := openAsync(model, key('B')).View().Content
 
 	for _, name := range []string{"main", "feature"} {
-		if code := styleBefore(t, raw, name, name); !strings.Contains(code, "38;2;157;124;216") {
+		if code := styleBefore(t, raw, name, name); !strings.Contains(code, accentFg) {
 			t.Errorf("ветка %s не цветом accent: %q", name, code)
 		}
 	}
-	if code := styleBefore(t, raw, "(current)", "(current)"); strings.Contains(code, "38;2;157;124;216") {
+	if code := styleBefore(t, raw, "(current)", "(current)"); strings.Contains(code, accentFg) {
 		t.Errorf("отметка текущей цветом accent: %q", code)
 	}
 }

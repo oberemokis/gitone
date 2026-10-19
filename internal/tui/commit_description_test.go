@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/layout"
+	"gitone/internal/tui/theme"
 )
 
 // left и right лежат в wrap_test.go.
@@ -248,9 +249,10 @@ func TestPasteTabBecomesSpaces(t *testing.T) {
 func cursorText(t *testing.T, model tea.Model) string {
 	t.Helper()
 
+	cursor := colorCode(48, theme.Dark().Primary)
 	var found []string
 	for _, line := range strings.Split(model.View().Content, "\n") {
-		if strings.Contains(line, "48;2;250;178;131") {
+		if strings.Contains(line, cursor) {
 			found = append(found, strings.TrimSpace(ansi.Strip(line)))
 		}
 	}

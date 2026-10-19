@@ -154,13 +154,13 @@ func TestLogWindowMarginOnNarrowScreen(t *testing.T) {
 	}
 }
 
-// Хэш коммита окрашен accent темы: #9d7cd8 в ANSI это 38;2;157;124;216.
+// Хэш коммита окрашен accent темы.
 func TestLogHashUsesAccent(t *testing.T) {
 	repo, model := openLog(t, 1, 120, 40)
 	hash := strings.TrimSpace(runGit(t, repo, "rev-parse", "--short=7", "HEAD"))
 
 	line := rawLine(t, model.View().Content, hash)
-	if accent := strings.Index(line, "38;2;157;124;216"); accent < 0 || accent > strings.Index(line, hash) {
+	if accent := strings.Index(line, accentFg); accent < 0 || accent > strings.Index(line, hash) {
 		t.Fatalf("хэш без цвета accent: %q", line)
 	}
 }

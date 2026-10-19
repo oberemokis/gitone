@@ -51,10 +51,10 @@ func TestFooterLocationKeysFollowKeymap(t *testing.T) {
 	}
 }
 
-const (
+var (
 	// accent и worktree встроенной темы в ANSI
-	accentFg   = "38;2;157;124;216"
-	worktreeFg = "38;2;229;192;123"
+	accentFg   = colorCode(38, theme.Dark().Accent)
+	worktreeFg = colorCode(38, theme.Dark().Worktree)
 )
 
 // Слева ветка цветом accent, worktree цветом worktree, а клавиши B и W
@@ -170,8 +170,7 @@ func TestSpinnerIsMuted(t *testing.T) {
 			t.Errorf("перед %q стиль %q, want приглушённый цвет %s", text, got, mutedFg)
 		}
 	}
-	// 38;2;63;185;80 это diffAdded встроенной темы
-	if line := rawLine(t, raw, "loading"); strings.Contains(line, "38;2;63;185;80") {
+	if line := rawLine(t, raw, "loading"); strings.Contains(line, colorCode(38, theme.Dark().DiffAdded)) {
 		t.Errorf("в подвале при загрузке есть зелёный цвет: %q", line)
 	}
 }
