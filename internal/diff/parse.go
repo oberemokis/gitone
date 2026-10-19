@@ -101,6 +101,10 @@ func (p *parser) fileHeader(line string) bool {
 		file.NewMode = strings.TrimPrefix(line, "new mode ")
 	case strings.HasPrefix(line, "Binary files "):
 		file.Binary = true
+		// у переименованного пути уже взяты из rename, они точнее
+		if old, new, found := binaryPaths(line); found && file.Status != StatusRenamed && file.Status != StatusCopied {
+			file.OldPath, file.NewPath = old, new
+		}
 	case strings.HasPrefix(line, "rename from "):
 		file.Status = StatusRenamed
 		file.OldPath = path(strings.TrimPrefix(line, "rename from "), "")

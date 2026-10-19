@@ -3,9 +3,10 @@ package diff
 import "strings"
 
 // headerPaths разбирает `a/X b/Y` из строки `diff --git`. Путь с пробелом
-// здесь неоднозначен, поэтому это запасной источник: строки ---, +++, rename
-// и copy его перекрывают. Где их нет (пустой файл, смена прав, бинарный),
-// пути с обеих сторон совпадают, и строка делится ровно пополам.
+// здесь неоднозначен, поэтому это запасной источник: строки ---, +++, rename,
+// copy и Binary files его перекрывают. Где их нет (пустой файл, смена прав),
+// строка делится по единственному « b/», а если их несколько, ровно пополам:
+// без --no-index пути с обеих сторон совпадают.
 func headerPaths(rest string) (string, string) {
 	if quoted, ok := quotedPrefix(rest); ok {
 		return path(quoted, "a/"), path(strings.TrimPrefix(rest[len(quoted):], " "), "b/")
@@ -15,8 +16,23 @@ func headerPaths(rest string) (string, string) {
 		return "", ""
 	}
 
+	if strings.Count(rest, " b/") == 1 {
+		old, new, _ := strings.Cut(rest, " b/")
+		return path(old, "a/"), path("b/"+new, "b/")
+	}
 	half := (len(rest) - 1) / 2
 	return path(rest[:half], "a/"), path(rest[half+1:], "b/")
+}
+
+// binaryPaths разбирает «Binary files a/X and b/Y differ»: у бинарного файла
+// строк --- и +++ нет. found false, если « and » в строке не одно.
+func binaryPaths(line string) (old, new string, found bool) {
+	rest := strings.TrimSuffix(strings.TrimPrefix(line, "Binary files "), " differ")
+	if strings.Count(rest, " and ") != 1 {
+		return "", "", false
+	}
+	old, new, _ = strings.Cut(rest, " and ")
+	return path(old, "a/"), path(new, "b/"), true
 }
 
 // path приводит путь из диффа к имени файла. Путь с пробелом git закрывает
