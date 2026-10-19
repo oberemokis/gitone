@@ -11,8 +11,10 @@ import (
 
 // unstagedMsg несёт дифф файла path между индексом и рабочим деревом для
 // выделения (#212). refresh значит перечитывание открытого выделения после
-// правки или опроса.
+// правки или опроса. view это вид, для которого дифф прочитан: пока git
+// читал, лог или b могли открыть другой дифф.
 type unstagedMsg struct {
+	view    reloadMsg
 	path    string
 	file    diff.File
 	found   bool
@@ -20,10 +22,12 @@ type unstagedMsg struct {
 	err     error
 }
 
-func unstagedCmd(dir, path string, flags []string, refresh bool) tea.Cmd {
+func (m Model) unstagedCmd(path string, refresh bool) tea.Cmd {
+	dir, flags := m.dir, m.diffFlags()
+	view := reloadMsg{dir: dir, args: m.args, flags: flags}
 	return func() tea.Msg {
 		text, err := git.UnstagedDiff(dir, path, flags...)
-		msg := unstagedMsg{path: path, refresh: refresh, err: err}
+		msg := unstagedMsg{view: view, path: path, refresh: refresh, err: err}
 		if files := diff.Parse(text); len(files) > 0 {
 			msg.file, msg.found = files[0], true
 		}
@@ -58,23 +62,27 @@ func (m Model) startSelect() (tea.Model, tea.Cmd) {
 		return m.putNotice(m.text.Text("select.wholeFile", i18n.Args{"key": firstKey(m.keys, keymap.FilesStage)}), true), nil
 	}
 
-	return m, unstagedCmd(m.dir, stagedKey(file), m.diffFlags(), false)
+	return m, m.unstagedCmd(stagedKey(file), false)
 }
 
 // unstagedArrived открывает выделение или обновляет открытое. Ответ про файл,
-// который уже не открыт, отбрасывается. Когда вне индекса не осталось ничего,
-// выделение снимается: ставить нечего.
+// который уже не открыт, или для другого вида отбрасывается. Когда вне
+// индекса не осталось ничего, выделение снимается: ставить нечего. Файл вне
+// индекса без хунков (сменились только права) ставится целиком.
 func (m Model) unstagedArrived(msg unstagedMsg) Model {
-	if len(m.files) == 0 || stagedKey(m.files[m.current]) != msg.path || (msg.refresh && !m.view.Selecting()) {
+	if len(m.files) == 0 || stagedKey(m.files[m.current]) != msg.path || (msg.refresh && !m.view.Selecting()) || !msg.view.fits(m) {
 		return m
 	}
 
 	switch {
 	case msg.err != nil:
 		return m.say(m.text.Error(msg.err))
-	case !msg.found || len(msg.file.Hunks) == 0:
+	case !msg.found:
 		m.view = m.view.Deselect(m.files[m.current])
 		return m.putNotice(m.text.Text("select.nothingUnstaged", nil), true)
+	case len(msg.file.Hunks) == 0:
+		m.view = m.view.Deselect(m.files[m.current])
+		return m.putNotice(m.text.Text("select.wholeFile", i18n.Args{"key": firstKey(m.keys, keymap.FilesStage)}), true)
 	case msg.refresh:
 		m.view = m.view.Reload(msg.file)
 	default:
@@ -112,7 +120,7 @@ func (m Model) refreshSelection() (Model, tea.Cmd) {
 		m.view = m.view.Deselect(file)
 		return m, nil
 	}
-	return m, unstagedCmd(m.dir, stagedKey(file), m.diffFlags(), true)
+	return m, m.unstagedCmd(stagedKey(file), true)
 }
 
 // selectionAction разбирает действия, которые при выделении работают иначе:
@@ -155,8 +163,13 @@ func (m Model) stopSelect() Model {
 	return m
 }
 
-// stageSelection ставит выделенные строки в индекс.
+// stageSelection ставит выделенные строки в индекс. Вид проверяется, как у
+// space без выделения: выделение не должно пережить переход к диффу только для
+// просмотра.
 func (m Model) stageSelection() (tea.Model, tea.Cmd) {
+	if paths, note := m.target(); len(paths) == 0 {
+		return m.putNotice(note, true), nil
+	}
 	selected := m.selectedSet()
 	if len(selected) == 0 {
 		return m, nil
@@ -169,6 +182,9 @@ func (m Model) stageSelection() (tea.Model, tea.Cmd) {
 // рабочего дерева к индексу (#213): отмена необратима, и вопрос тот же, что у
 // файла целиком, хоть выделена одна строка.
 func (m Model) askDiscardSelection() (tea.Model, tea.Cmd) {
+	if paths, note := m.target(); len(paths) == 0 {
+		return m.putNotice(note, true), nil
+	}
 	selected := m.selectedSet()
 	if len(selected) == 0 {
 		return m, nil
