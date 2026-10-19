@@ -486,6 +486,44 @@ func TestParseHeaderWithoutPaths(t *testing.T) {
 	}
 }
 
+// Без строк --- и +++ пути разные у --no-index: заголовок делится по « b/»,
+// у бинарного файла пути берутся из «Binary files»; имя в кавычках с байтом
+// не UTF-8 и кавычкой совпадает с именем на диске (#303).
+func TestParsePathsWithoutFileLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		old, new string
+	}{
+		{name: "кавычки и байт не UTF-8", input: lines(
+			"diff --git \"a/caf\xe9\\\"q.txt\" \"b/caf\xe9\\\"q.txt\"",
+			"index 1111111..2222222 100644",
+			"--- \"a/caf\xe9\\\"q.txt\"",
+			"+++ \"b/caf\xe9\\\"q.txt\"",
+			"@@ -1 +1 @@",
+			"-old",
+			"+new",
+		), old: "caf\xe9\"q.txt", new: "caf\xe9\"q.txt"},
+		{name: "восьмеричный экран", input: lines(
+			"diff --git \"a/caf\\303\\251\\tx\" \"b/caf\\303\\251\\tx\"",
+			"old mode 100644",
+			"new mode 100755",
+		), old: "café\tx", new: "café\tx"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			files := diff.Parse(tc.input)
+			if len(files) != 1 {
+				t.Fatalf("файлов %d, ожидался один", len(files))
+			}
+			if files[0].OldPath != tc.old || files[0].NewPath != tc.new {
+				t.Fatalf("пути %q и %q, want %q и %q", files[0].OldPath, files[0].NewPath, tc.old, tc.new)
+			}
+		})
+	}
+}
+
 // withoutBlobs убирает хэши версий: здесь проверяется устройство файлов, а
 // хэши проверяет TestParseBlobs.
 func withoutBlobs(files []diff.File) []diff.File {
