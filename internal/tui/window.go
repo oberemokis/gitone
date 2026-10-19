@@ -103,6 +103,40 @@ func (m Model) navigate(key tea.KeyPressMsg, count int) (next Model, cmd tea.Cmd
 	return m, nil, false
 }
 
+// listArrival это ответ git со списком для окна shown (#354).
+type listArrival struct {
+	shown window
+	err   error
+	// edit это ответ правки (удаление, переименование): окно он не открывает
+	edit bool
+	// set кладёт список в модель, start это курсор при открытии окна
+	set   func(*Model)
+	start int
+}
+
+// arrived делает с ответом со списком то, что общее у всех окон-списков.
+// Ошибка git уходит в подвал при любом окне. Открытое окно или окно под
+// вопросом получает новый список, курсор не уходит за край. Список,
+// пришедший, когда открыто другое окно, отбрасывается: иначе на экране одно
+// окно, а клавиши уходят другому. Ответ правки окна не открывает: если его
+// закрыли, остаются итог и перечитывание диффа, их делает окно.
+func (m Model) arrived(reply listArrival) Model {
+	switch {
+	case reply.err != nil:
+		return m.say(m.text.Error(reply.err))
+	case m.beneath() == reply.shown:
+		reply.set(&m)
+		return m.moveCursor(0, windowKinds[reply.shown].rows(m))
+	case reply.edit || m.active != noWindow:
+		return m
+	}
+
+	reply.set(&m)
+	m.cursor, m.active = reply.start, reply.shown
+	m.query, m.searching = "", false
+	return m
+}
+
 // moveCursor сдвигает курсор на delta строк списка из count строк, не дальше
 // первой и последней.
 func (m Model) moveCursor(delta, count int) Model {

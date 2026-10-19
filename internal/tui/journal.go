@@ -28,11 +28,7 @@ func journalCmd() tea.Cmd {
 // journalArrived открывает окно журнала, как журнал команд lazygit: окном,
 // а не в подвале, где мало места для списка.
 func (m Model) journalArrived(msg journalMsg) Model {
-	if m.active != noWindow {
-		return m
-	}
-	m.journal, m.cursor, m.active = msg.entries, 0, journalWindow
-	return m
+	return m.arrived(listArrival{shown: journalWindow, set: func(m *Model) { m.journal = msg.entries }})
 }
 
 // journalKey отдаёт окну журнала навигацию и закрытие, своих действий у

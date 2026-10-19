@@ -26,6 +26,23 @@ func stashListCmd(dir string) tea.Cmd {
 	}
 }
 
+// stashesArrived открывает окно stash или обновляет открытое (arrived). Список
+// после нового stash или переименования ставит курсор на новую или
+// переименованную запись, а дифф перечитывается: правки могли уйти из дерева.
+func (m Model) stashesArrived(msg stashesMsg) (tea.Model, tea.Cmd) {
+	open := m.beneath() == stashWindow
+	m = m.arrived(listArrival{shown: stashWindow, err: msg.err, edit: msg.edit, set: func(m *Model) { m.stashes = msg.stashes }})
+	if msg.err != nil || !msg.edit {
+		return m, nil
+	}
+
+	if open {
+		m.cursor = 0
+		m = m.moveCursor(msg.at, len(m.stashes))
+	}
+	return m.startReload()
+}
+
 // stashTreeMsg несёт то, с чем сравнивать родителя stash hash в его диффе.
 type stashTreeMsg struct {
 	hash string

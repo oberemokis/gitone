@@ -29,6 +29,21 @@ func branchesCmd(dir string) tea.Cmd {
 	}
 }
 
+// branchesArrived открывает окно веток с курсором на текущей или обновляет
+// открытое (arrived). После удаления или переименования подвал говорит итог
+// и перечитывается: имя текущей ветки могло смениться.
+func (m Model) branchesArrived(msg branchesMsg) (tea.Model, tea.Cmd) {
+	m = m.arrived(listArrival{shown: branchWindow, err: msg.err, edit: msg.edit, set: func(m *Model) { m.branches = msg.branches }, start: currentIndex(msg.branches)})
+	if msg.err != nil || !msg.edit {
+		return m, nil
+	}
+
+	if msg.note != "" {
+		m = m.sayCalm(msg.note)
+	}
+	return m.startReload()
+}
+
 // switchCmd переключает ветку. Отказ git приходит ошибкой и остаётся в подвале.
 func switchCmd(dir, name string) tea.Cmd {
 	return func() tea.Msg {

@@ -29,16 +29,7 @@ func submodulesCmd(dir string) tea.Cmd {
 
 // submodulesArrived открывает окно подмодулей или обновляет открытое.
 func (m Model) submodulesArrived(msg submodulesMsg) Model {
-	switch {
-	case msg.err != nil:
-		return m.say(m.text.Error(msg.err))
-	case m.active == noWindow:
-		m.submodules, m.cursor, m.active = msg.submodules, 0, submoduleWindow
-	case m.active == submoduleWindow:
-		m.submodules = msg.submodules
-		m = m.moveCursor(0, len(m.submodules))
-	}
-	return m
+	return m.arrived(listArrival{shown: submoduleWindow, err: msg.err, set: func(m *Model) { m.submodules = msg.submodules }})
 }
 
 // submoduleActions это действия окна подмодулей (#244): submodules.update

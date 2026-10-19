@@ -27,6 +27,11 @@ func worktreesCmd(dir string) tea.Cmd {
 	}
 }
 
+// worktreesArrived открывает окно worktree с курсором на текущем (arrived).
+func (m Model) worktreesArrived(msg worktreesMsg) Model {
+	return m.arrived(listArrival{shown: worktreeWindow, err: msg.err, set: func(m *Model) { m.worktrees = msg.worktrees }, start: currentWorktree(msg.worktrees)})
+}
+
 // currentWorktree это строка текущего дерева, а без неё первая.
 func currentWorktree(worktrees []git.Worktree) int {
 	return max(slices.IndexFunc(worktrees, func(w git.Worktree) bool { return w.Current }), 0)
