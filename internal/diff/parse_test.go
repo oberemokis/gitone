@@ -486,6 +486,60 @@ func TestParseHeaderWithoutPaths(t *testing.T) {
 	}
 }
 
+// Без строк --- и +++ пути разные у --no-index: заголовок делится по « b/»,
+// у бинарного файла пути берутся из «Binary files»; имя в кавычках с байтом
+// не UTF-8 и кавычкой совпадает с именем на диске (#303).
+func TestParsePathsWithoutFileLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		old, new string
+	}{
+		{name: "бинарные разной длины", input: lines(
+			"diff --git a/longer.png b/x.png",
+			"index 1111111..2222222 100644",
+			"Binary files a/longer.png and b/x.png differ",
+		), old: "longer.png", new: "x.png"},
+		{name: "смена прав у разных имён", input: lines(
+			"diff --git a/one.sh b/two.sh",
+			"old mode 100644",
+			"new mode 100755",
+		), old: "one.sh", new: "two.sh"},
+		{name: "новый бинарный", input: lines(
+			"diff --git a/a b/a b/a b/a",
+			"new file mode 100644",
+			"index 0000000..2222222",
+			"Binary files /dev/null and b/a b/a differ",
+		), old: "", new: "a b/a"},
+		{name: "кавычки и байт не UTF-8", input: lines(
+			"diff --git \"a/caf\xe9\\\"q.txt\" \"b/caf\xe9\\\"q.txt\"",
+			"index 1111111..2222222 100644",
+			"--- \"a/caf\xe9\\\"q.txt\"",
+			"+++ \"b/caf\xe9\\\"q.txt\"",
+			"@@ -1 +1 @@",
+			"-old",
+			"+new",
+		), old: "caf\xe9\"q.txt", new: "caf\xe9\"q.txt"},
+		{name: "восьмеричный экран", input: lines(
+			"diff --git \"a/caf\\303\\251\\tx\" \"b/caf\\303\\251\\tx\"",
+			"old mode 100644",
+			"new mode 100755",
+		), old: "café\tx", new: "café\tx"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			files := diff.Parse(tc.input)
+			if len(files) != 1 {
+				t.Fatalf("файлов %d, ожидался один", len(files))
+			}
+			if files[0].OldPath != tc.old || files[0].NewPath != tc.new {
+				t.Fatalf("пути %q и %q, want %q и %q", files[0].OldPath, files[0].NewPath, tc.old, tc.new)
+			}
+		})
+	}
+}
+
 // withoutBlobs убирает хэши версий: здесь проверяется устройство файлов, а
 // хэши проверяет TestParseBlobs.
 func withoutBlobs(files []diff.File) []diff.File {
@@ -528,7 +582,10 @@ func TestParseBlobs(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			files := diff.Parse(tc.input)
-			if len(files) != 1 || files[0].OldBlob != tc.old || files[0].NewBlob != tc.new {
+			if len(files) != 1 {
+				t.Fatalf("файлов %d, ожидался один", len(files))
+			}
+			if files[0].OldBlob != tc.old || files[0].NewBlob != tc.new {
 				t.Fatalf("хэши %q и %q, want %q и %q", files[0].OldBlob, files[0].NewBlob, tc.old, tc.new)
 			}
 		})
