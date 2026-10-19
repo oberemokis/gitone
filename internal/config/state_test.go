@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
 
 	"gitone/internal/config"
@@ -33,6 +34,46 @@ func TestRememberRepo(t *testing.T) {
 	}
 	if got := config.ReadState(dir).RecentRepos; len(got) != 20 || got[0] != "/repo29" {
 		t.Fatalf("недавние %q, ожидались 20 последних", got)
+	}
+}
+
+// state.json не записать (на его месте каталог): отказ возвращается, а
+// временных файлов в каталоге настроек не остаётся (#310, случай 2).
+func TestRememberRepoCleansTempOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "state.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "state.json", "keep"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for range 3 {
+		if err := config.RememberRepo(dir, "/a"); err == nil {
+			t.Fatal("RememberRepo записал state.json поверх каталога")
+		}
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, "state.json.*")); len(left) != 0 {
+		t.Fatalf("остались временные файлы: %q", left)
+	}
+}
+
+// Запущенные разом gitone не теряют записи друг друга (случай 3).
+func TestRememberRepoConcurrent(t *testing.T) {
+	dir := t.TempDir()
+
+	var group sync.WaitGroup
+	for number := range 4 {
+		group.Go(func() {
+			if err := config.RememberRepo(dir, fmt.Sprintf("/repo%d", number)); err != nil {
+				t.Errorf("RememberRepo: %v", err)
+			}
+		})
+	}
+	group.Wait()
+
+	if got := config.ReadState(dir).RecentRepos; len(got) != 4 {
+		t.Fatalf("недавние %q, ожидались все четыре", got)
 	}
 }
 
