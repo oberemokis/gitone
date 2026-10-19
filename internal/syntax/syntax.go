@@ -300,39 +300,56 @@ func runs(kinds []Kind) []Span {
 	return spans
 }
 
+// captureKinds это захваты, вид которых не следует из их группы.
+var captureKinds = map[string]Kind{
+	"variable.builtin": Constant,
+	"variable.member":  Property, // нынешнее имя field
+}
+
+// groupKinds это вид по группе захвата, первому слову его имени.
+var groupKinds = map[string]Kind{
+	"keyword":      Keyword,
+	"conditional":  Keyword,
+	"repeat":       Keyword,
+	"include":      Keyword,
+	"exception":    Keyword,
+	"storageclass": Keyword,
+
+	"string":    String,
+	"character": String,
+	"escape":    String,
+
+	"comment": Comment,
+
+	"number": Number,
+	"float":  Number,
+
+	"function":    Function,
+	"method":      Function,
+	"constructor": Function,
+
+	"type": Type,
+
+	"constant": Constant,
+	"boolean":  Constant,
+
+	"property":  Property,
+	"field":     Property,
+	"attribute": Property,
+
+	"operator": Operator,
+
+	"tag": Tag,
+}
+
 // kindOf переводит имя захвата tree-sitter (keyword.return, function.method,
 // string.special) в вид. Захваты без вида, как variable и punctuation,
 // остаются цветом текста.
 func kindOf(capture string) Kind {
-	switch capture {
-	case "variable.builtin":
-		return Constant
-	case "variable.member": // нынешнее имя field
-		return Property
+	if kind, found := captureKinds[capture]; found {
+		return kind
 	}
 
 	group, _, _ := strings.Cut(capture, ".")
-	switch group {
-	case "keyword", "conditional", "repeat", "include", "exception", "storageclass":
-		return Keyword
-	case "string", "character", "escape":
-		return String
-	case "comment":
-		return Comment
-	case "number", "float":
-		return Number
-	case "function", "method", "constructor":
-		return Function
-	case "type":
-		return Type
-	case "constant", "boolean":
-		return Constant
-	case "property", "field", "attribute":
-		return Property
-	case "operator":
-		return Operator
-	case "tag":
-		return Tag
-	}
-	return ""
+	return groupKinds[group]
 }
