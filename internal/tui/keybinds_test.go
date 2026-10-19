@@ -53,10 +53,10 @@ func TestRebindingQuitChangesKeyAndFooter(t *testing.T) {
 
 	_, cmd := model.Update(tea.KeyPressMsg{Code: 'Q', Text: "Q"})
 	if cmd == nil {
-		t.Fatal("x не выходит, хотя назначен на выход")
+		t.Fatal("Q не выходит, хотя назначен на выход")
 	}
 	if _, isQuit := cmd().(tea.QuitMsg); !isQuit {
-		t.Fatal("команда по x не выходит из приложения")
+		t.Fatal("команда по Q не выходит из приложения")
 	}
 }
 

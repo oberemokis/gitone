@@ -3,6 +3,7 @@ package tui_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -60,14 +61,14 @@ func TestRecentRepos(t *testing.T) {
 
 	model, _ = model.Update(key('k'))
 	model = enterKey(model)
-	model = settle(model, nil, 2)
 	if body := screenText(model); !strings.Contains(body, "other.txt") {
 		t.Fatalf("дифф не из другого репозитория:\n%s", body)
 	}
 	if _, err := os.Stat(gone); !os.IsNotExist(err) {
 		t.Fatal("пропавший каталог появился")
 	}
-	if got := config.ReadState(stateDir).RecentRepos; len(got) != 3 {
-		t.Fatalf("недавние %q, пропавший убран из списка", got)
+	got := config.ReadState(stateDir).RecentRepos
+	if want := []string{runGit(t, other, "rev-parse", "--show-toplevel"), root, gone}; !slices.Equal(got, want) {
+		t.Fatalf("недавние %q, ожидались %q: открытый первым, пропавший на месте", got, want)
 	}
 }

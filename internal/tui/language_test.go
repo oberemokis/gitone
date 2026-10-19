@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -99,6 +100,11 @@ func TestScreensUseDictionary(t *testing.T) {
 	tests := []struct {
 		name   string
 		screen func(t *testing.T) tea.Model
+		// shows это текст словаря, без которого окно могло не открыться
+		shows string
+		// gitRows узнаёт строки, которые пишет git: действие и сообщение reflog,
+		// аргументы команд в журнале
+		gitRows *regexp.Regexp
 	}{
 		{name: "основной экран", screen: func(t *testing.T) tea.Model {
 			_, model := withChanges(t)
@@ -166,11 +172,61 @@ func TestScreensUseDictionary(t *testing.T) {
 			model, _ = model.Update(key('r'))
 			return model
 		}},
+		{name: "теги", shows: "⟦No tags⟧", screen: func(t *testing.T) tea.Model {
+			_, model := withChanges(t)
+			return openAsync(model, key('t'))
+		}},
+		{name: "remote", shows: "⟦No remotes⟧", screen: func(t *testing.T) tea.Model {
+			_, model := withChanges(t)
+			return openAsync(model, key('R'))
+		}},
+		{name: "reflog", shows: "⟦Reflog⟧", gitRows: hash, screen: func(t *testing.T) tea.Model {
+			_, model := withChanges(t)
+			return openAsync(model, key('L'))
+		}},
+		{name: "подмодули", shows: "⟦No submodules⟧", screen: func(t *testing.T) tea.Model {
+			_, model := withChanges(t)
+			return openAsync(model, key('S'))
+		}},
+		// журнал общий на процесс: запись есть всегда, а не только в одиночном прогоне
+		{name: "журнал", shows: "⟦Git commands⟧", gitRows: regexp.MustCompile(`\d\d:\d\d:\d\d`), screen: func(t *testing.T) tea.Model {
+			_, model := withChanges(t)
+			model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+			return openAsync(model, key('@'))
+		}},
+		{name: "недавние", shows: "⟦Recent repositories⟧", screen: func(t *testing.T) tea.Model {
+			_, model := withChanges(t)
+			return openAsync(model, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+		}},
+		{name: "меню bisect", shows: "is bad⟧", screen: func(t *testing.T) tea.Model {
+			_, model := withChanges(t)
+			model, _ = openAsync(model, key('l')).Update(key('b'))
+			return model
+		}},
+		{name: "меню операции", shows: "⟦Reset bisect⟧", screen: func(t *testing.T) tea.Model {
+			repo := pseudoRepo(t)
+			runGit(t, repo, "bisect", "start")
+			runGit(t, repo, "bisect", "bad")
+			model, _ := openPseudo(t, repo).Update(key('M'))
+			return model
+		}},
+		{name: "вопрос undo", shows: "⟦Undo commit", screen: func(t *testing.T) tea.Model {
+			repo := pseudoRepo(t)
+			runGit(t, repo, "commit", "-q", "--allow-empty", "-m", "2")
+			return pressAndSettle(openPseudo(t, repo), key('u'))
+		}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			screen := screenOf(tc.screen(t))
+			if tc.gitRows != nil {
+				screen = slices.DeleteFunc(screen, tc.gitRows.MatchString)
+			}
+
+			if body := strings.Join(screen, "\n"); !strings.Contains(body, tc.shows) {
+				t.Errorf("на экране нет %q:\n%s", tc.shows, body)
+			}
 
 			if found := untranslated(screen); len(found) > 0 {
 				t.Errorf("текст вне словаря %q:\n%s", found, strings.Join(screen, "\n"))

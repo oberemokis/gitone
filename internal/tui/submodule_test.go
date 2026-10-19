@@ -62,7 +62,7 @@ func TestSubmoduleChangeLabel(t *testing.T) {
 	write(t, filepath.Join(clone, "libs", "lib"), "x.txt", "changed\n")
 
 	model := toggleFiles(resize(open(t, options(clone, layout.Focus())), 120, 20))
-	if body := screenText(model); !strings.Contains(body, "lib submodule") && !strings.Contains(body, "libs/lib submodule") {
+	if body := screenText(model); !strings.Contains(body, "libs/lib submodule") {
 		t.Fatalf("подмодуль не помечен в панели:\n%s", body)
 	}
 }

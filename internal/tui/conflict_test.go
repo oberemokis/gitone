@@ -29,8 +29,7 @@ func TestSpaceResolvesMergeConflict(t *testing.T) {
 	}
 	write(t, repo, "a.txt", "merged\n")
 
-	// open не читает индекс, cmd/gitone кладёт его в опции: перечитывание даёт то же.
-	model := pressReload(t, toggleFiles(resize(open(t, options(repo, layout.Default())), 100, 20)))
+	model := toggleFiles(resize(open(t, options(repo, layout.Default())), 100, 20))
 	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	settle(model, cmd, 4)
 

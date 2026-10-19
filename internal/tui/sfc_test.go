@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/layout"
+	"gitone/internal/tui/theme"
 )
 
 // vueComponent это компонент, где скрипт длиннее контекста хунка: правка в
@@ -41,8 +42,8 @@ func openSized(t *testing.T, repo string, width, height int) tea.Model {
 	return settle(model, cmd, 3)
 }
 
-// keywordColor это SGR цвета ключевого слова темы dark (#ff7b72).
-const keywordColor = "38;2;255;123;114"
+// keywordColor это SGR цвета ключевого слова темы dark.
+var keywordColor = colorCode(38, theme.Dark().SyntaxKeyword)
 
 // constColors это последний SGR перед каждым «const» в строке экрана, где без
 // цветов написано text. Строка ищется без кодов: подсветка рвёт текст ими.

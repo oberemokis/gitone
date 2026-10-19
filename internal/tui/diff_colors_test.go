@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -95,6 +96,14 @@ func TestDarkGutterLighterThanLine(t *testing.T) {
 func rgb(c interface{ RGBA() (r, g, b, a uint32) }) [3]uint32 {
 	r, g, b, _ := c.RGBA()
 	return [3]uint32{r, g, b}
+}
+
+// colorCode это код цвета c в сыром выводе: layer 38 для текста, 48 для фона.
+// Цвета встроенной темы берутся через него, а не литералом: правка темы не
+// ломает тест, который проверяет не её.
+func colorCode(layer int, c interface{ RGBA() (r, g, b, a uint32) }) string {
+	channels := rgb(c)
+	return fmt.Sprintf("%d;2;%d;%d;%d", layer, channels[0]>>8, channels[1]>>8, channels[2]>>8)
 }
 
 func sum(channels [3]uint32) uint32 {

@@ -61,7 +61,7 @@ func TestStashIncludingUntracked(t *testing.T) {
 
 	model, _ = model.Update(key('n'))
 	model, _ = model.Update(key('j'))
-	model = enterKey(enterKey(model))
+	enterKey(enterKey(model))
 
 	if _, err := os.Stat(filepath.Join(repo, "new.txt")); !os.IsNotExist(err) {
 		t.Fatalf("new.txt остался в дереве: %v", err)

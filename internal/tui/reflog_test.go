@@ -61,10 +61,16 @@ func TestReflogCheckoutAndBranch(t *testing.T) {
 		t.Fatalf("rescue на %s, ожидался потерянный коммит %s", got, lost)
 	}
 
-	_, _, model = lostCommitRepo(t)
+	repo, lost, model = lostCommitRepo(t)
 	model, _ = model.Update(key('j'))
 	model = pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	if footer := footerOf(model); !strings.Contains(footer, "detached") {
 		t.Fatalf("подвал %q, ожидался переход без ветки", footer)
+	}
+	if got := runGit(t, repo, "rev-parse", "HEAD"); got != lost {
+		t.Fatalf("HEAD на %s, ожидался потерянный коммит %s", got, lost)
+	}
+	if branch := runGit(t, repo, "branch", "--show-current"); branch != "" {
+		t.Fatalf("HEAD на ветке %q, ожидался без ветки", branch)
 	}
 }

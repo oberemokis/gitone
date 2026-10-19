@@ -25,7 +25,7 @@ func TestStashFromApp(t *testing.T) {
 
 	model, cmd = model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
 	model = settle(model, cmd, 4)
-	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "stash") {
+	if body := strings.Join(screenOf(model), "\n"); !strings.Contains(body, "stash@{0}") {
 		t.Fatalf("список stash не открылся:\n%s", body)
 	}
 
