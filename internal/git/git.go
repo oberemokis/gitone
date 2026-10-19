@@ -252,9 +252,14 @@ func failed(operation string, err error) error {
 }
 
 // run запускает git и возвращает его вывод. Отказ git приходит как *gitError.
-// Вызов пишется в журнал команд (journal.go).
+// Вызов пишется в журнал команд (journal.go), кроме работы с временным
+// индексом (GIT_INDEX_FILE): это служебная копия для диффа, репозиторий она
+// не меняет, а опрос делает её каждые две секунды.
 func run(options call, args ...string) (string, error) {
 	out, err := execute(options, args)
+	if slices.ContainsFunc(options.env, func(env string) bool { return strings.HasPrefix(env, "GIT_INDEX_FILE=") }) {
+		return out, err
+	}
 
 	exit := 0
 	var refusal *gitError

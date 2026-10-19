@@ -75,7 +75,10 @@ func readOnly(args []string) bool {
 
 	switch rest := args[1:]; args[0] {
 	case "rev-parse", "diff", "ls-files", "ls-tree", "for-each-ref", "log", "show", "merge-base", "merge-tree",
-		"symbolic-ref", "cat-file", "status", "hash-object", "format-patch", "rev-list", "describe", "reflog":
+		"symbolic-ref", "cat-file", "status", "format-patch", "rev-list", "describe", "reflog":
+		return true
+	// у hash-object -w пишет объект, а у diff это «без пробелов»
+	case "hash-object":
 		return !slices.Contains(rest, "-w")
 	case "stash":
 		return len(rest) > 0 && (rest[0] == "list" || rest[0] == "show")
