@@ -67,7 +67,9 @@ func Push(ctx context.Context, dir string) (target string, err error) {
 // PushForceLease отправляет текущую ветку поверх upstream с
 // `--force-with-lease` (#234): remote переписывается, только если он стоит
 // там же, где его видел последний fetch. Иначе git отказывает, и чужие коммиты
-// не теряются.
+// не теряются. Refspec задан явно: без него что отправлять, решает
+// push.default, и при matching git переписал бы и другие ветки, о которых
+// вопрос не спрашивал.
 func PushForceLease(ctx context.Context, dir string) (target string, err error) {
 	target, err = push(ctx, dir, true)
 	return target, failed("push", headline(err))
@@ -86,7 +88,12 @@ func push(ctx context.Context, dir string, force bool) (string, error) {
 	upstream = strings.TrimSpace(upstream)
 
 	if force {
-		return upstream, network(ctx, dir, "push", "--force-with-lease")
+		where, err := run(call{dir: dir}, "for-each-ref", "--format=%(upstream:remotename)%00%(upstream:remoteref)", "refs/heads/"+branch)
+		remote, ref, found := strings.Cut(strings.TrimSpace(where), "\x00")
+		if err != nil || !found {
+			return upstream, err
+		}
+		return upstream, network(ctx, dir, "push", "--force-with-lease="+ref, remote, "HEAD:"+ref)
 	}
 	if _, err := run(call{dir: dir}, "merge-base", "--is-ancestor", "@{upstream}", "HEAD"); err != nil {
 		return upstream, i18n.New("git.pushDiverged", i18n.Args{"upstream": upstream})

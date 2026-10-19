@@ -282,6 +282,36 @@ func TestPushForceLeaseSendsRewrittenBranch(t *testing.T) {
 	}
 }
 
+// При push.default=matching принудительный push не трогает другую ветку,
+// отставшую от origin после fetch: коммит коллеги в ней на месте (#293,
+// случай 1).
+func TestPushForceLeaseSendsCurrentBranchOnly(t *testing.T) {
+	origin, local := remotePair(t)
+	runGit(t, local, "push", "-q", "origin", "main:other")
+	runGit(t, local, "branch", "-q", "--track", "other", "origin/other")
+
+	peer := filepath.Join(t.TempDir(), "peer")
+	runGit(t, filepath.Dir(peer), "clone", "-q", "-b", "other", origin, peer)
+	write(t, peer, "b.txt", "peer\n")
+	commitAll(t, peer)
+	runGit(t, peer, "push", "-q", "origin", "other")
+	peerHead := revision(t, origin, "other")
+
+	runGit(t, local, "config", "push.default", "matching")
+	runGit(t, local, "fetch", "-q", "origin")
+	runGit(t, local, "commit", "-q", "--amend", "-m", "rewritten")
+
+	if _, err := git.PushForceLease(context.Background(), local); err != nil {
+		t.Fatalf("PushForceLease: %v", err)
+	}
+	if got, want := revision(t, origin, "main"), revision(t, local, "HEAD"); got != want {
+		t.Fatalf("main на origin %s, ожидалась переписанная ветка %s", got, want)
+	}
+	if got := revision(t, origin, "other"); got != peerHead {
+		t.Fatalf("other на origin %s, ожидался коммит коллеги %s", got, peerHead)
+	}
+}
+
 // Remote ушёл вперёд после последнего fetch: lease не совпал, git отказывает,
 // чужой коммит на месте (случай 2).
 func TestPushForceLeaseKeepsUnseenRemoteCommits(t *testing.T) {
