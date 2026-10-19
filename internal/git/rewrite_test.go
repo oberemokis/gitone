@@ -85,6 +85,41 @@ func TestRewriteHistoryDetails(t *testing.T) {
 	refusedWith(t, func() error { _, err := git.RewriteHistory(repo, head, git.RewriteMoveUp, ""); return err }(), "git.rewriteNoChild")
 }
 
+// Reword сохраняет строки, начинающиеся с «#», как Commit и Amend (#294,
+// случай 1).
+func TestRewordKeepsHashLines(t *testing.T) {
+	repo, hashes := historyRepo(t)
+	message := "Subject\n\n#42 follow-up\nbody"
+
+	if _, err := git.RewriteHistory(repo, hashes[1], git.RewriteReword, message); err != nil {
+		t.Fatalf("reword: %v", err)
+	}
+	if got := strings.TrimSpace(runGit(t, repo, "log", "-1", "--skip=2", "--format=%B")); got != message {
+		t.Fatalf("сообщение %q, ожидалось %q", got, message)
+	}
+}
+
+// Autosquash отвергает коммит, над которым есть merge-коммит, и коммит не из
+// ветки, как RewriteHistory: история не тронута (#294, случаи 2 и 3).
+func TestAutosquashRefusals(t *testing.T) {
+	repo, hashes := historyRepo(t)
+	runGit(t, repo, "switch", "-q", "-c", "side", hashes[1])
+	write(t, repo, "side.txt", "side\n")
+	commitAll(t, repo)
+	side := revision(t, repo, "HEAD")
+	runGit(t, repo, "switch", "-q", "main")
+	runGit(t, repo, "merge", "-q", "--no-ff", "--no-edit", "side")
+	head := revision(t, repo, "HEAD")
+
+	_, err := git.Autosquash(repo, hashes[1])
+	refusedWith(t, err, "git.rewriteMerges")
+	_, err = git.Autosquash(repo, side)
+	refusedWith(t, err, "git.rewriteNotInBranch")
+	if got := revision(t, repo, "HEAD"); got != head {
+		t.Fatalf("HEAD %s, история переписана", got)
+	}
+}
+
 // Конфликт при переносе останавливает rebase (случай 5).
 func TestRewriteHistoryConflict(t *testing.T) {
 	repo := newRepo(t)
