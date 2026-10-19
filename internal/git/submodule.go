@@ -19,7 +19,9 @@ type Submodule struct {
 
 // Submodules возвращает подмодули из `git submodule status`: первый знак
 // строки говорит о состоянии («-» не клонирован, «+» другой коммит), дальше
-// хэш и путь. Адрес берётся из .gitmodules по имени подмодуля.
+// хэш и путь до конца строки, у клонированного с хвостом « (describe)». Путь
+// git печатает как есть, с пробелами. Адрес берётся из .gitmodules по имени
+// подмодуля.
 func Submodules(dir string) ([]Submodule, error) {
 	out, err := inRoot(dir, "submodule", "status")
 	if err != nil {
@@ -29,18 +31,21 @@ func Submodules(dir string) ([]Submodule, error) {
 
 	var submodules []Submodule
 	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
-		if len(line) < 2 {
+		commit, path, found := strings.Cut(line[min(1, len(line)):], " ")
+		if !found {
 			continue
 		}
-		fields := strings.Fields(line[1:])
-		if len(fields) < 2 {
-			continue
+		// хвоста нет, если describe ничего не нашёл: путь из .gitmodules узнаётся как есть
+		if _, known := urls[path]; !known && (line[0] == ' ' || line[0] == '+') {
+			if cut := strings.LastIndex(path, " ("); cut > 0 && strings.HasSuffix(path, ")") {
+				path = path[:cut]
+			}
 		}
 
 		submodules = append(submodules, Submodule{
-			Path:        fields[1],
-			URL:         urls[fields[1]],
-			Commit:      fields[0],
+			Path:        path,
+			URL:         urls[path],
+			Commit:      commit,
 			Initialized: line[0] != '-',
 			Moved:       line[0] == '+',
 		})
@@ -49,16 +54,18 @@ func Submodules(dir string) ([]Submodule, error) {
 }
 
 // submoduleURLs это адреса подмодулей по пути из .gitmodules. Ключи там по
-// имени подмодуля, путь и адрес у имени свои.
+// имени подмодуля, путь и адрес у имени свои. Имя по умолчанию совпадает с
+// путём и бывает с пробелом, поэтому записи читаются через --null: ключ от
+// значения отделяет перевод строки, записи друг от друга NUL.
 func submoduleURLs(dir string) map[string]string {
-	out, err := inRoot(dir, "config", "--file", ".gitmodules", "--get-regexp", `^submodule\..*\.(path|url)$`)
+	out, err := inRoot(dir, "config", "--null", "--file", ".gitmodules", "--get-regexp", `^submodule\..*\.(path|url)$`)
 	if err != nil {
 		return nil
 	}
 
 	paths, urls := map[string]string{}, map[string]string{}
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		key, value, _ := strings.Cut(line, " ")
+	for _, record := range strings.Split(out, "\x00") {
+		key, value, _ := strings.Cut(record, "\n")
 		if name, found := strings.CutSuffix(key, ".path"); found {
 			paths[name] = value
 		} else if name, found := strings.CutSuffix(key, ".url"); found {
