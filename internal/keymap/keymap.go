@@ -185,10 +185,42 @@ type Binding struct {
 
 // Keymap это список действий с клавишами и свои команды пользователя.
 // Нулевое значение пустое: клавиш нет, поэтому корень получает его из
-// Default или Load.
+// Default или Load. Поиск по нажатию идёт по индексам, их строит newKeymap
+// один раз: Keymap копируется в модель по значению, и кеш, собранный при
+// первом вызове, остался бы в одной копии.
 type Keymap struct {
 	bindings []Binding
-	commands []Command
+	// keys это клавиши действия, global глобальное действие клавиши, commands
+	// своя команда клавиши
+	keys     map[Action][]string
+	global   map[string]Action
+	commands map[string]Command
+}
+
+// newKeymap строит индексы. Повторов в них нет: конфликт клавиш и повтор
+// клавиши команды отвергает decode, а встроенный список проходит его же
+// проверки в тесте пустого файла.
+func newKeymap(bindings []Binding, commands []Command) Keymap {
+	k := Keymap{
+		bindings: bindings,
+		keys:     make(map[Action][]string, len(bindings)),
+		global:   make(map[string]Action),
+		commands: make(map[string]Command, len(commands)),
+	}
+	for _, binding := range bindings {
+		k.keys[binding.Action] = binding.Keys
+		if windowActions[binding.Action] {
+			continue
+		}
+		for _, key := range binding.Keys {
+			k.global[key] = binding.Action
+		}
+	}
+	for _, command := range commands {
+		k.commands[command.Key] = command
+	}
+
+	return k
 }
 
 // Command это своя команда из раздела commands в keybinds.json (#246), как
@@ -206,92 +238,69 @@ func (k Keymap) Bindings() []Binding {
 
 // CommandFor ищет свою команду клавиши.
 func (k Keymap) CommandFor(key string) (Command, bool) {
-	for _, command := range k.commands {
-		if command.Key == key {
-			return command, true
-		}
-	}
-	return Command{}, false
+	command, found := k.commands[key]
+	return command, found
 }
 
 func (k Keymap) KeysFor(action Action) []string {
-	for _, binding := range k.bindings {
-		if binding.Action == action {
-			return binding.Keys
-		}
-	}
-
-	return nil
+	return k.keys[action]
 }
 
 // ActionFor ищет глобальное действие клавиши. Действия окон здесь не ищутся:
 // окно разбирает свои клавиши само через Is.
 func (k Keymap) ActionFor(key string) Action {
-	for _, binding := range k.bindings {
-		if !inWindow(binding.Action) && slices.Contains(binding.Keys, key) {
-			return binding.Action
-		}
-	}
-
-	return ""
+	return k.global[key]
 }
 
 // Is говорит, что клавиша вызывает действие. Им окно проверяет свои действия.
 func (k Keymap) Is(action Action, key string) bool {
-	return slices.Contains(k.KeysFor(action), key)
+	return slices.Contains(k.keys[action], key)
 }
 
-// windows это действия, которые действуют разом в одном окне. Конфликт
+// listActions это навигация, общая у всех списков.
+var listActions = []Action{ListUp, ListDown, ListClose}
+
+// windowGroups это действия, которые действуют разом в одном окне. Конфликт
 // клавиш ищется внутри окна: с глобальными действиями окно не конфликтует,
-// потому что забирает нажатия целиком. Навигация общая у всех списков.
-func windows() [][]Action {
-	list := []Action{ListUp, ListDown, ListClose}
-	return [][]Action{
-		append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogBisect, LogFilter, LogSquash, LogFixup, LogReword, LogDrop, LogMoveUp, LogMoveDown, LogFixupCommit, LogAutosquash, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, list...),
-		append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, BranchesUpstream, CherryPickPaste, CompareWith, ListSearch}, list...),
-		append([]Action{WorktreesSwitch, ListSearch}, list...),
-		append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, list...),
-		append([]Action{TagsDiff, TagsNew, TagsDelete, TagsPush, ListSearch}, list...),
-		append([]Action{RemotesNew, RemotesDelete}, list...),
-		append([]Action{LogOpen, LogCheckout, LogNewBranch, ListSearch}, list...),
-		append([]Action{SubmodulesUpdate}, list...),
-		append([]Action{RecentOpen}, list...),
-		append([]Action{MenuChoose}, list...),
-		{QuestionYes},
-		{SearchChoose, SearchClose, SearchUp, SearchDown},
-		{CommitSubmit, CommitField, CommitClose},
-		{ListSearchDone, ListSearchCancel},
-		{PromptSubmit, PromptClose},
-	}
+// потому что забирает нажатия целиком.
+var windowGroups = [][]Action{
+	append([]Action{LogOpen, LogRevert, LogNewBranch, LogCheckout, LogCopy, LogReset, LogBisect, LogFilter, LogSquash, LogFixup, LogReword, LogDrop, LogMoveUp, LogMoveDown, LogFixupCommit, LogAutosquash, CherryPickCopy, CherryPickPaste, CompareWith, ListSearch}, listActions...),
+	append([]Action{BranchesSwitch, BranchesNew, BranchesRename, BranchesDelete, BranchesMerge, BranchesRebase, BranchesReset, BranchesUpstream, CherryPickPaste, CompareWith, ListSearch}, listActions...),
+	append([]Action{WorktreesSwitch, ListSearch}, listActions...),
+	append([]Action{StashDiff, StashApply, StashPop, StashDrop, StashNew, StashRename}, listActions...),
+	append([]Action{TagsDiff, TagsNew, TagsDelete, TagsPush, ListSearch}, listActions...),
+	append([]Action{RemotesNew, RemotesDelete}, listActions...),
+	append([]Action{LogOpen, LogCheckout, LogNewBranch, ListSearch}, listActions...),
+	append([]Action{SubmodulesUpdate}, listActions...),
+	append([]Action{RecentOpen}, listActions...),
+	append([]Action{MenuChoose}, listActions...),
+	{QuestionYes},
+	{SearchChoose, SearchClose, SearchUp, SearchDown},
+	{CommitSubmit, CommitField, CommitClose},
+	{ListSearchDone, ListSearchCancel},
+	{PromptSubmit, PromptClose},
 }
 
-func inWindow(action Action) bool {
-	return slices.ContainsFunc(windows(), func(window []Action) bool {
-		return slices.Contains(window, action)
-	})
-}
+var (
+	// windowActions это действия окон, остальные глобальные
+	windowActions = actionSet(slices.Concat(windowGroups...)...)
+	// fieldActions это действия полей ввода, где остальные клавиши набирают текст
+	fieldActions = actionSet(SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitField, CommitClose, ListSearchDone, ListSearchCancel, PromptSubmit, PromptClose)
+	// closeActions закрывают окно: без них из окна не выйти, кроме как закрыв
+	// приложение
+	closeActions = actionSet(ListClose, SearchClose, CommitClose, ListSearchCancel, PromptClose)
+)
 
-// inField: действие поля ввода, где остальные клавиши набирают текст.
-func inField(action Action) bool {
-	switch action {
-	case SearchChoose, SearchClose, SearchUp, SearchDown, CommitSubmit, CommitField, CommitClose, ListSearchDone, ListSearchCancel, PromptSubmit, PromptClose:
-		return true
+func actionSet(actions ...Action) map[Action]bool {
+	set := make(map[Action]bool, len(actions))
+	for _, action := range actions {
+		set[action] = true
 	}
-	return false
-}
-
-// closes: действие закрытия окна. Без него из окна не выйти, кроме как
-// закрыв приложение.
-func closes(action Action) bool {
-	switch action {
-	case ListClose, SearchClose, CommitClose, ListSearchCancel, PromptClose:
-		return true
-	}
-	return false
+	return set
 }
 
 func Default() Keymap {
-	return Keymap{bindings: defaults()}
+	return newKeymap(defaults(), nil)
 }
 
 // Load читает keybinds.json из каталога. Файла нет, значит встроенные клавиши.
@@ -385,7 +394,7 @@ func decode(data []byte) (Keymap, error) {
 		return Keymap{}, err
 	}
 
-	return Keymap{bindings: bindings, commands: f.Commands}, nil
+	return newKeymap(bindings, f.Commands), nil
 }
 
 // checkCommands отвергает команду без текста, клавишу с неверным именем и
@@ -395,7 +404,7 @@ func checkCommands(commands []Command, bindings []Binding) error {
 	// list.up и list.down листают справку на главном экране раньше команды
 	owner := make(map[string]string)
 	for _, binding := range bindings {
-		if !inWindow(binding.Action) || binding.Action == ListUp || binding.Action == ListDown {
+		if !windowActions[binding.Action] || binding.Action == ListUp || binding.Action == ListDown {
 			for _, key := range binding.Keys {
 				owner[key] = string(binding.Action)
 			}
@@ -436,7 +445,7 @@ var editorKeys = []string{"left", "right", "up", "down", "home", "end", "delete"
 // backspace в полях стирает символ.
 func checkBindingKeys(binding Binding) error {
 	action := binding.Action
-	if !inWindow(action) {
+	if !windowActions[action] {
 		if action != AppQuit && slices.Contains(binding.Keys, "ctrl+c") {
 			return i18n.New("keymap.reservedQuit", i18n.Args{"action": action, "key": "ctrl+c"})
 		}
@@ -445,7 +454,7 @@ func checkBindingKeys(binding Binding) error {
 	if len(binding.Keys) == 0 {
 		args := i18n.Args{"action": action}
 		switch {
-		case closes(action):
+		case closeActions[action]:
 			return i18n.New("keymap.cannotDisable", args)
 		case action == QuestionYes:
 			// выход из вопроса есть, любая другая клавиша значит «нет»
@@ -456,10 +465,10 @@ func checkBindingKeys(binding Binding) error {
 	for _, key := range binding.Keys {
 		args := i18n.Args{"action": action, "key": key}
 		switch {
-		case key == "ctrl+c", inField(action) && key == "backspace",
+		case key == "ctrl+c", fieldActions[action] && key == "backspace",
 			(action == CommitField || action == CommitClose) && slices.Contains(editorKeys, key):
 			return i18n.New("keymap.reserved", args)
-		case inField(action) && printable(key):
+		case fieldActions[action] && printable(key):
 			return i18n.New("keymap.typesText", args)
 		}
 	}
@@ -619,12 +628,12 @@ func symbol(base string) bool {
 func checkConflicts(bindings []Binding) error {
 	var global []Action
 	for _, binding := range bindings {
-		if !inWindow(binding.Action) {
+		if !windowActions[binding.Action] {
 			global = append(global, binding.Action)
 		}
 	}
 
-	for _, together := range append(windows(), global) {
+	for _, together := range slices.Concat(windowGroups, [][]Action{global}) {
 		owner := make(map[string]Action)
 		for _, binding := range bindings {
 			if !slices.Contains(together, binding.Action) {
