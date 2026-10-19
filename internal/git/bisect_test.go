@@ -60,6 +60,24 @@ func TestBisect(t *testing.T) {
 	}
 }
 
+// Под русской локалью число оставшихся коммитов то же: вывод git разбирается
+// по-английски (#300, случай 7).
+func TestBisectInOtherLanguage(t *testing.T) {
+	// newRepo ставит LC_ALL=C, тест её переопределяет; без русской локали в
+	// системе git говорит по-английски, и тест проходит без проверки
+	repo := eightCommits(t)
+	t.Setenv("LANGUAGE", "ru")
+	t.Setenv("LC_ALL", "ru_RU.UTF-8")
+
+	if _, err := git.BisectMark(repo, "HEAD", false); err != nil {
+		t.Fatalf("BisectMark: %v", err)
+	}
+	step, err := git.BisectMark(repo, "HEAD~7", true)
+	if err != nil || step.Left != 3 || step.Subject != "c4" {
+		t.Fatalf("вторая отметка = %+v, %v, ожидались c4 и 3", step, err)
+	}
+}
+
 // Грязное дерево git не даёт перейти на коммит для проверки (случай 5).
 func TestBisectDirtyTree(t *testing.T) {
 	repo := eightCommits(t)

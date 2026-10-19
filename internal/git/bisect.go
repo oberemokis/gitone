@@ -45,7 +45,9 @@ func BisectMark(dir, hash string, good bool) (BisectStep, error) {
 	if good {
 		term = "good"
 	}
-	out, err := run(call{dir: root}, "bisect", term, hash)
+	// вывод разбирается по-английски: перевод git сломал бы bisectLeft, а
+	// итог для человека пишет gitone. При локали C git не смотрит и LANGUAGE.
+	out, err := run(call{dir: root, env: []string{"LC_ALL=C"}}, "bisect", term, hash)
 	if err != nil {
 		return BisectStep{}, failed("bisect", headline(err))
 	}
