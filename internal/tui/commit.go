@@ -124,14 +124,20 @@ func (m Model) wheelCommit(button tea.MouseButton) Model {
 // любого поля, commit.field переключает поле. В описании остальное разбирает
 // редактор: enter там ставит новую строку, а коммитит commit.submit из темы, в
 // теме набранное идёт в тему. Выйти из приложения можно по зашитому ctrl+c,
-// стереть символ по зашитому backspace.
+// стереть символ по зашитому backspace. Окно reword открыто из лога и после
+// отправки или закрытия возвращает в него.
 func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	pressed := key.String()
+	back := noWindow
+	if m.rewording != "" {
+		back = logWindow
+	}
+
 	switch {
 	case pressed == "ctrl+c":
 		return m, tea.Quit
 	case m.keys.Is(keymap.CommitClose, pressed):
-		m.active = noWindow
+		m.active = back
 		m = m.clearCommit()
 	case m.keys.Is(keymap.CommitField, pressed):
 		m.commitField = otherField(m.commitField)
@@ -146,7 +152,7 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// без правки сообщение остаётся байт в байт: поле показывает табы
 		// пробелами, и отправка их бы заменила
 		unchanged := fullMessage(m.subject, description) == m.opened
-		m.active = noWindow
+		m.active = back
 		m = m.clearCommit()
 		switch {
 		case amending && unchanged:
@@ -158,7 +164,9 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case rewording != "" && unchanged:
 			return m, nil
 		case rewording != "":
-			return m, m.rewrite(rewording, git.RewriteReword, fullMessage(subject, description), -1)
+			follow := m.entryOf(rewording)
+			follow.Subject = subject
+			return m, m.rewrite(rewording, git.RewriteReword, fullMessage(subject, description), follow, m.cursor)
 		}
 		return m, commitCmd(m.dir, subject, description)
 	case pressed == "backspace":

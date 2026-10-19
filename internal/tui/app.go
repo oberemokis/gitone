@@ -387,7 +387,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.err != nil:
 			m = m.say(m.text.Error(msg.err))
 		// у нового файла истории нет: пустое окно сказало бы меньше подвала (#241)
-		case msg.filter.File && len(msg.entries) == 0:
+		// в открытой истории файла пустой список это фильтр автора без совпадений
+		case msg.filter.File && len(msg.entries) == 0 && m.active == noWindow:
 			m = m.putNotice(m.text.Text("history.empty", i18n.Args{"path": visible(msg.filter.Path)}), true)
 		case m.active == noWindow:
 			m.logEntries, m.logFilter, m.cursor, m.active = msg.entries, msg.filter, 0, logWindow

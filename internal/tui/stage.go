@@ -157,6 +157,5 @@ func (m Model) actionDone(msg actionDoneMsg) (tea.Model, tea.Cmd) {
 		m = m.sayCalm(msg.note)
 	}
 
-	m.stale = true
 	return m.startReload()
 }

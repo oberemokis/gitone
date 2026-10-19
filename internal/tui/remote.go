@@ -163,7 +163,6 @@ func (m Model) remoteDone(msg remoteDoneMsg) (tea.Model, tea.Cmd) {
 		m = m.sayCalm(m.remoteResult(msg))
 	}
 
-	m.stale = true
 	next, reload := m.startReload()
 	// открытое окно подмодулей показывает новое состояние
 	if msg.kind == updatingSubmodule && m.active == submoduleWindow {
