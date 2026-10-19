@@ -88,6 +88,24 @@ func TestRewordReturnsToLog(t *testing.T) {
 	}
 }
 
+// В истории файла фильтр автора без совпадений даёт пустой лог с фильтром в
+// заголовке, а не подвал «истории нет» над старым списком (случай 4).
+func TestFileHistoryAuthorFilterWithoutMatches(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	model := resize(open(t, options(repo, layout.Focus())), 140, 30)
+
+	model = openAsync(model, key('h'))
+	model = filterBy(model, 0, "nobody")
+
+	body := screenText(model)
+	if !strings.Contains(body, "author nobody") || strings.Contains(body, "test") {
+		t.Fatalf("лог не пустой с фильтром в заголовке:\n%s", body)
+	}
+}
+
 // ctrl+j дважды уводит коммит на две строки вниз, курсор идёт с ним
 // (случай 5).
 func TestMoveDownTwiceFollowsCommit(t *testing.T) {
