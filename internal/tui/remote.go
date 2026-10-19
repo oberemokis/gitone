@@ -47,8 +47,10 @@ func (r remote) labelKey() string {
 	switch r.kind {
 	case pushing, forcePushing, pushingTag:
 		return "screen.pushing"
-	case fetching, updatingSubmodule:
+	case fetching:
 		return "screen.fetching"
+	case updatingSubmodule:
+		return "screen.updatingSubmodule"
 	}
 	return "screen.pulling"
 }
@@ -57,8 +59,10 @@ func (r remote) busyKey() string {
 	switch r.kind {
 	case pushing, forcePushing, pushingTag:
 		return "remote.pushRunning"
-	case fetching, updatingSubmodule:
+	case fetching:
 		return "remote.fetchRunning"
+	case updatingSubmodule:
+		return "remote.submoduleRunning"
 	}
 	return "remote.pullRunning"
 }

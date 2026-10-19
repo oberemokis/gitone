@@ -46,9 +46,16 @@ func (m Model) askUndo(msg undoStepMsg) Model {
 	args := questionArgs(m.keys)
 	args["action"], args["subject"], args["target"] = visible(step.Action), visible(step.Subject), visible(target)
 
+	// шаг checkout переключает ветку, и файлы становятся как в ней: вопрос
+	// «файлы остаются» здесь неправда
 	question, note := "undo.question", "undo.done"
-	if step.Redo {
+	switch {
+	case step.Redo && step.Checkout:
+		question, note = "redo.questionCheckout", "redo.done"
+	case step.Redo:
 		question, note = "redo.question", "redo.done"
+	case step.Checkout:
+		question = "undo.questionCheckout"
 	}
 	done := m.text.Text(note, i18n.Args{"target": visible(target)})
 	return m.ask(m.text.Text(question, args), func(m Model) (tea.Model, tea.Cmd) {
