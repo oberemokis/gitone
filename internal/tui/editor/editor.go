@@ -8,9 +8,10 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 )
 
 // Model это текст и курсор. Курсор это номер руны, перед которой он стоит;
@@ -66,22 +67,19 @@ func (m Model) handle(key tea.KeyPressMsg) Model {
 	case "down":
 		return m.moveRows(1)
 	case "left":
-		m.cursor = max(m.cursor-1, 0)
+		m.cursor = m.previous(m.cursor)
 	case "right":
-		m.cursor = min(m.cursor+1, len(m.text))
+		m.cursor = m.next(m.cursor)
 	case "home":
 		m.cursor = m.lineStart()
 	case "end":
 		m.cursor = m.lineEnd()
 	case "backspace":
-		if m.cursor > 0 {
-			m.text = slices.Concat(m.text[:m.cursor-1], m.text[m.cursor:])
-			m.cursor--
-		}
+		previous := m.previous(m.cursor)
+		m.text = slices.Concat(m.text[:previous], m.text[m.cursor:])
+		m.cursor = previous
 	case "delete":
-		if m.cursor < len(m.text) {
-			m.text = slices.Concat(m.text[:m.cursor], m.text[m.cursor+1:])
-		}
+		m.text = slices.Concat(m.text[:m.cursor], m.text[m.next(m.cursor):])
 	default:
 		return m
 	}
@@ -193,29 +191,73 @@ func (m Model) wrap(start, end int) []row {
 	}
 }
 
-// fit это конец строки поля, которая начинается в start: руны, пока они
+// fit это конец строки поля, которая начинается в start: графемы, пока они
 // помещаются в ширину, на краю перенос по последнему пробелу, а слово длиннее
 // строки рвётся по ширине. Последняя клетка остаётся курсору в конце строки,
-// каждая строка берёт хотя бы одну руну.
+// каждая строка берёт хотя бы одну графему.
 func (m Model) fit(start, end int) int {
 	limit := max(m.width-1, 1)
 	cells, space := 0, -1
-	for pos := start; pos < end; pos++ {
-		width := runeWidth(m.text[pos])
-		if cells+width > limit && pos > start {
+	for _, char := range m.graphemes(start, end) {
+		if cells+char.width > limit && char.start > start {
 			if space >= 0 {
 				return space + 1
 			}
-			return pos
+			return char.start
 		}
 
-		cells += width
-		if m.text[pos] == ' ' {
-			space = pos
+		cells += char.width
+		if m.text[char.start] == ' ' {
+			space = char.start
 		}
 	}
 
 	return end
+}
+
+// grapheme это графемный кластер text[start:end] и его ширина в клетках.
+// Терминал меряет кластер целиком: «⚠️» это две руны и две клетки, а по
+// рунам вышла одна.
+type grapheme struct {
+	start, end, width int
+}
+
+// graphemes делит text[from:to] на кластеры. from должен быть границей
+// кластера: начало строки или место, куда встал курсор.
+func (m Model) graphemes(from, to int) []grapheme {
+	var chars []grapheme
+	state, rest := -1, string(m.text[from:to])
+	for rest != "" {
+		var cluster string
+		var width int
+		cluster, rest, width, state = uniseg.FirstGraphemeClusterInString(rest, state)
+		end := from + utf8.RuneCountInString(cluster)
+		chars = append(chars, grapheme{start: from, end: end, width: width})
+		from = end
+	}
+	return chars
+}
+
+// previous это начало кластера перед pos, next конец кластера после него:
+// курсор, стирание и delete не рвут кластер.
+func (m Model) previous(pos int) int {
+	start := 0
+	for _, char := range m.graphemes(0, len(m.text)) {
+		if char.start >= pos {
+			break
+		}
+		start = char.start
+	}
+	return start
+}
+
+func (m Model) next(pos int) int {
+	for _, char := range m.graphemes(0, len(m.text)) {
+		if char.end > pos {
+			return char.end
+		}
+	}
+	return len(m.text)
 }
 
 // cursorRow это строка, в которой стоит курсор pos. Строки идут встык, и
@@ -248,34 +290,34 @@ func (m Model) moveRows(delta int) Model {
 	return m
 }
 
-// at это позиция курсора в строке line на колонке col: перед руной, которая
+// at это позиция курсора в строке line на колонке col: перед графемой, которая
 // начинается не правее. Курсор на стыке принадлежит нижней строке, поэтому в
-// строке, которая не кончает строку текста, он остаётся перед последней руной.
+// строке, которая не кончает строку текста, он остаётся перед последней
+// графемой.
 func (m Model) at(line row, col int) int {
-	pos, cells := line.start, 0
-	for pos < line.end && cells+runeWidth(m.text[pos]) <= col {
-		cells += runeWidth(m.text[pos])
-		pos++
+	pos, last, cells := line.start, line.start, 0
+	for _, char := range m.graphemes(line.start, line.end) {
+		if cells+char.width > col {
+			break
+		}
+		cells += char.width
+		pos, last = char.end, char.start
 	}
 
 	if !line.last && pos == line.end {
-		pos--
+		pos = last
 	}
 	return pos
 }
 
-// cells это ширина рун text[from:to] в клетках.
+// cells это ширина text[from:to] в клетках.
 func (m Model) cells(from, to int) int {
 	var width int
-	for _, char := range m.text[from:to] {
-		width += runeWidth(char)
+	for _, char := range m.graphemes(from, to) {
+		width += char.width
 	}
 
 	return width
-}
-
-func runeWidth(char rune) int {
-	return ansi.StringWidth(string(char))
 }
 
 // lineStart это начало строки текста, в которой стоит курсор: после

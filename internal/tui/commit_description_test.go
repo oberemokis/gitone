@@ -127,12 +127,12 @@ func fieldRows(t *testing.T, model tea.Model) []string {
 		t.Fatalf("в окне нет подписи или подсказки:\n%s", strings.Join(screen, "\n"))
 	}
 
-	// поле стоит под подписью с её левого края и шире окна не бывает
+	// поле стоит под подписью с её левого края и шире окна не бывает; колонка
+	// в клетках, и строка режется по клеткам: эмодзи шире одной
 	start := column(screen[label], "Description")
 	rows := make([]string, 0, hint-label-2)
 	for _, line := range screen[label+1 : hint-1] {
-		cells := []rune(line)[start:]
-		rows = append(rows, strings.TrimRight(string(cells[:min(len(cells), 56)]), " "))
+		rows = append(rows, strings.TrimRight(ansi.Cut(line, start, start+56), " "))
 	}
 
 	return rows

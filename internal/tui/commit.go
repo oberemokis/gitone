@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 
 	"gitone/internal/git"
 	"gitone/internal/i18n"
@@ -249,13 +250,13 @@ func commitBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, hea
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))
 }
 
-// withCursor рисует строку line с курсором перед руной номер offset: клетка
-// цветом primary, а в конце строки пробел.
+// withCursor рисует строку line с курсором перед руной номер offset: графема
+// под ним цветом primary, а в конце строки пробел.
 func withCursor(colors theme.Theme, panel lipgloss.Style, line string, offset int) string {
 	runes := []rune(line)
 	under, after := " ", ""
 	if offset < len(runes) {
-		under, after = string(runes[offset]), string(runes[offset+1:])
+		under, after, _, _ = uniseg.FirstGraphemeClusterInString(string(runes[offset:]), -1)
 	}
 
 	cursor := panel.Background(colors.Primary).Foreground(colors.BackgroundPanel)
