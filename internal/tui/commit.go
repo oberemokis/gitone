@@ -158,7 +158,9 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case rewording != "" && unchanged:
 			return m, nil
 		case rewording != "":
-			return m, m.rewrite(rewording, git.RewriteReword, fullMessage(subject, description), -1)
+			follow := m.entryOf(rewording)
+			follow.Subject = subject
+			return m, m.rewrite(rewording, git.RewriteReword, fullMessage(subject, description), follow, m.cursor)
 		}
 		return m, commitCmd(m.dir, subject, description)
 	case pressed == "backspace":

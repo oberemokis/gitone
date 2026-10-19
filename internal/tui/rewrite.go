@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -11,12 +12,14 @@ import (
 )
 
 // rewrittenMsg несёт итог правки истории (#219): ошибку git, переписаны ли
-// коммиты из upstream, итог для подвала и строку лога, на которую встанет
-// курсор, если лог ещё открыт.
+// коммиты из upstream, итог для подвала и коммит, на который встанет курсор,
+// если лог ещё открыт: follow по теме и автору, at строкой на случай, если
+// его не найти.
 type rewrittenMsg struct {
 	err       error
 	published bool
 	note      string
+	follow    git.LogEntry
 	at        int
 }
 
@@ -51,30 +54,59 @@ func (m Model) rewriteKey(pressed string, entry git.LogEntry) (next tea.Model, c
 			args := questionArgs(m.keys)
 			args["hash"] = short
 			return m.ask(m.text.Text("rewrite.dropQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
-				return m, m.rewrite(entry.Hash, git.RewriteDrop, "", m.cursor)
+				return m, m.rewrite(entry.Hash, git.RewriteDrop, "", git.LogEntry{}, m.cursor)
 			}), nil, true
 		case git.RewriteReword:
 			return m, rewordMessageCmd(m.dir, entry.Hash), true
 		}
 
-		at := m.cursor
+		// git двигает коммит по всей истории, а не по строкам под поиском:
+		// курсор ищет коммит, строка остаётся запасным путём
+		at, follow := m.cursor, entry
 		shown := m.logShown()
 		switch key.change {
 		case git.RewriteMoveUp:
 			at = commitRow(shown, m.cursor, m.cursor-1)
 		case git.RewriteMoveDown:
 			at = commitRow(shown, m.cursor, m.cursor+1)
+		// слитый коммит берёт тему старшего
+		case git.RewriteSquash, git.RewriteFixup:
+			follow = m.parentEntry(entry.Hash)
 		}
-		return m, m.rewrite(entry.Hash, key.change, "", at), true
+		return m, m.rewrite(entry.Hash, key.change, "", follow, at), true
 	}
 
 	return m.fixupKey(pressed, entry)
 }
 
+// entryOf это коммит лога с хэшем hash, пустой без него.
+func (m Model) entryOf(hash string) git.LogEntry {
+	index := slices.IndexFunc(m.logEntries, func(entry git.LogEntry) bool { return entry.Hash == hash })
+	if index < 0 {
+		return git.LogEntry{}
+	}
+	return m.logEntries[index]
+}
+
+// parentEntry это коммит лога под коммитом hash, пустой без него.
+func (m Model) parentEntry(hash string) git.LogEntry {
+	found := false
+	for _, entry := range m.logEntries {
+		switch {
+		case entry.Hash == hash:
+			found = true
+		case found && entry.Hash != "":
+			return entry
+		}
+	}
+	return git.LogEntry{}
+}
+
 // fixupKey разбирает fixup-коммиты (#225), как F и S в lazygit: F создаёт из
 // индекса коммит «fixup!» к коммиту под курсором, S сливает такие коммиты в их
-// цели от коммита под курсором. Курсор остаётся на том же коммите: после F он
-// сдвигается на строку вниз, ведь сверху появился новый коммит.
+// цели от коммита под курсором. Курсор остаётся на том же коммите, его тема не
+// меняется; строкой он сдвигается и после F (сверху новый коммит), и после S
+// (fixup-коммиты над ним пропали).
 func (m Model) fixupKey(pressed string, entry git.LogEntry) (next tea.Model, cmd tea.Cmd, handled bool) {
 	creates := m.keys.Is(keymap.LogFixupCommit, pressed)
 	if !creates && !m.keys.Is(keymap.LogAutosquash, pressed) {
@@ -88,24 +120,24 @@ func (m Model) fixupKey(pressed string, entry git.LogEntry) (next tea.Model, cmd
 	if creates {
 		note := m.text.Text("rewrite.fixupCreated", i18n.Args{"hash": short})
 		return m, func() tea.Msg {
-			return rewrittenMsg{err: git.Fixup(dir, entry.Hash), note: note, at: at + 1}
+			return rewrittenMsg{err: git.Fixup(dir, entry.Hash), note: note, follow: entry, at: at + 1}
 		}, true
 	}
 
 	note := m.text.Text("rewrite.autosquashed", i18n.Args{"hash": short})
 	return m, func() tea.Msg {
 		published, err := git.Autosquash(dir, entry.Hash)
-		return rewrittenMsg{err: err, published: published, note: note, at: at}
+		return rewrittenMsg{err: err, published: published, note: note, follow: entry, at: at}
 	}, true
 }
 
 // rewrite запускает правку истории в команде: итог придёт rewrittenMsg.
-func (m Model) rewrite(hash string, change git.Rewrite, message string, at int) tea.Cmd {
+func (m Model) rewrite(hash string, change git.Rewrite, message string, follow git.LogEntry, at int) tea.Cmd {
 	dir := m.dir
 	note := m.text.Text("rewrite.done."+string(change), i18n.Args{"hash": hash[:7]})
 	return func() tea.Msg {
 		published, err := git.RewriteHistory(dir, hash, change, message)
-		return rewrittenMsg{err: err, published: published, note: note, at: at}
+		return rewrittenMsg{err: err, published: published, note: note, follow: follow, at: at}
 	}
 }
 
@@ -118,7 +150,7 @@ func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.err != nil:
 		m = m.say(m.text.Error(msg.err))
-		msg.at = -1
+		msg.at, msg.follow = -1, git.LogEntry{}
 	case msg.published:
 		m = m.say(m.text.Text("rewrite.published", nil))
 	default:
@@ -135,7 +167,7 @@ func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 	filter, dir := next.logFilter, next.dir
 	return next, tea.Batch(reload, func() tea.Msg {
 		entries, err := git.Log(dir, logLimit, filter)
-		return logMsg{entries: entries, filter: filter, err: err, at: msg.at}
+		return logMsg{entries: entries, filter: filter, err: err, follow: msg.follow, at: msg.at}
 	})
 }
 

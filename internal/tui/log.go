@@ -19,13 +19,15 @@ import (
 // секундами ради списка, который всё равно не листают до конца.
 const logLimit = 200
 
-// logMsg несёт список коммитов под фильтром или ошибку git. at это строка, на
-// которую встаёт курсор открытого лога после правки истории (#219), -1 значит
-// тот же коммит, что был под курсором.
+// logMsg несёт список коммитов под фильтром или ошибку git. После правки
+// истории (#219) курсор открытого лога встаёт на коммит follow (тема и автор:
+// хэш после rebase другой), а без него на строку at; -1 значит тот же коммит,
+// что был под курсором.
 type logMsg struct {
 	entries []git.LogEntry
 	filter  git.LogFilter
 	err     error
+	follow  git.LogEntry
 	at      int
 }
 
@@ -62,12 +64,36 @@ func (m Model) refilterLog(msg logMsg) Model {
 
 	m.logEntries, m.logFilter = msg.entries, msg.filter
 	shown := m.logShown()
+	if index := nearestCommit(shown, msg.follow, msg.at); index >= 0 {
+		m.cursor = index
+		return m
+	}
 	if msg.at >= 0 {
 		m.cursor = commitRow(shown, 0, min(msg.at, len(shown)-1))
 		return m
 	}
 	m.cursor = max(slices.IndexFunc(shown, func(entry git.LogEntry) bool { return entry.Hash == hash && hash != "" }), 0)
 	return m
+}
+
+// nearestCommit это строка коммита с темой и автором follow, ближайшая к
+// строке at: одинаковые темы бывают, а коммит после правки истории стоит
+// рядом с прежним местом. -1, если такого коммита нет или follow пуст.
+func nearestCommit(entries []git.LogEntry, follow git.LogEntry, at int) int {
+	best := -1
+	for index, entry := range entries {
+		if entry.Hash == "" || follow.Subject == "" || entry.Subject != follow.Subject || entry.Author != follow.Author {
+			continue
+		}
+		if best < 0 || abs(index-at) < abs(best-at) {
+			best = index
+		}
+	}
+	return best
+}
+
+func abs(number int) int {
+	return max(number, -number)
 }
 
 // askLogFilter открывает меню фильтров лога (#226), как ctrl+s в lazygit:
