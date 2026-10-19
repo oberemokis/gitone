@@ -25,8 +25,12 @@ index 1111111..2222222 100644
 `
 
 func TestPatch(t *testing.T) {
-	added := func(number int) diff.LineRef { return diff.LineRef{Kind: diff.LineAdded, Number: number} }
-	removed := func(number int) diff.LineRef { return diff.LineRef{Kind: diff.LineRemoved, Number: number} }
+	added := func(number int, text string) diff.LineRef {
+		return diff.LineRef{Kind: diff.LineAdded, Number: number, Text: text}
+	}
+	removed := func(number int, text string) diff.LineRef {
+		return diff.LineRef{Kind: diff.LineRemoved, Number: number, Text: text}
+	}
 
 	cases := []struct {
 		name     string
@@ -36,7 +40,7 @@ func TestPatch(t *testing.T) {
 	}{
 		{
 			name:     "хунк целиком",
-			selected: []diff.LineRef{removed(9), added(9), added(10)},
+			selected: []diff.LineRef{removed(9, "nine"), added(9, "NINE"), added(10, "nine and a half")},
 			want: `diff --git a/a.txt b/a.txt
 --- a/a.txt
 +++ b/a.txt
@@ -51,7 +55,7 @@ func TestPatch(t *testing.T) {
 		{
 			// невыбранная удалённая строка становится контекстом, добавленная выпадает
 			name:     "одна добавленная строка",
-			selected: []diff.LineRef{added(10)},
+			selected: []diff.LineRef{added(10, "nine and a half")},
 			want: `diff --git a/a.txt b/a.txt
 --- a/a.txt
 +++ b/a.txt
@@ -65,7 +69,7 @@ func TestPatch(t *testing.T) {
 		{
 			// второй хунк сдвинут на разницу первого
 			name:     "оба хунка",
-			selected: []diff.LineRef{removed(1), added(10)},
+			selected: []diff.LineRef{removed(1, "one"), added(10, "nine and a half")},
 			want: `diff --git a/a.txt b/a.txt
 --- a/a.txt
 +++ b/a.txt
@@ -84,7 +88,7 @@ func TestPatch(t *testing.T) {
 		{
 			// для отмены в рабочем дереве невыбранная добавленная строка это контекст
 			name:     "обратный",
-			selected: []diff.LineRef{added(10)},
+			selected: []diff.LineRef{added(10, "nine and a half")},
 			reverse:  true,
 			want: `diff --git a/a.txt b/a.txt
 --- a/a.txt
@@ -97,6 +101,8 @@ func TestPatch(t *testing.T) {
 `,
 		},
 		{name: "ничего не выбрано", want: ""},
+		// на номер встала другая строка, пока выделение висело (#305, случай 1)
+		{name: "на номере другая строка", selected: []diff.LineRef{added(10, "something else")}, want: ""},
 	}
 
 	for _, tc := range cases {
@@ -126,7 +132,7 @@ func TestPatchNoNewline(t *testing.T) {
 +TWO
 \ No newline at end of file
 `
-	got := diff.Patch(text, map[diff.LineRef]bool{{Kind: diff.LineRemoved, Number: 2}: true}, false)
+	got := diff.Patch(text, map[diff.LineRef]bool{{Kind: diff.LineRemoved, Number: 2, Text: "two"}: true}, false)
 	want := `diff --git a/a.txt b/a.txt
 --- a/a.txt
 +++ b/a.txt

@@ -63,9 +63,10 @@ func (m Model) storeVersions(msg versionsMsg) Model {
 // wantVersions раскрашивает открытый файл версиями из кеша, а без них просит
 // их прочитать, один запрос на ключ за раз. Зовётся после каждого сообщения:
 // файл открывают и перечитывают многие пути, и ни один не должен забыть про
-// версии.
+// версии. При выделении хунков на экране дифф вне индекса, а версии взяты из
+// диффа от HEAD: их строки пронумерованы иначе, и подсветка идёт по хункам.
 func (m Model) wantVersions(cmd tea.Cmd) (Model, tea.Cmd) {
-	if len(m.files) == 0 {
+	if len(m.files) == 0 || m.view.Selecting() && !m.view.SelectingConflicts() {
 		return m, cmd
 	}
 

@@ -40,7 +40,7 @@ func TestApplyPatchStagesHunk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UnstagedDiff: %v", err)
 	}
-	patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineRemoved, Number: 9}, diff.LineRef{Kind: diff.LineAdded, Number: 9}), false)
+	patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineRemoved, Number: 9, Text: "nine"}, diff.LineRef{Kind: diff.LineAdded, Number: 9, Text: "NINE"}), false)
 	if err := git.ApplyPatch(repo, patch, true, false); err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
 	}
@@ -69,9 +69,10 @@ func TestApplyPatchStagesLines(t *testing.T) {
 	commitAll(t, repo)
 	write(t, repo, "a.txt", "one\nfirst\nsecond\n")
 
+	lines := map[int]string{2: "first", 3: "second"}
 	for _, number := range []int{3, 2} {
 		text, _ := git.UnstagedDiff(repo, "a.txt")
-		patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineAdded, Number: number}), false)
+		patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineAdded, Number: number, Text: lines[number]}), false)
 		if err := git.ApplyPatch(repo, patch, true, false); err != nil {
 			t.Fatalf("строка %d: %v", number, err)
 		}
@@ -99,9 +100,9 @@ func TestApplyPatchNoNewline(t *testing.T) {
 		reverse  bool
 		want     string
 	}{
-		{"добавленная за строкой без перевода", "a\nb", "a\nb\nc", diff.LineRef{Kind: diff.LineAdded, Number: 3}, false, "a\nb\nc"},
-		{"замена без перевода", "a\nb", "a\nB", diff.LineRef{Kind: diff.LineAdded, Number: 2}, false, "a\nb\nB"},
-		{"отмена удалённой без перевода", "a\nb", "a\nB", diff.LineRef{Kind: diff.LineRemoved, Number: 2}, true, "a\nb\nB"},
+		{"добавленная за строкой без перевода", "a\nb", "a\nb\nc", diff.LineRef{Kind: diff.LineAdded, Number: 3, Text: "c"}, false, "a\nb\nc"},
+		{"замена без перевода", "a\nb", "a\nB", diff.LineRef{Kind: diff.LineAdded, Number: 2, Text: "B"}, false, "a\nb\nB"},
+		{"отмена удалённой без перевода", "a\nb", "a\nB", diff.LineRef{Kind: diff.LineRemoved, Number: 2, Text: "b"}, true, "a\nb\nB"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -133,7 +134,7 @@ func TestApplyPatchDiscards(t *testing.T) {
 	repo := hunkRepo(t)
 
 	text, _ := git.UnstagedDiff(repo, "a.txt")
-	patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineRemoved, Number: 1}, diff.LineRef{Kind: diff.LineAdded, Number: 1}), true)
+	patch := diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineRemoved, Number: 1, Text: "one"}, diff.LineRef{Kind: diff.LineAdded, Number: 1, Text: "ONE"}), true)
 	if err := git.ApplyPatch(repo, patch, false, true); err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
 	}
@@ -145,7 +146,7 @@ func TestApplyPatchDiscards(t *testing.T) {
 	runGit(t, repo, "add", "a.txt")
 	write(t, repo, "a.txt", "one\nfirst\nextra\nsecond\nmore\n")
 	text, _ = git.UnstagedDiff(repo, "a.txt")
-	patch = diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineAdded, Number: 3}), true)
+	patch = diff.Patch(text, selectRefs(diff.LineRef{Kind: diff.LineAdded, Number: 3, Text: "extra"}), true)
 	if err := git.ApplyPatch(repo, patch, false, true); err != nil {
 		t.Fatalf("ApplyPatch строки: %v", err)
 	}
