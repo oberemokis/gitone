@@ -7,20 +7,26 @@ import (
 	"gitone/internal/i18n"
 )
 
-// resetTargetMsg несёт цель reset из окна веток и число коммитов, которые он
-// снимет, или ошибку: у текущей ветки нет upstream.
+// resetTargetMsg несёт цель reset из окна веток, её имя для подвала и число
+// коммитов, которые он снимет, или ошибку: у текущей ветки нет upstream.
 type resetTargetMsg struct {
 	target string
+	label  string
 	drops  int
 	err    error
 }
 
 // resetTargetCmd находит цель reset из окна веток (#231): у текущей ветки её
-// upstream, у другой она сама, и считает снимаемые коммиты.
+// upstream, у другой она сама, и считает снимаемые коммиты. Другая ветка
+// приходит полной ссылкой, а в подвале названа коротким именем.
 func resetTargetCmd(dir string, branch git.Branch) tea.Cmd {
 	return func() tea.Msg {
 		target, drops, err := git.ResetTarget(dir, branch.Name, branch.Current)
-		return resetTargetMsg{target: target, drops: drops, err: err}
+		label := target
+		if !branch.Current {
+			label = branch.Name
+		}
+		return resetTargetMsg{target: target, label: label, drops: drops, err: err}
 	}
 }
 
@@ -33,7 +39,7 @@ func (m Model) resetTargetFound(msg resetTargetMsg) Model {
 	case m.active != branchWindow:
 		return m
 	}
-	return m.askReset(msg.target, msg.target, msg.drops)
+	return m.askReset(msg.target, msg.label, msg.drops)
 }
 
 // askReset открывает меню режима reset к коммиту (#220) или ветке (#231), как g
