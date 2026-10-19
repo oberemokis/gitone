@@ -86,10 +86,9 @@ func (m Model) tagKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	tag := shown[m.cursor]
 	switch {
+	// у первого коммита родителя нет, ^! показал бы дифф до рабочего дерева
 	case m.keys.Is(keymap.TagsDiff, pressed):
-		m.active = noWindow
-		m.args = []string{tag.Commit + "^!"}
-		return m.startReload()
+		return m.showCommit(git.LogEntry{Hash: tag.Commit, Root: tag.Root})
 	case m.keys.Is(keymap.TagsDelete, pressed):
 		if next, refused := m.refuseWhileRemote(); refused {
 			return next, nil
