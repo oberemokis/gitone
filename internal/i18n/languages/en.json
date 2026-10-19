@@ -173,6 +173,7 @@
   "files.title": "Files",
   "git.alreadyPicked": "the commit is already in the branch, nothing to pick",
   "git.alreadyReverted": "the commit is already reverted, nothing to commit",
+  "git.bisectNoContinue": "bisect has no continue or abort: mark commits or reset it from the bisect menu",
   "git.detachedHead": "HEAD is detached, switch to a branch first",
   "git.noPaths": "no files to change",
   "git.noCommits": "the repository has no commits yet",
