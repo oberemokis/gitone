@@ -85,9 +85,14 @@ func (m Model) SetFile(file diff.File) Model {
 }
 
 // Reload ставит на место файла его новую версию. Прокрутка и выделение
-// остаются, прокрутка обрезана по новой длине, а SetFile их сбросил бы.
+// остаются, прокрутка обрезана по новой длине, а SetFile их сбросил бы. При
+// выделении экран идёт за курсором: после space он мог уйти за экран.
 func (m Model) Reload(file diff.File) Model {
-	return m.withFile(file).rebuild()
+	m = m.withFile(file).rebuild()
+	if m.selection.on {
+		return m.follow()
+	}
+	return m
 }
 
 // withFile ставит файл и размечает его код. Язык выбирается по пути: у

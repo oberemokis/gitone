@@ -4,14 +4,17 @@ import "gitone/internal/diff"
 
 // selection это выделение изменённых строк для индекса (#212). Курсор и якорь
 // это изменённые строки по номерам, а не по индексу на экране: так выделение
-// переживает смену вида, ширины и перенос. hunk значит, что выделен весь хунк
-// под курсором, иначе строки от якоря до курсора. conflict значит выбор
-// конфликтов (conflict.go): выделен конфликт под курсором.
+// переживает смену вида, ширины и перенос. at это место курсора на новой
+// стороне (newPositions): по нему курсор находит место, когда его строка
+// пропала. hunk значит, что выделен весь хунк под курсором, иначе строки от
+// якоря до курсора. conflict значит выбор конфликтов (conflict.go): выделен
+// конфликт под курсором.
 type selection struct {
 	on       bool
 	hunk     bool
 	conflict bool
 	cursor   diff.LineRef
+	at       int
 	anchor   diff.LineRef
 }
 
@@ -28,7 +31,7 @@ func (m Model) Select(file diff.File) Model {
 		index = m.changeFrom(len(m.lines)-1, -1)
 	}
 	if index >= 0 {
-		m.selection.cursor = refs(m.lines[index])[0]
+		m = m.setCursor(index)
 	}
 	m.selection.anchor = m.selection.cursor
 	return m.follow()
@@ -37,11 +40,6 @@ func (m Model) Select(file diff.File) Model {
 // Selecting говорит, что идёт выделение.
 func (m Model) Selecting() bool {
 	return m.selection.on
-}
-
-// SelectingHunk говорит, что выделен хунк целиком, а не строки.
-func (m Model) SelectingHunk() bool {
-	return m.selection.hunk
 }
 
 // ToggleLines переключает выделение хунка и строк: строки начинаются с
@@ -97,8 +95,14 @@ func (m Model) MoveCursor(delta int) Model {
 		index = next
 	}
 
+	return m.setCursor(index).follow()
+}
+
+// setCursor ставит курсор на первую изменённую строку строки экрана index.
+func (m Model) setCursor(index int) Model {
 	m.selection.cursor = refs(m.lines[index])[0]
-	return m.follow()
+	m.selection.at = m.newPositions()[index]
+	return m
 }
 
 // Selected возвращает изменённые строки выделения.
@@ -167,7 +171,9 @@ func (m Model) follow() Model {
 
 // cursorIndex это строка экрана курсора. Курсор мог пропасть после
 // перечитывания: строку поставили в индекс. Тогда он встаёт на ближайшую
-// изменённую строку ниже, а без неё выше.
+// изменённую строку ниже по новой стороне, а без неё выше: номер на старой
+// стороне после правки индекса уже другой, а удалённые и добавленные строки
+// пронумерованы по разным сторонам.
 func (m Model) cursorIndex() int {
 	if m.selection.conflict {
 		block, found := m.conflictCursor()
@@ -179,17 +185,31 @@ func (m Model) cursorIndex() int {
 	if index := m.rowIndex(m.selection.cursor); index >= 0 {
 		return index
 	}
+	positions := m.newPositions()
 	for index, line := range m.lines {
-		if line.part != 0 {
-			continue
-		}
-		for _, ref := range refs(line) {
-			if ref.Number >= m.selection.cursor.Number {
-				return index
-			}
+		if line.part == 0 && len(refs(line)) > 0 && positions[index] >= m.selection.at {
+			return index
 		}
 	}
 	return m.changeFrom(len(m.lines)-1, -1)
+}
+
+// newPositions это место каждой строки экрана на новой стороне: её новый
+// номер, у удалённой строки номер ближайшей строки выше плюс один, у строки
+// без номеров 0.
+func (m Model) newPositions() []int {
+	positions := make([]int, len(m.lines))
+	last := 0
+	for index, line := range m.lines {
+		oldNumber, newNumber := line.numbers()
+		switch {
+		case newNumber > 0:
+			positions[index], last = newNumber, newNumber
+		case oldNumber > 0:
+			positions[index] = last + 1
+		}
+	}
+	return positions
 }
 
 // rowIndex ищет первую строку экрана, в которой есть ref.
