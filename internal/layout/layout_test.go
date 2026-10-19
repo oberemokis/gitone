@@ -106,6 +106,19 @@ func TestSplitSizes(t *testing.T) {
 			want: []layout.Placed{{Pane: "files", Width: 6, Height: 5}, {Pane: "diff", Width: 5, Height: 5}},
 		},
 		{
+			// остаток от округления процентов не остаётся ничьим (#311, случай 1)
+			name:  "проценты на 100 отдают остаток последнему",
+			root:  layout.Node{Direction: "row", Children: []layout.Node{{Pane: "files", Size: layout.Size{Percent: 30}}, {Pane: "diff", Size: layout.Size{Percent: 70}}}},
+			width: 101, height: 5,
+			want: []layout.Placed{{Pane: "files", Width: 30, Height: 5}, {Pane: "diff", Width: 71, Height: 5}},
+		},
+		{
+			name:  "по высоте тоже",
+			root:  layout.Node{Direction: "column", Children: []layout.Node{{Pane: "diff", Size: layout.Size{Percent: 50}}, {Pane: "files", Size: layout.Size{Percent: 50}}}},
+			width: 10, height: 21,
+			want: []layout.Placed{{Pane: "diff", Width: 10, Height: 10}, {Pane: "files", Width: 10, Height: 11}},
+		},
+		{
 			name:  "ячейки больше ширины не уходят в минус",
 			root:  layout.Node{Direction: "row", Children: []layout.Node{{Pane: "files", Size: layout.Size{Cells: 20}}, {Pane: "diff"}}},
 			width: 10, height: 5,

@@ -167,16 +167,20 @@ func Split(root Node, width, height int) Placed {
 	return placed
 }
 
-// shares возвращает длину каждого ребенка вдоль оси.
+// shares возвращает длину каждого ребенка вдоль оси. Проценты округляются
+// вниз, и когда все дети в процентах и вместе дают 100, остаток отходит
+// последнему: иначе колонка или строка у края осталась бы ничьей.
 func shares(children []Node, axis int) []int {
 	lengths := make([]int, len(children))
 	left := axis
-	free := 0
+	free, percent, lastPercent := 0, 0, -1
 
 	for index, child := range children {
 		switch {
 		case child.Size.Percent > 0:
 			lengths[index] = min(axis*child.Size.Percent/100, left)
+			percent += child.Size.Percent
+			lastPercent = index
 		case child.Size.Cells > 0:
 			lengths[index] = min(child.Size.Cells, left)
 		default:
@@ -187,6 +191,9 @@ func shares(children []Node, axis int) []int {
 	}
 
 	if free == 0 {
+		if percent == 100 {
+			lengths[lastPercent] += left
+		}
 		return lengths
 	}
 
