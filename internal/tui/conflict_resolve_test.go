@@ -210,6 +210,23 @@ func TestConflictWithoutMiddleIsSkipped(t *testing.T) {
 	}
 }
 
+// Маркеры убраны в редакторе: space в выборе конфликтов помечает файл
+// разрешённым, а не молчит (случай 4).
+func TestConflictMarkersRemovedByHand(t *testing.T) {
+	repo, model := textConflict(t, "one\n", "main\n", "topic\n", nil)
+	model = pressAndSettle(model, key('v'))
+	write(t, repo, "a.txt", "by hand\n")
+	model = pressReload(t, model)
+
+	pressAndSettle(model, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	if unmerged := runGit(t, repo, "ls-files", "--unmerged", "--", "a.txt"); unmerged != "" {
+		t.Fatalf("a.txt не помечен разрешённым:\n%s", unmerged)
+	}
+	if got := readText(t, filepath.Join(repo, "a.txt")); got != "by hand\n" {
+		t.Fatalf("a.txt = %q, правка затёрта", got)
+	}
+}
+
 // Конфликт в файле с CRLF решается (случай 5); решение первого из двух
 // ставит курсор на второй (случай 6).
 func TestConflictCRLFAndNext(t *testing.T) {
