@@ -19,11 +19,11 @@ type selection struct {
 }
 
 // Select показывает file и ставит курсор на первую изменённую строку экрана,
-// выделен хунк под ней. Верх экрана держится по номеру строки, как при смене
-// вида: у диффа индекса и рабочего дерева новая сторона та же.
+// выделен хунк под ней. Верх экрана держится по новой стороне: она у диффа от
+// HEAD и диффа вне индекса одна, рабочее дерево, а старая у них разная.
 func (m Model) Select(file diff.File) Model {
-	top := m.topPosition()
-	m = m.withFile(file).rebuild().seek(top)
+	top := m.newTop()
+	m = m.withFile(file).rebuild().seekNew(top)
 
 	m.selection = selection{on: true, hunk: true}
 	index := m.changeFrom(m.scroll, 1)
@@ -50,11 +50,12 @@ func (m Model) ToggleLines() Model {
 	return m
 }
 
-// Deselect снимает выделение и показывает file, держа верх экрана.
+// Deselect снимает выделение и показывает file, держа верх экрана по новой
+// стороне, как Select.
 func (m Model) Deselect(file diff.File) Model {
-	top := m.topPosition()
+	top := m.newTop()
 	m.selection = selection{}
-	return m.withFile(file).rebuild().seek(top)
+	return m.withFile(file).rebuild().seekNew(top)
 }
 
 // MoveCursor переводит курсор на delta изменённых строк вниз или вверх, а при
@@ -210,6 +211,33 @@ func (m Model) newPositions() []int {
 		}
 	}
 	return positions
+}
+
+// newTop это место верха экрана на новой стороне, 0 под служебной строкой.
+func (m Model) newTop() int {
+	if m.scroll >= len(m.lines) || m.lines[m.scroll].notice != nil {
+		return 0
+	}
+	for _, position := range m.newPositions()[m.scroll:] {
+		if position > 0 {
+			return position
+		}
+	}
+	return 0
+}
+
+// seekNew ставит наверх первую строку не выше места target на новой стороне.
+func (m Model) seekNew(target int) Model {
+	if target == 0 {
+		return m.clamp()
+	}
+	for index, position := range m.newPositions() {
+		if position >= target {
+			m.scroll = index
+			break
+		}
+	}
+	return m.clamp()
 }
 
 // rowIndex ищет первую строку экрана, в которой есть ref.
