@@ -60,9 +60,27 @@ func (m Model) tagsArrived(msg tagsMsg) Model {
 	return m
 }
 
-// tagKey отдаёт клавиши окну тегов (#238): tags.diff показывает дифф коммита
+// tagActions это действия окна тегов (#238): tags.diff показывает дифф коммита
 // тега, tags.new ставит тег на HEAD, tags.delete удаляет после вопроса,
-// tags.push отправляет на origin, list.search ищет по имени.
+// tags.push отправляет на origin.
+var tagActions = []windowAction[git.Tag]{
+	// у первого коммита родителя нет, ^! показал бы дифф до рабочего дерева
+	{action: keymap.TagsDiff, run: func(m Model, tag git.Tag) (tea.Model, tea.Cmd) {
+		return m.showCommit(git.LogEntry{Hash: tag.Commit, Root: tag.Root})
+	}},
+	{action: keymap.TagsNew, anyRow: true, changesRepo: true, run: func(m Model, _ git.Tag) (tea.Model, tea.Cmd) {
+		return m.askTagName(), nil
+	}},
+	{action: keymap.TagsDelete, changesRepo: true, run: Model.askDeleteTag},
+	{action: keymap.TagsPush, changesRepo: true, run: func(m Model, tag git.Tag) (tea.Model, tea.Cmd) {
+		return m.startTagPush(tag.Name)
+	}},
+}
+
+var tagHint = actionsOf(tagActions, keymap.ListSearch)
+
+// tagKey отдаёт клавиши окну тегов: list.search ищет по имени, остальное
+// tagActions.
 func (m Model) tagKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -72,41 +90,17 @@ func (m Model) tagKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd
 	}
+	return dispatch(m, tagActions, key.String(), shown)
+}
 
-	pressed := key.String()
-	if m.keys.Is(keymap.TagsNew, pressed) {
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		return m.askTagName(), nil
-	}
-	if len(shown) == 0 {
-		return m, nil
-	}
-
-	tag := shown[m.cursor]
-	switch {
-	// у первого коммита родителя нет, ^! показал бы дифф до рабочего дерева
-	case m.keys.Is(keymap.TagsDiff, pressed):
-		return m.showCommit(git.LogEntry{Hash: tag.Commit, Root: tag.Root})
-	case m.keys.Is(keymap.TagsDelete, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		args := questionArgs(m.keys)
-		args["name"] = visible(tag.Name)
-		note := m.text.Text("tags.deleted", i18n.Args{"name": visible(tag.Name)})
-		return m.ask(m.text.Text("tags.deleteQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
-			return m, thenTags(m.dir, note, func() error { return git.DeleteTag(m.dir, tag.Name) })
-		}), nil
-	case m.keys.Is(keymap.TagsPush, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		return m.startTagPush(tag.Name)
-	}
-
-	return m, nil
+// askDeleteTag спрашивает, удалить ли тег локально.
+func (m Model) askDeleteTag(tag git.Tag) (tea.Model, tea.Cmd) {
+	args := questionArgs(m.keys)
+	args["name"] = visible(tag.Name)
+	note := m.text.Text("tags.deleted", i18n.Args{"name": visible(tag.Name)})
+	return m.ask(m.text.Text("tags.deleteQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
+		return m, thenTags(m.dir, note, func() error { return git.DeleteTag(m.dir, tag.Name) })
+	}), nil
 }
 
 // askTagName спрашивает имя нового тега на HEAD, потом сообщение: с
@@ -150,7 +144,7 @@ func tagBox(p paint, tags []git.Tag, cursor int, query string, typing bool, ques
 		width:    100,
 		cursor:   cursor,
 		empty:    []string{p.text.Text("tags.empty", nil)},
-		hint:     p.hint(keymap.TagsDiff, keymap.TagsNew, keymap.TagsDelete, keymap.TagsPush, keymap.ListSearch),
+		hint:     p.hint(tagHint...),
 		question: question,
 	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 

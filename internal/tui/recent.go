@@ -64,30 +64,30 @@ func (m Model) recentArrived(msg recentMsg) Model {
 	return m
 }
 
-// recentKey отдаёт клавиши окну: recent.open открывает выбранный
+// recentActions это действия окна недавних: recent.open открывает выбранный
 // репозиторий тем же путём, что переключение worktree. Пропавший каталог не
 // открывается, подвал говорит почему.
+var recentActions = []windowAction[recentRepo]{
+	{action: keymap.RecentOpen, changesRepo: true, run: func(m Model, repo recentRepo) (tea.Model, tea.Cmd) {
+		switch {
+		case repo.missing:
+			return m.putNotice(m.text.Text("recent.missing", i18n.Args{"path": visible(repo.path)}), true), nil
+		case repo.current:
+			m.active = noWindow
+			return m, nil
+		}
+		m.active = noWindow
+		return m, tea.Batch(checkWorktreeCmd(repo.path), rememberRepoCmd(m.stateDir, repo.path))
+	}},
+}
+
+var recentHint = actionsOf(recentActions)
+
 func (m Model) recentKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.recent)); handled {
 		return next, cmd
 	}
-	if !m.keys.Is(keymap.RecentOpen, key.String()) || len(m.recent) == 0 {
-		return m, nil
-	}
-	if next, refused := m.refuseWhileRemote(); refused {
-		return next, nil
-	}
-
-	repo := m.recent[m.cursor]
-	switch {
-	case repo.missing:
-		return m.putNotice(m.text.Text("recent.missing", i18n.Args{"path": visible(repo.path)}), true), nil
-	case repo.current:
-		m.active = noWindow
-		return m, nil
-	}
-	m.active = noWindow
-	return m, tea.Batch(checkWorktreeCmd(repo.path), rememberRepoCmd(m.stateDir, repo.path))
+	return dispatch(m, recentActions, key.String(), m.recent)
 }
 
 // recentBox рисует пути недавних репозиториев: открытый сейчас и пропавший
@@ -99,7 +99,7 @@ func recentBox(p paint, repos []recentRepo, cursor int, screenWidth, screenHeigh
 		width:  90,
 		cursor: cursor,
 		empty:  []string{p.text.Text("recent.empty", nil)},
-		hint:   p.hint(keymap.RecentOpen),
+		hint:   p.hint(recentHint...),
 	}
 
 	panel, muted := p.panel(), p.muted()

@@ -336,6 +336,24 @@ func TestWindowActionsRefuseWhilePullRuns(t *testing.T) {
 			},
 		},
 		{
+			name:  "удаление ветки",
+			setup: func(t *testing.T, repo string) { runGit(t, repo, "branch", "aaa") },
+			open:  key('B'),
+			keys:  []tea.KeyPressMsg{key('k'), key('d')},
+			check: func(t *testing.T, repo string) {
+				if got := runGit(t, repo, "branch", "--list", "aaa"); got == "" {
+					t.Error("ветка aaa удалена, ожидалась на месте")
+				}
+			},
+		},
+		{
+			name:  "новый тег",
+			setup: func(t *testing.T, repo string) {},
+			open:  key('t'),
+			keys:  []tea.KeyPressMsg{key('n')},
+			check: func(t *testing.T, repo string) {},
+		},
+		{
 			name: "переключение worktree",
 			setup: func(t *testing.T, repo string) {
 				runGit(t, repo, "worktree", "add", "-q", "-b", "side", filepath.Join(t.TempDir(), "side"))

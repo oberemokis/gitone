@@ -141,9 +141,60 @@ func logTitle(text i18n.Dictionary, filter git.LogFilter) string {
 	return strings.Join(parts, " · ")
 }
 
-// logKey отдаёт клавиши окну лога. log.open показывает диф коммита в этом же
-// экране, log.revert отменяет коммит новым коммитом, list.search открывает
-// поле поиска, list.close закрывает окно. Курсор стоит только на коммитах.
+// logActions это действия окна лога над коммитом под курсором. log.open
+// показывает диф коммита в этом же экране, log.revert отменяет коммит новым
+// коммитом, правка истории в rewriteAction.
+var logActions = []windowAction[git.LogEntry]{
+	{action: keymap.LogOpen, run: Model.showCommit},
+	{action: keymap.LogCheckout, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
+			return git.CheckoutCommit(dir, entry.Hash)
+		})
+	}},
+	{action: keymap.LogNewBranch, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
+	}},
+	{action: keymap.LogRevert, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
+			return git.Revert(dir, entry.Hash)
+		})
+	}},
+	{action: keymap.LogReset, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.askReset(entry.Hash, entry.Hash[:7], -1), nil
+	}},
+	{action: keymap.LogSquash, changesRepo: true, run: rewriteAction(git.RewriteSquash)},
+	{action: keymap.LogFixup, changesRepo: true, run: rewriteAction(git.RewriteFixup)},
+	{action: keymap.LogReword, changesRepo: true, run: rewriteAction(git.RewriteReword)},
+	{action: keymap.LogDrop, changesRepo: true, run: rewriteAction(git.RewriteDrop)},
+	{action: keymap.LogMoveUp, changesRepo: true, run: rewriteAction(git.RewriteMoveUp)},
+	{action: keymap.LogMoveDown, changesRepo: true, run: rewriteAction(git.RewriteMoveDown)},
+	{action: keymap.LogFixupCommit, changesRepo: true, run: Model.fixupCommit},
+	{action: keymap.LogAutosquash, changesRepo: true, run: Model.autosquash},
+	{action: keymap.CherryPickCopy, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		m.copied = entry
+		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)}), true), nil
+	}},
+	{action: keymap.CherryPickPaste, run: func(m Model, _ git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.pasteCommit()
+	}},
+	{action: keymap.LogCopy, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.askCopy(entry), nil
+	}},
+	{action: keymap.CompareWith, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.compareWith(entry.Hash, entry.Hash[:7])
+	}},
+	{action: keymap.LogBisect, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+		return m.askBisect(entry.Hash, entry.Hash[:7]), nil
+	}},
+}
+
+// logHint это действия подсказки окна лога: таблица, поиск и фильтр. Тот же
+// список сверяется с группой окна в keymap.
+var logHint = actionsOf(logActions, keymap.ListSearch, keymap.LogFilter)
+
+// logKey отдаёт клавиши окну лога: list.search открывает поле поиска,
+// log.filter меню фильтров, остальное logActions. Курсор стоит только на
+// коммитах.
 func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.searchKey(key); handled {
 		return next, cmd
@@ -158,46 +209,7 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.keys.Is(keymap.LogFilter, key.String()) {
 		return m.askLogFilter(), nil
 	}
-	if len(shown) == 0 {
-		return m, nil
-	}
-
-	entry, pressed := shown[m.cursor], key.String()
-	if next, cmd, handled := m.rewriteKey(pressed, entry); handled {
-		return next, cmd
-	}
-	switch {
-	case m.keys.Is(keymap.LogOpen, pressed):
-		return m.showCommit(entry)
-	case m.keys.Is(keymap.LogRevert, pressed):
-		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
-			return git.Revert(dir, entry.Hash)
-		})
-	case m.keys.Is(keymap.CherryPickCopy, pressed):
-		m.copied = entry
-		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)}), true), nil
-	case m.keys.Is(keymap.CherryPickPaste, pressed):
-		return m.pasteCommit()
-	case m.keys.Is(keymap.LogNewBranch, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
-	case m.keys.Is(keymap.LogCheckout, pressed):
-		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(dir string) error {
-			return git.CheckoutCommit(dir, entry.Hash)
-		})
-	case m.keys.Is(keymap.LogCopy, pressed):
-		return m.askCopy(entry), nil
-	case m.keys.Is(keymap.LogReset, pressed):
-		return m.askReset(entry.Hash, entry.Hash[:7], -1), nil
-	case m.keys.Is(keymap.LogBisect, pressed):
-		return m.askBisect(entry.Hash, entry.Hash[:7]), nil
-	case m.keys.Is(keymap.CompareWith, pressed):
-		return m.compareWith(entry.Hash, entry.Hash[:7])
-	}
-
-	return m, nil
+	return dispatch(m, logActions, key.String(), shown)
 }
 
 // showCommit показывает дифф коммита в этом же экране. У первого коммита
@@ -302,7 +314,7 @@ func logBox(p paint, entries []git.LogEntry, filter git.LogFilter, cursor int, q
 		close:    p.close(keymap.ListClose),
 		cursor:   cursor,
 		empty:    []string{p.text.Text("log.empty", nil)},
-		hint:     p.hint(keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.LogRevert, keymap.LogReset, keymap.LogSquash, keymap.LogFixup, keymap.LogReword, keymap.LogDrop, keymap.LogMoveUp, keymap.LogMoveDown, keymap.LogFixupCommit, keymap.LogAutosquash, keymap.CherryPickCopy, keymap.CherryPickPaste, keymap.LogCopy, keymap.CompareWith, keymap.LogBisect, keymap.ListSearch, keymap.LogFilter),
+		hint:     p.hint(logHint...),
 		fill:     true,
 		question: question,
 	}.withSearch(p, query, typing, p.text.Text("log.noMatches", nil))

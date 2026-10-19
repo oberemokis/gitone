@@ -56,29 +56,25 @@ func (m Model) remotesArrived(msg remotesMsg) Model {
 	return m
 }
 
-// remoteKey отдаёт клавиши окну remote (#233): remotes.new спрашивает имя и
+// remoteActions это действия окна remote (#233): remotes.new спрашивает имя и
 // адрес, remotes.delete удаляет после вопроса. Пока идёт pull, push или fetch,
 // правки отказывают: git работает с тем же remote.
+var remoteActions = []windowAction[git.Remote]{
+	{action: keymap.RemotesNew, anyRow: true, changesRepo: true, run: func(m Model, _ git.Remote) (tea.Model, tea.Cmd) {
+		return m.askRemote(), nil
+	}},
+	{action: keymap.RemotesDelete, changesRepo: true, run: func(m Model, remote git.Remote) (tea.Model, tea.Cmd) {
+		return m.askRemoveRemote(remote), nil
+	}},
+}
+
+var remoteHint = actionsOf(remoteActions)
+
 func (m Model) remoteKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, handled := m.navigate(key, len(m.remotes)); handled {
 		return next, cmd
 	}
-
-	pressed := key.String()
-	switch {
-	case m.keys.Is(keymap.RemotesNew, pressed):
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		return m.askRemote(), nil
-	case m.keys.Is(keymap.RemotesDelete, pressed) && len(m.remotes) > 0:
-		if next, refused := m.refuseWhileRemote(); refused {
-			return next, nil
-		}
-		return m.askRemoveRemote(m.remotes[m.cursor]), nil
-	}
-
-	return m, nil
+	return dispatch(m, remoteActions, key.String(), m.remotes)
 }
 
 // askRemote спрашивает имя нового remote, потом адрес: адрес вводится руками,
@@ -118,7 +114,7 @@ func remoteBox(p paint, remotes []git.Remote, cursor int, question string, scree
 		width:    100,
 		cursor:   cursor,
 		empty:    []string{p.text.Text("remotes.empty", nil)},
-		hint:     p.hint(keymap.RemotesNew, keymap.RemotesDelete),
+		hint:     p.hint(remoteHint...),
 		question: question,
 	}
 
