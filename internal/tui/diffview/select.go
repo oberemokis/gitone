@@ -170,7 +170,11 @@ func (m Model) follow() Model {
 // изменённую строку ниже, а без неё выше.
 func (m Model) cursorIndex() int {
 	if m.selection.conflict {
-		return m.conflictCursor()
+		block, found := m.conflictCursor()
+		if !found {
+			return -1
+		}
+		return block.from
 	}
 	if index := m.rowIndex(m.selection.cursor); index >= 0 {
 		return index

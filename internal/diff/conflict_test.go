@@ -54,7 +54,35 @@ func TestConflictLabels(t *testing.T) {
 	if ours, theirs, found := diff.ConflictLabels(twoConflicts, 8); !found || ours != "HEAD" || theirs != "feat" {
 		t.Fatalf("ConflictLabels = %q, %q, %v", ours, theirs, found)
 	}
-	if !diff.HasConflicts(twoConflicts) || diff.HasConflicts("a\n<<<<<<<< not a marker\n") {
-		t.Fatal("HasConflicts ошибся")
+}
+
+// Конфликт это только закрытый блок с ======= и маркерами одной длины;
+// длина маркера берётся из строки начала (#302).
+func TestConflictCount(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want int
+	}{
+		{"два конфликта", twoConflicts, 2},
+		{"незакрытый", "<<<<<<< HEAD\nmain\n=======\nfeat\n", 0},
+		{"без =======", "<<<<<<< HEAD\nmain\n>>>>>>> feat\n", 0},
+		{"не маркер", "<<<<<<<x\n=======\n>>>>>>> feat\n", 0},
+		{"вложенный", "<<<<<<< a\n<<<<<<< b\nx\n=======\ny\n>>>>>>> b\n>>>>>>> a\n", 1},
+		{"CRLF", "<<<<<<< HEAD\r\nmain\r\n=======\r\nfeat\r\n>>>>>>> feat\r\n", 1},
+		{"conflict-marker-size=10", "<<<<<<<<<< HEAD\nmain\n=======\nnot middle\n==========\nfeat\n>>>>>>>>>> feat\n", 1},
+		{"разная длина", "<<<<<<<<<< HEAD\nmain\n=======\nfeat\n>>>>>>> feat\n", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := diff.ConflictCount(tc.text); got != tc.want {
+				t.Fatalf("ConflictCount = %d, ожидалось %d", got, tc.want)
+			}
+		})
+	}
+
+	got, found := diff.ResolveConflict("<<<<<<<<<< HEAD\nmain\n=======\nnot middle\n==========\nfeat\n>>>>>>>>>> feat\n", 1, diff.SideOurs)
+	if !found || got != "main\n=======\nnot middle\n" {
+		t.Fatalf("ResolveConflict длинного маркера = %q, %v", got, found)
 	}
 }

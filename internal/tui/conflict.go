@@ -113,8 +113,9 @@ func (m Model) conflictNotes(path string) [2]string {
 }
 
 // resolveConflictCmd заменяет конфликт, начинающийся строкой start, на
-// выбранную сторону. Когда в файле не осталось маркеров, файл ставится в
-// индекс: git считает конфликт решённым, и операция ждёт продолжения.
+// выбранную сторону. Когда в файле не осталось конфликтов, кроме тех, что уже
+// лежали в HEAD, файл ставится в индекс: git считает конфликт решённым, и
+// операция ждёт продолжения.
 func resolveConflictCmd(dir, path string, start int, side diff.ConflictSide, notes [2]string) tea.Cmd {
 	return func() tea.Msg {
 		text, err := git.WorktreeFile(dir, path)
@@ -129,7 +130,7 @@ func resolveConflictCmd(dir, path string, start int, side diff.ConflictSide, not
 			return actionDoneMsg{err: err}
 		}
 
-		if diff.HasConflicts(resolved) {
+		if diff.ConflictCount(resolved) > diff.ConflictCount(git.HeadFile(dir, path)) {
 			return actionDoneMsg{note: notes[0]}
 		}
 		return actionDoneMsg{err: git.Stage(dir, []string{path}), note: notes[1]}

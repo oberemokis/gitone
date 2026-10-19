@@ -54,6 +54,18 @@ func WorktreeFile(dir, path string) (string, error) {
 	return string(content), err
 }
 
+// HeadFile читает файл из HEAD по пути от корня, пустой текст, если его там
+// нет: маркеры конфликта, которые уже лежали в HEAD, решать не нужно.
+func HeadFile(dir, path string) string {
+	root, err := topLevel(dir)
+	if err != nil {
+		return ""
+	}
+
+	content, _ := run(call{dir: root}, "cat-file", "blob", "HEAD:"+path)
+	return content
+}
+
 // WriteWorktreeFile записывает текст в файл рабочего дерева, права файла
 // остаются прежними.
 func WriteWorktreeFile(dir, path, text string) error {
