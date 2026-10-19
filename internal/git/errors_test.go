@@ -2,6 +2,7 @@ package git_test
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,6 +12,10 @@ import (
 // Ошибка экспортируемой функции начинается с имени операции git, и имя
 // встречается ровно один раз: обёртка стоит только на границе пакета.
 func TestErrorsNameOperationOnce(t *testing.T) {
+	// каталог вне репозитория: TMPDIR внутри дерева git иначе нашёл бы его
+	outside := t.TempDir()
+	t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(outside))
+
 	tests := []struct {
 		name   string
 		prefix string
@@ -26,7 +31,7 @@ func TestErrorsNameOperationOnce(t *testing.T) {
 			return git.StashApply(repo, git.Stash{Ref: "stash@{5}", Hash: "0000000000000000000000000000000000000000"})
 		}},
 		{name: "дифф вне репозитория", prefix: "diff: ", call: func(string) error {
-			_, err := git.Diff(t.TempDir(), nil)
+			_, err := git.Diff(outside, nil)
 			return err
 		}},
 		{name: "pull ветки без upstream", prefix: "pull: ", call: func(repo string) error {
