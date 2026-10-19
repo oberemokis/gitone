@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/odvcencio/gotreesitter v0.55.1
 	github.com/rivo/uniseg v0.4.7
+	golang.org/x/text v0.40.0
 )
 
 require (

@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Item это строка списка. Detail стоит справа серым и различает записи с
@@ -133,22 +134,25 @@ func (m Model) SelectedItem() (item Item, found bool) {
 }
 
 // filter оставляет элементы, в которых символы поиска идут по порядку. Порядок
-// списка не меняется: ранжирования нет (решение в #11).
+// списка не меняется: ранжирования нет (решение в #11). Срез совпадений новый:
+// модель копируется по значению, и запись в прежний массив задела бы копию.
 func (m Model) filter() Model {
-	m.matches = m.matches[:0]
+	var matches []int
 	for index, item := range m.items {
 		if isSubsequence(m.query, item.Label) {
-			m.matches = append(m.matches, index)
+			matches = append(matches, index)
 		}
 	}
 
-	m.selected = 0
+	m.matches, m.selected = matches, 0
 	return m
 }
 
+// isSubsequence сравнивает в NFC: имя файла на macOS приходит разложенным
+// («e» и знак ударения), а набранный запрос составным «é».
 func isSubsequence(query, text string) bool {
-	text = strings.ToLower(text)
-	for _, char := range strings.ToLower(query) {
+	text = strings.ToLower(norm.NFC.String(text))
+	for _, char := range strings.ToLower(norm.NFC.String(query)) {
 		position := strings.IndexRune(text, char)
 		if position < 0 {
 			return false

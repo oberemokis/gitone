@@ -6,7 +6,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"gitone/internal/layout"
 )
+
+var ctrlP = tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl}
 
 // Описание из эмодзи с вариантом представления переносится по ширине
 // терминала: строка поля не шире строки из латиницы (#312, случай 1).
@@ -40,5 +44,47 @@ func TestDescriptionCursorKeepsGraphemes(t *testing.T) {
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if rows := fieldRows(t, model); rows[0] != "ab" {
 		t.Fatalf("поле %q, ожидалось ab: backspace стёр кластер не целиком", rows[0])
+	}
+}
+
+// Поиск файлов находит путь в NFD по запросу в NFC и наоборот (случай 2).
+func TestPickerMatchesAcrossNormalization(t *testing.T) {
+	repo := newRepo(t)
+	runGit(t, repo, "config", "core.precomposeUnicode", "false")
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "café.go", "new\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
+
+	for _, query := range []string{"é", "é"} {
+		picked, _ := model.Update(ctrlP)
+		picked = typeText(picked, query)
+		if row := markedRow(picked); !strings.Contains(row, ".go") {
+			t.Fatalf("запрос %q не нашёл café.go:\n%s", query, screenText(picked))
+		}
+	}
+}
+
+// Поиск файлов: регистр не важен, backspace стирает руну целиком, а набор
+// после down возвращает выделение на первое найденное (случай 5).
+func TestPickerQueryEditing(t *testing.T) {
+	_, model := threeFileRepo(t)
+
+	model, _ = model.Update(ctrlP)
+	model = typeText(model, "B")
+	if row := markedRow(model); !strings.Contains(row, "b.txt") {
+		t.Fatalf("поиск B не нашёл b.txt, отмечено %q", row)
+	}
+	model = typeText(model, "é")
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	if body := screenText(model); !strings.Contains(body, "/ B") || strings.Contains(body, "/ B�") {
+		t.Fatalf("backspace стёр не руну:\n%s", body)
+	}
+
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model = typeText(model, ".")
+	if row := markedRow(model); !strings.Contains(row, "a.txt") {
+		t.Fatalf("набор после down не вернул выделение на первое, отмечено %q", row)
 	}
 }
