@@ -72,15 +72,24 @@ func rewriteHistory(dir, hash string, action Rewrite, message string) (bool, err
 	}
 
 	base, published := baseOf(root, commits[first])
+	if err := refuseMerges(root, base); err != nil {
+		return false, err
+	}
+
+	return published, rebaseWith(root, base, todoLines(commits[first:], at-first, action), message)
+}
+
+// refuseMerges отвергает правку истории, если между base и HEAD есть
+// merge-коммиты: без --rebase-merges git их бы распрямил.
+func refuseMerges(root, base string) error {
 	rewritten := "HEAD"
 	if base != "" {
 		rewritten = base + "..HEAD"
 	}
 	if merges, _ := run(call{dir: root}, "rev-list", "--merges", rewritten); strings.TrimSpace(merges) != "" {
-		return false, i18n.New("git.rewriteMerges", nil)
+		return i18n.New("git.rewriteMerges", nil)
 	}
-
-	return published, rebaseWith(root, base, todoLines(commits[first:], at-first, action), message)
+	return nil
 }
 
 // branchCommits это коммиты текущей ветки от старых к новым, первый
@@ -200,7 +209,9 @@ func fixup(dir, hash string) error {
 
 // Autosquash сливает коммиты `fixup!` и `squash!` в их цели (#225), начиная с
 // hash: `git rebase -i --autosquash` от его родителя, список действий git
-// строит сам. published говорит, что переписаны коммиты из upstream.
+// строит сам. Проверки те же, что у RewriteHistory: коммит в ветке, выше
+// него нет merge-коммитов. published говорит, что переписаны коммиты из
+// upstream.
 func Autosquash(dir, hash string) (published bool, err error) {
 	published, err = autosquash(dir, hash)
 	return published, failed("rebase", err)
@@ -212,7 +223,18 @@ func autosquash(dir, hash string) (bool, error) {
 		return false, err
 	}
 
+	commits, err := branchCommits(root)
+	if err != nil {
+		return false, err
+	}
+	if !slices.Contains(commits, hash) {
+		return false, i18n.New("git.rewriteNotInBranch", nil)
+	}
+
 	base, published := baseOf(root, hash)
+	if err := refuseMerges(root, base); err != nil {
+		return false, err
+	}
 	return published, rebaseWith(root, base, nil, "")
 }
 
