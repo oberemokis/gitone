@@ -85,6 +85,20 @@ func TestRewriteHistoryDetails(t *testing.T) {
 	refusedWith(t, func() error { _, err := git.RewriteHistory(repo, head, git.RewriteMoveUp, ""); return err }(), "git.rewriteNoChild")
 }
 
+// Reword сохраняет строки, начинающиеся с «#», как Commit и Amend (#294,
+// случай 1).
+func TestRewordKeepsHashLines(t *testing.T) {
+	repo, hashes := historyRepo(t)
+	message := "Subject\n\n#42 follow-up\nbody"
+
+	if _, err := git.RewriteHistory(repo, hashes[1], git.RewriteReword, message); err != nil {
+		t.Fatalf("reword: %v", err)
+	}
+	if got := strings.TrimSpace(runGit(t, repo, "log", "-1", "--skip=2", "--format=%B")); got != message {
+		t.Fatalf("сообщение %q, ожидалось %q", got, message)
+	}
+}
+
 // Конфликт при переносе останавливает rebase (случай 5).
 func TestRewriteHistoryConflict(t *testing.T) {
 	repo := newRepo(t)

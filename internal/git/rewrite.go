@@ -129,8 +129,9 @@ func baseOf(root, first string) (base string, published bool) {
 // rebaseWith запускает `git rebase -i` со своим списком действий и
 // сообщением reword. Оба файла лежат во временном каталоге и подставляются
 // командой cp вместо редактора: git зовёт редактор через sh с путём файла.
-// Без своего списка git строит его сам с --autosquash, и он принимается как
-// есть.
+// Сообщение reword git не чистит (commit.cleanup=whitespace): строки с «#»
+// остаются, как у Commit и Amend через -m. Без своего списка git строит его
+// сам с --autosquash, и он принимается как есть.
 func rebaseWith(root, base string, todo []string, message string) error {
 	temp, err := os.MkdirTemp("", "gitone-rebase-")
 	if err != nil {
@@ -150,13 +151,14 @@ func rebaseWith(root, base string, todo []string, message string) error {
 		sequence = "cp " + shellQuote(todoFile)
 	}
 
-	editor := "true"
+	env := []string{"GIT_SEQUENCE_EDITOR=" + sequence, "GIT_EDITOR=true"}
 	if message != "" {
 		messageFile := filepath.Join(temp, "message")
 		if err := os.WriteFile(messageFile, []byte(message+"\n"), 0o600); err != nil {
 			return err
 		}
-		editor = "cp " + shellQuote(messageFile)
+		env = []string{"GIT_SEQUENCE_EDITOR=" + sequence, "GIT_EDITOR=cp " + shellQuote(messageFile),
+			"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=commit.cleanup", "GIT_CONFIG_VALUE_0=whitespace"}
 	}
 
 	if base == "" {
@@ -165,7 +167,6 @@ func rebaseWith(root, base string, todo []string, message string) error {
 		args = append(args, base)
 	}
 
-	env := []string{"GIT_SEQUENCE_EDITOR=" + sequence, "GIT_EDITOR=" + editor}
 	_, err = run(call{dir: root, env: env}, args...)
 	if err != nil && unfinished(root) {
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": "rebase"})
