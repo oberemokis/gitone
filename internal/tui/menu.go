@@ -3,9 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // menu это выбор одного варианта из нескольких поверх окна или главного экрана
@@ -63,7 +61,7 @@ func (mn menu) move(delta int) menu {
 }
 
 // menuBox рисует меню общим списком: строки по подписям, подсказка выбора.
-func menuBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, mn menu, screenWidth, screenHeight int) string {
+func menuBox(p paint, mn menu, screenWidth, screenHeight int) string {
 	rows := make([]string, len(mn.items))
 	for index, item := range mn.items {
 		rows[index] = item.label
@@ -71,10 +69,10 @@ func menuBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, mn me
 
 	return list{
 		title:  mn.title,
-		close:  closeHint(colors, keys, text, keymap.ListClose),
+		close:  p.close(keymap.ListClose),
 		width:  60,
 		rows:   rows,
 		cursor: mn.cursor,
-		hint:   windowHint(colors, keys, text, keymap.MenuChoose),
-	}.view(colors, screenWidth, screenHeight)
+		hint:   p.hint(keymap.MenuChoose),
+	}.view(p, screenWidth, screenHeight)
 }

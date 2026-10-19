@@ -5,12 +5,9 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // prompt это однострочное поле ввода поверх диффа (#227): имя новой ветки,
@@ -64,19 +61,19 @@ func (m Model) typePrompt(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // promptBox рисует поле, как тему в окне коммита: заголовок с закрытием, строку
 // «> текст_» и подсказку. Длинный текст не переносится, виден его конец, где
 // идёт набор.
-func promptBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, field prompt, screenWidth int) string {
+func promptBox(p paint, field prompt, screenWidth int) string {
 	width := commitWidth(screenWidth)
 	content := width - 2*windowPaddingX
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	title := windowTitle(colors, content, field.title, closeHint(colors, keys, text, keymap.PromptClose))
+	panel := p.panel()
+	title := p.title(content, field.title, p.close(keymap.PromptClose))
 
 	input := "> " + visible(field.text) + "_"
 	if over := ansi.StringWidth(input) - content; over > 0 {
 		input = ansi.TruncateLeft(input, over+1, "…")
 	}
 
-	hint := ansi.Truncate(windowHint(colors, keys, text, keymap.PromptSubmit), content, panel.Foreground(colors.TextMuted).Render("…"))
+	hint := ansi.Truncate(p.hint(keymap.PromptSubmit), content, p.muted().Render("…"))
 	lines := []string{title, "", panel.Render(input), "", hint}
 
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))

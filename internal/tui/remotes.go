@@ -8,7 +8,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // remotesMsg несёт список remote или ошибку git. note это итог правки, после
@@ -112,22 +111,21 @@ func (m Model) askRemoveRemote(remote git.Remote) Model {
 
 // remoteBox рисует remote таблицей: имя цветом accent, адреса fetch и push.
 // Remote с upstream текущей ветки помечен словом за именем.
-func remoteBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, remotes []git.Remote, cursor int, question string, screenWidth, screenHeight int) string {
+func remoteBox(p paint, remotes []git.Remote, cursor int, question string, screenWidth, screenHeight int) string {
 	box := list{
-		title:    text.Text("remotes.title", nil),
-		close:    closeHint(colors, keys, text, keymap.ListClose),
+		title:    p.text.Text("remotes.title", nil),
+		close:    p.close(keymap.ListClose),
 		width:    100,
 		cursor:   cursor,
-		empty:    []string{text.Text("remotes.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.RemotesNew, keymap.RemotesDelete),
+		empty:    []string{p.text.Text("remotes.empty", nil)},
+		hint:     p.hint(keymap.RemotesNew, keymap.RemotesDelete),
 		question: question,
 	}
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
-	upstream := text.Text("remotes.upstream", nil)
+	panel, muted := p.panel(), p.muted()
+	upstream := p.text.Text("remotes.upstream", nil)
 
-	titles := []string{text.Text("remotes.column.name", nil), text.Text("remotes.column.fetch", nil), text.Text("remotes.column.push", nil)}
+	titles := []string{p.text.Text("remotes.column.name", nil), p.text.Text("remotes.column.fetch", nil), p.text.Text("remotes.column.push", nil)}
 	nameWidth := ansi.StringWidth(titles[0])
 	for _, remote := range remotes {
 		nameWidth = max(nameWidth, ansi.StringWidth(visible(remote.Name)+" "+upstream))
@@ -138,7 +136,7 @@ func remoteBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, rem
 
 	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted}, titles...)
 
-	name := panel.Foreground(colors.Accent)
+	name := panel.Foreground(p.colors.Accent)
 	gap := panel.Render("  ")
 	box.rows = make([]string, len(remotes))
 	for index, remote := range remotes {
@@ -146,5 +144,5 @@ func remoteBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, rem
 			tableRow(panel, widths[1:], []lipgloss.Style{panel, muted}, remote.Fetch, remote.Push)
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }

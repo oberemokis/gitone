@@ -12,7 +12,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // submodulesMsg несёт список подмодулей или ошибку git.
@@ -73,24 +72,23 @@ func (m Model) startSubmoduleUpdate(path string) (tea.Model, tea.Cmd) {
 // submoduleBox рисует подмодули таблицей: путь цветом accent, короткий
 // коммит, адрес и состояние, приглушённые. Не клонированный подмодуль виден
 // с пометкой, а не пропадает.
-func submoduleBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, submodules []git.Submodule, cursor int, screenWidth, screenHeight int) string {
+func submoduleBox(p paint, submodules []git.Submodule, cursor int, screenWidth, screenHeight int) string {
 	box := list{
-		title:  text.Text("submodules.title", nil),
-		close:  closeHint(colors, keys, text, keymap.ListClose),
+		title:  p.text.Text("submodules.title", nil),
+		close:  p.close(keymap.ListClose),
 		width:  100,
 		cursor: cursor,
-		empty:  []string{text.Text("submodules.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.SubmodulesUpdate),
+		empty:  []string{p.text.Text("submodules.empty", nil)},
+		hint:   p.hint(keymap.SubmodulesUpdate),
 	}
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
+	panel, muted := p.panel(), p.muted()
 
 	states := make([]string, len(submodules))
-	titles := []string{text.Text("submodules.column.path", nil), text.Text("log.column.commit", nil), text.Text("submodules.column.url", nil), text.Text("submodules.column.state", nil)}
+	titles := []string{p.text.Text("submodules.column.path", nil), p.text.Text("log.column.commit", nil), p.text.Text("submodules.column.url", nil), p.text.Text("submodules.column.state", nil)}
 	pathWidth, stateWidth := ansi.StringWidth(titles[0]), ansi.StringWidth(titles[3])
 	for index, submodule := range submodules {
-		states[index] = submoduleState(text, submodule)
+		states[index] = submoduleState(p.text, submodule)
 		pathWidth = max(pathWidth, ansi.StringWidth(visible(submodule.Path)))
 		stateWidth = max(stateWidth, ansi.StringWidth(states[index]))
 	}
@@ -99,13 +97,13 @@ func submoduleBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, 
 
 	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
 
-	styles := []lipgloss.Style{panel.Foreground(colors.Accent), muted, muted, muted}
+	styles := []lipgloss.Style{panel.Foreground(p.colors.Accent), muted, muted, muted}
 	box.rows = make([]string, len(submodules))
 	for index, submodule := range submodules {
 		box.rows[index] = tableRow(panel, widths, styles, submodule.Path, submodule.Commit[:min(len(submodule.Commit), hashColumn)], submodule.URL, states[index])
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }
 
 // submoduleState это состояние подмодуля словом: не клонирован, стоит на

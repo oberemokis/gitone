@@ -638,29 +638,28 @@ func (m Model) openPicker() Model {
 // строка поиска «/ запрос» открыта всегда, у выбранного файла «›», статус
 // файла справа приглушённый, внизу подсказка выбора. Без файлов вместо
 // списка надпись об этом, а не о пустом поиске.
-func pickerBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, files picker.Model, noFiles bool, screenWidth, screenHeight int) string {
-	noMatches := text.Text("files.noMatches", nil)
+func pickerBox(p paint, files picker.Model, noFiles bool, screenWidth, screenHeight int) string {
+	noMatches := p.text.Text("files.noMatches", nil)
 	if noFiles {
-		noMatches = text.Text("files.none", nil)
+		noMatches = p.text.Text("files.none", nil)
 	}
 
 	box := list{
-		title:  text.Text("files.title", nil),
-		close:  closeHint(colors, keys, text, keymap.SearchClose),
+		title:  p.text.Text("files.title", nil),
+		close:  p.close(keymap.SearchClose),
 		width:  90,
 		cursor: files.Selected(),
 		empty:  []string{noMatches},
-	}.withSearch(colors, text, keys, files.Query(), true, noMatches)
-	box.hint = windowHint(colors, keys, text, keymap.SearchChoose)
+	}.withSearch(p, files.Query(), true, noMatches)
+	box.hint = p.hint(keymap.SearchChoose)
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
+	panel, muted := p.panel(), p.muted()
 	width := box.rowWidth(screenWidth)
 	for _, item := range files.Shown() {
 		box.rows = append(box.rows, justify(panel, width, panel.Render(item.Label), muted.Render(item.Detail)))
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }
 
 // openFile открывает файл по номеру в диффе. За краями списка ничего не

@@ -34,18 +34,41 @@ func firstKey(keys keymap.Keymap, action keymap.Action) string {
 	return displayKey(bound[0])
 }
 
-// windowHint это строка подсказки окна: первая клавиша и подпись каждого
-// действия в заданном порядке. Закрытие стоит в заголовке окна (closeHint).
-// Отключённое действие в подсказку не идёт, как в подвале. Каждый кусок несёт
-// фон окна сам: вложенный стиль со сбросом иначе погасил бы его. Клик по
-// подсказке нажимает её клавишу (#119).
-func windowHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, actions ...keymap.Action) string {
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+// paint это оформление окон: тема, словарь и клавиши (#351). Функции рисования
+// получают его вместо трёх параметров, а фон окна и подсказки берут из его
+// методов.
+type paint struct {
+	colors theme.Theme
+	text   i18n.Dictionary
+	keys   keymap.Keymap
+}
+
+func (m Model) paint() paint {
+	return paint{colors: m.colors, text: m.text, keys: m.keys}
+}
+
+// panel это фон окна: на нём рисуется всё содержимое.
+func (p paint) panel() lipgloss.Style {
+	return lipgloss.NewStyle().Background(p.colors.BackgroundPanel)
+}
+
+// muted это приглушённый текст на фоне окна.
+func (p paint) muted() lipgloss.Style {
+	return p.panel().Foreground(p.colors.TextMuted)
+}
+
+// hint это строка подсказки окна: первая клавиша и подпись каждого действия в
+// заданном порядке. Закрытие стоит в заголовке окна (close). Отключённое
+// действие в подсказку не идёт, как в подвале. Каждый кусок несёт фон окна
+// сам: вложенный стиль со сбросом иначе погасил бы его. Клик по подсказке
+// нажимает её клавишу (#119).
+func (p paint) hint(actions ...keymap.Action) string {
+	panel := p.panel()
 
 	var hints []string
 	for _, action := range actions {
-		if key := firstKey(keys, action); key != "" {
-			hints = append(hints, pressable(action, keyHint(panel, colors, key, text.Text(hintKey(action), nil))))
+		if key := firstKey(p.keys, action); key != "" {
+			hints = append(hints, pressable(action, keyHint(panel, p.colors, key, p.text.Text(hintKey(action), nil))))
 		}
 	}
 
@@ -64,22 +87,21 @@ func keyHint(base lipgloss.Style, colors theme.Theme, key, label string) string 
 	return base.Render(key) + base.Foreground(colors.TextMuted).Render(" "+label)
 }
 
-// closeHint это «esc close» для заголовка окна по его действию закрытия.
+// close это «esc close» для заголовка окна по его действию закрытия.
 // Отключённое закрытие даёт пустую строку, как в подсказках.
-func closeHint(colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary, action keymap.Action) string {
-	key := firstKey(keys, action)
+func (p paint) close(action keymap.Action) string {
+	key := firstKey(p.keys, action)
 	if key == "" {
 		return ""
 	}
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	return pressable(action, keyHint(panel, colors, key, text.Text("window.close", nil)))
+	return pressable(action, keyHint(p.panel(), p.colors, key, p.text.Text("window.close", nil)))
 }
 
-// windowTitle это заголовок окна шириной width, у всех окон как у справки:
-// жирное название слева, закрытие справа (#107).
-func windowTitle(colors theme.Theme, width int, title, close string) string {
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
+// title это заголовок окна шириной width, у всех окон как у справки: жирное
+// название слева, закрытие справа (#107).
+func (p paint) title(width int, title, close string) string {
+	panel := p.panel()
 	return justify(panel, width, panel.Bold(true).Render(title), close)
 }
 

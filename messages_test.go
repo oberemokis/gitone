@@ -187,7 +187,7 @@ func TestDictionaryKeysUsed(t *testing.T) {
 		used["action."+action+".help"] = binding.Help
 		used["action."+action+".footer"] = binding.Footer
 	}
-	for _, action := range tuiActions(t, "windowHint") {
+	for _, action := range tuiActions(t, "hint") {
 		used["action."+action+".hint"] = true
 	}
 	for _, action := range tuiActions(t, "emptyActions") {
@@ -212,8 +212,9 @@ func TestDictionaryKeysUsed(t *testing.T) {
 	}
 }
 
-// tuiActions это действия keymap, которые tui передаёт в вызов функции name
-// или перечисляет в переменной name, строками имён действий.
+// tuiActions это действия keymap, которые tui передаёт в вызов функции или
+// метода name (paint.hint) или перечисляет в переменной name, строками имён
+// действий.
 func tuiActions(t *testing.T, name string) []string {
 	t.Helper()
 
@@ -236,8 +237,15 @@ func tuiActions(t *testing.T, name string) []string {
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch node := node.(type) {
 			case *ast.CallExpr:
-				if ident, ok := node.Fun.(*ast.Ident); ok && ident.Name == name {
-					collect(node.Args)
+				switch fun := node.Fun.(type) {
+				case *ast.Ident:
+					if fun.Name == name {
+						collect(node.Args)
+					}
+				case *ast.SelectorExpr:
+					if fun.Sel.Name == name {
+						collect(node.Args)
+					}
 				}
 			case *ast.ValueSpec:
 				for index, ident := range node.Names {

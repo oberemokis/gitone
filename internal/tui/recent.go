@@ -9,7 +9,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // recentRepo это строка окна недавних репозиториев (#248): путь корня,
@@ -93,19 +92,18 @@ func (m Model) recentKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // recentBox рисует пути недавних репозиториев: открытый сейчас и пропавший
 // помечены словом.
-func recentBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, repos []recentRepo, cursor int, screenWidth, screenHeight int) string {
+func recentBox(p paint, repos []recentRepo, cursor int, screenWidth, screenHeight int) string {
 	box := list{
-		title:  text.Text("recent.title", nil),
-		close:  closeHint(colors, keys, text, keymap.ListClose),
+		title:  p.text.Text("recent.title", nil),
+		close:  p.close(keymap.ListClose),
 		width:  90,
 		cursor: cursor,
-		empty:  []string{text.Text("recent.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.RecentOpen),
+		empty:  []string{p.text.Text("recent.empty", nil)},
+		hint:   p.hint(keymap.RecentOpen),
 	}
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	path := panel.Foreground(colors.Accent)
-	muted := panel.Foreground(colors.TextMuted)
+	panel, muted := p.panel(), p.muted()
+	path := panel.Foreground(p.colors.Accent)
 	gap := panel.Render("  ")
 	width := box.rowWidth(screenWidth)
 
@@ -114,9 +112,9 @@ func recentBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, rep
 		mark := ""
 		switch {
 		case repo.missing:
-			mark = text.Text("recent.missingMark", nil)
+			mark = p.text.Text("recent.missingMark", nil)
 		case repo.current:
-			mark = text.Text("worktrees.current", nil)
+			mark = p.text.Text("worktrees.current", nil)
 		}
 		markWidth := ansi.StringWidth(mark)
 		box.rows[index] = tableRow(panel, []int{max(width-markWidth-columnGap, 1)}, []lipgloss.Style{path}, repo.path)
@@ -125,5 +123,5 @@ func recentBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, rep
 		}
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }

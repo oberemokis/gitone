@@ -10,7 +10,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // tagsMsg несёт список тегов или ошибку git. note это итог правки, после
@@ -144,22 +143,21 @@ func (m Model) tagsShown() []git.Tag {
 // tagBox рисует теги таблицей, как ветки: имя цветом accent, короткий хэш
 // коммита, сообщение аннотированного тега или тема коммита лёгкого и время,
 // приглушённые. Аннотированный тег помечен словом за именем.
-func tagBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, tags []git.Tag, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
+func tagBox(p paint, tags []git.Tag, cursor int, query string, typing bool, question string, screenWidth, screenHeight int) string {
 	box := list{
-		title:    text.Text("tags.title", nil),
-		close:    closeHint(colors, keys, text, keymap.ListClose),
+		title:    p.text.Text("tags.title", nil),
+		close:    p.close(keymap.ListClose),
 		width:    100,
 		cursor:   cursor,
-		empty:    []string{text.Text("tags.empty", nil)},
-		hint:     windowHint(colors, keys, text, keymap.TagsDiff, keymap.TagsNew, keymap.TagsDelete, keymap.TagsPush, keymap.ListSearch),
+		empty:    []string{p.text.Text("tags.empty", nil)},
+		hint:     p.hint(keymap.TagsDiff, keymap.TagsNew, keymap.TagsDelete, keymap.TagsPush, keymap.ListSearch),
 		question: question,
-	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
+	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
-	annotated := text.Text("tags.annotated", nil)
+	panel, muted := p.panel(), p.muted()
+	annotated := p.text.Text("tags.annotated", nil)
 
-	titles := []string{text.Text("tags.column.name", nil), text.Text("tags.column.commit", nil), text.Text("tags.column.message", nil), text.Text("tags.column.date", nil)}
+	titles := []string{p.text.Text("tags.column.name", nil), p.text.Text("tags.column.commit", nil), p.text.Text("tags.column.message", nil), p.text.Text("tags.column.date", nil)}
 	nameWidth, dateWidth := ansi.StringWidth(titles[0]), ansi.StringWidth(titles[3])
 	for _, tag := range tags {
 		nameWidth = max(nameWidth, ansi.StringWidth(visible(tag.Name)+" "+annotated))
@@ -170,7 +168,7 @@ func tagBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, tags [
 
 	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
 
-	name := panel.Foreground(colors.Accent)
+	name := panel.Foreground(p.colors.Accent)
 	gap := panel.Render("  ")
 	box.rows = make([]string, len(tags))
 	for index, tag := range tags {
@@ -178,5 +176,5 @@ func tagBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, tags [
 			tableRow(panel, widths[1:], []lipgloss.Style{muted, panel, muted}, tag.Commit[:min(len(tag.Commit), hashColumn)], tag.Subject, tag.When)
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }

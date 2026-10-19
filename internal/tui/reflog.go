@@ -8,7 +8,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // reflogMsg несёт reflog HEAD или ошибку git.
@@ -83,20 +82,19 @@ func (m Model) reflogShown() []git.ReflogEntry {
 
 // reflogBox рисует reflog таблицей, как лог: хэш цветом accent, действие,
 // описание и время записи приглушённое.
-func reflogBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, entries []git.ReflogEntry, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
+func reflogBox(p paint, entries []git.ReflogEntry, cursor int, query string, typing bool, screenWidth, screenHeight int) string {
 	box := list{
-		title:  text.Text("reflog.title", nil),
-		close:  closeHint(colors, keys, text, keymap.ListClose),
+		title:  p.text.Text("reflog.title", nil),
+		close:  p.close(keymap.ListClose),
 		cursor: cursor,
-		empty:  []string{text.Text("reflog.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.ListSearch),
+		empty:  []string{p.text.Text("reflog.empty", nil)},
+		hint:   p.hint(keymap.LogOpen, keymap.LogCheckout, keymap.LogNewBranch, keymap.ListSearch),
 		fill:   true,
-	}.withSearch(colors, text, keys, query, typing, text.Text("list.noMatches", nil))
+	}.withSearch(p, query, typing, p.text.Text("list.noMatches", nil))
 
-	panel := lipgloss.NewStyle().Background(colors.BackgroundPanel)
-	muted := panel.Foreground(colors.TextMuted)
+	panel, muted := p.panel(), p.muted()
 
-	titles := []string{text.Text("log.column.commit", nil), text.Text("reflog.column.action", nil), text.Text("log.column.message", nil), text.Text("log.column.date", nil)}
+	titles := []string{p.text.Text("log.column.commit", nil), p.text.Text("reflog.column.action", nil), p.text.Text("log.column.message", nil), p.text.Text("log.column.date", nil)}
 	actionWidth, dateWidth := ansi.StringWidth(titles[1]), ansi.StringWidth(titles[3])
 	for _, entry := range entries {
 		actionWidth = max(actionWidth, ansi.StringWidth(visible(entry.Action)))
@@ -107,11 +105,11 @@ func reflogBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, ent
 
 	box.header = tableRow(panel, widths, []lipgloss.Style{muted, muted, muted, muted}, titles...)
 
-	styles := []lipgloss.Style{panel.Foreground(colors.Accent), muted, panel, muted}
+	styles := []lipgloss.Style{panel.Foreground(p.colors.Accent), muted, panel, muted}
 	box.rows = make([]string, len(entries))
 	for index, entry := range entries {
 		box.rows[index] = tableRow(panel, widths, styles, entry.Hash[:7], entry.Action, entry.Subject, entry.When)
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }

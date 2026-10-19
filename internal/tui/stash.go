@@ -8,7 +8,6 @@ import (
 	"gitone/internal/git"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
-	"gitone/internal/tui/theme"
 )
 
 // stashesMsg несёт список stash или ошибку git. edit значит, что список
@@ -214,26 +213,26 @@ func (m Model) answerStashDrop(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // stashBox рисует список stash. Вопрос об удалении стоит в последней строке
 // окна, пока не отвечен.
-func stashBox(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, stashes []git.Stash, cursor int, asking bool, screenWidth, screenHeight int) string {
+func stashBox(p paint, stashes []git.Stash, cursor int, asking bool, screenWidth, screenHeight int) string {
 	rows := make([]string, len(stashes))
 	for index, stash := range stashes {
 		rows[index] = visible(stash.Ref + "  " + stash.Subject)
 	}
 
 	box := list{
-		title:  text.Text("stash.title", nil),
-		close:  closeHint(colors, keys, text, keymap.ListClose),
+		title:  p.text.Text("stash.title", nil),
+		close:  p.close(keymap.ListClose),
 		width:  68,
 		rows:   rows,
 		cursor: cursor,
-		empty:  []string{text.Text("stash.empty", nil)},
-		hint:   windowHint(colors, keys, text, keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop, keymap.StashRename, keymap.StashNew),
+		empty:  []string{p.text.Text("stash.empty", nil)},
+		hint:   p.hint(keymap.StashDiff, keymap.StashApply, keymap.StashPop, keymap.StashDrop, keymap.StashRename, keymap.StashNew),
 	}
 	if asking {
-		args := questionArgs(keys)
+		args := questionArgs(p.keys)
 		args["ref"] = visible(stashes[cursor].Ref)
-		box.question = text.Text("stash.dropQuestion", args)
+		box.question = p.text.Text("stash.dropQuestion", args)
 	}
 
-	return box.view(colors, screenWidth, screenHeight)
+	return box.view(p, screenWidth, screenHeight)
 }
