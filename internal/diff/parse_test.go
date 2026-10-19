@@ -147,6 +147,28 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			// git diff -B пишет её у переписанного целиком файла
+			name: "строка dissimilarity index принимается и ничего не меняет",
+			input: lines(
+				"diff --git a/rewritten.txt b/rewritten.txt",
+				"dissimilarity index 100%",
+				"index 9caeabe..66256bc 100644",
+				"--- a/rewritten.txt",
+				"+++ b/rewritten.txt",
+				"@@ -1 +1 @@",
+				"-old",
+				"+new",
+			),
+			want: []diff.File{{
+				OldPath: "rewritten.txt",
+				NewPath: "rewritten.txt",
+				Status:  diff.StatusModified,
+				Added:   1,
+				Removed: 1,
+				Hunks:   []diff.Hunk{{OldStart: 1, NewStart: 1, Lines: []diff.Line{removed("old"), added("new")}}},
+			}},
+		},
+		{
 			name: "переименование без правок, с правками и копирование берут пути из rename и copy",
 			input: lines(
 				"diff --git a/source.txt b/copied.txt",

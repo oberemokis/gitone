@@ -74,6 +74,38 @@ func blobs(index string) (old, new string) {
 	return present(old), present(new)
 }
 
+// headerRule это строка заголовка файла, узнанная по префиксу: apply получает
+// строку уже без него, и префикс записан один раз.
+type headerRule struct {
+	prefix string
+	apply  func(file *File, rest string)
+}
+
+// headerRules идут срезом, а не картой: строка узнаётся по началу.
+var headerRules = []headerRule{
+	{"index ", func(file *File, rest string) { file.OldBlob, file.NewBlob = blobs(rest) }},
+	// похожесть при переименовании ничего не меняет, но строка своя
+	{"similarity index ", func(*File, string) {}},
+	{"dissimilarity index ", func(*File, string) {}},
+	{"new file mode ", func(file *File, rest string) { file.Status, file.OldPath, file.NewMode = StatusAdded, "", rest }},
+	{"deleted file mode ", func(file *File, rest string) { file.Status, file.NewPath, file.OldMode = StatusDeleted, "", rest }},
+	{"old mode ", func(file *File, rest string) { file.OldMode = rest }},
+	{"new mode ", func(file *File, rest string) { file.NewMode = rest }},
+	{"Binary files ", func(file *File, rest string) {
+		file.Binary = true
+		// у переименованного пути уже взяты из rename, они точнее
+		if old, new, found := binaryPaths(rest); found && file.Status != StatusRenamed && file.Status != StatusCopied {
+			file.OldPath, file.NewPath = old, new
+		}
+	}},
+	{"rename from ", func(file *File, rest string) { file.Status, file.OldPath = StatusRenamed, path(rest, "") }},
+	{"rename to ", func(file *File, rest string) { file.NewPath = path(rest, "") }},
+	{"copy from ", func(file *File, rest string) { file.Status, file.OldPath = StatusCopied, path(rest, "") }},
+	{"copy to ", func(file *File, rest string) { file.NewPath = path(rest, "") }},
+	{"--- ", func(file *File, rest string) { file.OldPath = path(rest, "a/") }},
+	{"+++ ", func(file *File, rest string) { file.NewPath = path(rest, "b/") }},
+}
+
 // fileHeader разбирает строку заголовка обычного файла. Незнакомая строка
 // возвращает false и уходит в сырую запись, чтобы не пропасть молча.
 func (p *parser) fileHeader(line string) bool {
@@ -82,56 +114,21 @@ func (p *parser) fileHeader(line string) bool {
 		return false
 	}
 
-	switch {
-	case strings.HasPrefix(line, "index "):
-		file.OldBlob, file.NewBlob = blobs(strings.TrimPrefix(line, "index "))
-	case strings.HasPrefix(line, "similarity index "),
-		strings.HasPrefix(line, "dissimilarity index "):
-	case strings.HasPrefix(line, "new file mode "):
-		file.Status = StatusAdded
-		file.OldPath = ""
-		file.NewMode = strings.TrimPrefix(line, "new file mode ")
-	case strings.HasPrefix(line, "deleted file mode "):
-		file.Status = StatusDeleted
-		file.NewPath = ""
-		file.OldMode = strings.TrimPrefix(line, "deleted file mode ")
-	case strings.HasPrefix(line, "old mode "):
-		file.OldMode = strings.TrimPrefix(line, "old mode ")
-	case strings.HasPrefix(line, "new mode "):
-		file.NewMode = strings.TrimPrefix(line, "new mode ")
-	case strings.HasPrefix(line, "Binary files "):
-		file.Binary = true
-		// у переименованного пути уже взяты из rename, они точнее
-		if old, new, found := binaryPaths(line); found && file.Status != StatusRenamed && file.Status != StatusCopied {
-			file.OldPath, file.NewPath = old, new
+	for _, rule := range headerRules {
+		if rest, found := strings.CutPrefix(line, rule.prefix); found {
+			rule.apply(file, rest)
+			return true
 		}
-	case strings.HasPrefix(line, "rename from "):
-		file.Status = StatusRenamed
-		file.OldPath = path(strings.TrimPrefix(line, "rename from "), "")
-	case strings.HasPrefix(line, "rename to "):
-		file.NewPath = path(strings.TrimPrefix(line, "rename to "), "")
-	case strings.HasPrefix(line, "copy from "):
-		file.Status = StatusCopied
-		file.OldPath = path(strings.TrimPrefix(line, "copy from "), "")
-	case strings.HasPrefix(line, "copy to "):
-		file.NewPath = path(strings.TrimPrefix(line, "copy to "), "")
-	case strings.HasPrefix(line, "--- "):
-		file.OldPath = path(strings.TrimPrefix(line, "--- "), "a/")
-	case strings.HasPrefix(line, "+++ "):
-		file.NewPath = path(strings.TrimPrefix(line, "+++ "), "b/")
-	case strings.HasPrefix(line, "@@ "):
-		match := hunkHeader.FindStringSubmatch(line)
-		if match == nil {
-			return false
-		}
-
-		file.Hunks = append(file.Hunks, Hunk{OldStart: number(match[1], 0), NewStart: number(match[3], 0)})
-		p.oldLeft = number(match[2], 1)
-		p.newLeft = number(match[4], 1)
-	default:
-		return false
 	}
 
+	// начало хунка меняет счётчики разбора, поэтому оно не правило таблицы
+	match := hunkHeader.FindStringSubmatch(line)
+	if match == nil {
+		return false
+	}
+	file.Hunks = append(file.Hunks, Hunk{OldStart: number(match[1], 0), NewStart: number(match[3], 0)})
+	p.oldLeft = number(match[2], 1)
+	p.newLeft = number(match[4], 1)
 	return true
 }
 

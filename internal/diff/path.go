@@ -24,10 +24,11 @@ func headerPaths(rest string) (string, string) {
 	return path(rest[:half], "a/"), path(rest[half+1:], "b/")
 }
 
-// binaryPaths разбирает «Binary files a/X and b/Y differ»: у бинарного файла
-// строк --- и +++ нет. found false, если « and » в строке не одно.
-func binaryPaths(line string) (old, new string, found bool) {
-	rest := strings.TrimSuffix(strings.TrimPrefix(line, "Binary files "), " differ")
+// binaryPaths разбирает «a/X and b/Y differ» из строки «Binary files …»: у
+// бинарного файла строк --- и +++ нет. found false, если « and » в строке не
+// одно.
+func binaryPaths(paths string) (old, new string, found bool) {
+	rest := strings.TrimSuffix(paths, " differ")
 	if strings.Count(rest, " and ") != 1 {
 		return "", "", false
 	}
