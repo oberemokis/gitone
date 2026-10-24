@@ -107,6 +107,45 @@ func TestLoadCommands(t *testing.T) {
 	}
 }
 
+// Клавиша a у ленты (#373) появилась позже, чем keybinds.json у
+// пользователей: занятая его действием или командой, она уходит им, и файл
+// грузится целиком, а лента остаётся без клавиши (случай 23). Лента,
+// переназначенная самим пользователем, конфликтует как раньше.
+func TestNewDefaultYieldsToUser(t *testing.T) {
+	tests := []struct {
+		name, content      string
+		wantStage, wantAll []string
+		wantErr            string
+	}{
+		{name: "a свободна", content: `{}`, wantStage: []string{"space"}, wantAll: []string{"a"}},
+		{name: "команда на a", content: `{"commands":[{"key":"a","command":"true","name":"mine"}]}`, wantStage: []string{"space"}},
+		{name: "действие на a", content: `{"keybinds":{"files.stage":"a"}}`, wantStage: []string{"a"}},
+		{name: "лента переназначена", content: `{"keybinds":{"files.stage":"a","diff.toggleAllFiles":"a"}}`, wantErr: "bound to both"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			km, err := keymap.Load(writeKeybinds(t, tc.content))
+
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Load = %v, ожидалась ошибка с %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if got := km.KeysFor(keymap.FilesStage); !slices.Equal(got, tc.wantStage) {
+				t.Errorf("KeysFor(files.stage) = %q, want %q", got, tc.wantStage)
+			}
+			if got := km.KeysFor(keymap.DiffToggleAllFiles); !slices.Equal(got, tc.wantAll) {
+				t.Errorf("KeysFor(diff.toggleAllFiles) = %q, want %q", got, tc.wantAll)
+			}
+		})
+	}
+}
+
 // Ссылка на keybinds.json или на каталог настроек, которая существует и ведёт в
 // никуда, не то же, что отсутствие файла: клавиши пользователя есть и не
 // читаются, молча подменять их встроенными нельзя.

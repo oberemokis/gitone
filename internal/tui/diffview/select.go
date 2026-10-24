@@ -20,48 +20,59 @@ type selection struct {
 
 // Select показывает file и ставит курсор на первую изменённую строку экрана,
 // выделен хунк под ней. Верх экрана держится по новой стороне: она у диффа от
-// HEAD и диффа вне индекса одна, рабочее дерево, а старая у них разная.
+// HEAD и диффа вне индекса одна, рабочее дерево, а старая у них разная. В ленте
+// выделение живёт в текущем файле (onPage).
 func (m Model) Select(file diff.File) Model {
-	top := m.newTop()
-	m = m.withFile(file).rebuild().seekNew(top)
+	return m.onPage(func(m Model) Model {
+		top := m.newTop()
+		m = m.withFile(file).rebuild().seekNew(top)
 
-	m.selection = selection{on: true, hunk: true}
-	index := m.changeFrom(m.scroll, 1)
-	if index < 0 {
-		index = m.changeFrom(len(m.lines)-1, -1)
-	}
-	if index >= 0 {
-		m = m.setCursor(index)
-	}
-	m.selection.anchor = m.selection.cursor
-	return m.follow()
+		m.selection = selection{on: true, hunk: true}
+		index := m.changeFrom(m.scroll, 1)
+		if index < 0 {
+			index = m.changeFrom(len(m.lines)-1, -1)
+		}
+		if index >= 0 {
+			m = m.setCursor(index)
+		}
+		m.selection.anchor = m.selection.cursor
+		return m.follow()
+	})
 }
 
 // Selecting говорит, что идёт выделение.
 func (m Model) Selecting() bool {
-	return m.selection.on
+	return m.focus().selection.on
 }
 
 // ToggleLines переключает выделение хунка и строк: строки начинаются с
 // курсора.
 func (m Model) ToggleLines() Model {
-	m.selection.hunk = !m.selection.hunk
-	m.selection.anchor = m.selection.cursor
-	return m
+	return m.onPage(func(m Model) Model {
+		m.selection.hunk = !m.selection.hunk
+		m.selection.anchor = m.selection.cursor
+		return m
+	})
 }
 
 // Deselect снимает выделение и показывает file, держа верх экрана по новой
 // стороне, как Select.
 func (m Model) Deselect(file diff.File) Model {
-	top := m.newTop()
-	m.selection = selection{}
-	return m.withFile(file).rebuild().seekNew(top)
+	return m.onPage(func(m Model) Model {
+		top := m.newTop()
+		m.selection = selection{}
+		return m.withFile(file).rebuild().seekNew(top)
+	})
 }
 
 // MoveCursor переводит курсор на delta изменённых строк вниз или вверх, а при
 // выделении хунка на delta хунков, при выборе конфликтов на delta
 // конфликтов. Экран идёт за курсором.
 func (m Model) MoveCursor(delta int) Model {
+	return m.onPage(func(m Model) Model { return m.moveCursor(delta) })
+}
+
+func (m Model) moveCursor(delta int) Model {
 	if m.selection.conflict {
 		return m.moveConflict(delta)
 	}
@@ -108,6 +119,7 @@ func (m Model) setCursor(index int) Model {
 
 // Selected возвращает изменённые строки выделения.
 func (m Model) Selected() []diff.LineRef {
+	m = m.focus()
 	from, to := m.bounds()
 
 	var selected []diff.LineRef

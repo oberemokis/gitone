@@ -74,6 +74,7 @@
   "action.diff.scrollUp.help": "Scroll up",
   "action.diff.toggleMode.help": "Split or unified",
   "action.diff.toggleWrap.help": "Wrap long lines",
+  "action.diff.toggleAllFiles.help": "All files on one page",
   "action.diff.toggleWhitespace.help": "Hide whitespace changes",
   "action.diff.moreContext.help": "More context lines",
   "action.diff.lessContext.help": "Fewer context lines",

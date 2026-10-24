@@ -24,12 +24,13 @@ type State struct {
 	View        View     `json:"view,omitzero"`
 }
 
-// View это вид, который меняют клавиши и помнит state.json (#369): diff.mode и
-// diff.wrap поверх config.json, панель файлов и флаги диффа (#217). Saved
-// время записи, нулевое значит, что вида нет.
+// View это вид, который меняют клавиши и помнит state.json (#369): diff.mode,
+// diff.wrap и diff.allFiles поверх config.json, панель файлов и флаги диффа
+// (#217). Saved время записи, нулевое значит, что вида нет.
 type View struct {
 	Mode             string `json:"mode"`
 	Wrap             bool   `json:"wrap"`
+	AllFiles         bool   `json:"allFiles"`
 	Files            bool   `json:"files"`
 	IgnoreWhitespace bool   `json:"ignoreWhitespace"`
 	// Context строки контекста вокруг хунков, -1 значит число git

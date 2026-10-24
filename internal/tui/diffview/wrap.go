@@ -27,10 +27,11 @@ func (m Model) Wrapping() bool {
 // переносом строк экрана больше, и прежняя прокрутка показала бы другое
 // место.
 func (m Model) ToggleWrap() Model {
-	top := m.topPosition()
-	m.wrap = !m.wrap
-	m.shift = 0
-	return m.rebuild().seek(top)
+	return m.keepTop(func(m Model) Model {
+		m.wrap = !m.wrap
+		m.shift = 0
+		return m
+	})
 }
 
 // ScrollRight сдвигает код вбок на delta колонок, отрицательный delta влево.
@@ -74,21 +75,31 @@ func (m Model) visibleWidth() int {
 }
 
 // maxShift это сдвиг, при котором конец самой длинной строки встаёт к правому
-// краю самой узкой колонки.
+// краю самой узкой колонки. Сдвиг у ленты общий, и предел у неё по всем
+// файлам (stream.go).
 func (m Model) maxShift() int {
+	if m.stream.on {
+		return m.stream.widest
+	}
 	return max(m.longest-m.visibleWidth(), 0)
 }
 
-// hasBar: полоса прокрутки нужна, только когда есть что сдвигать.
+// hasBar: полоса прокрутки нужна, только когда есть что сдвигать. У страницы
+// ленты полосы нет, она одна у всей ленты.
 func (m Model) hasBar() bool {
-	return !m.wrap && m.maxShift() > 0 && m.height > 1
+	return !m.wrap && m.maxShift() > 0 && m.height > 1 && !m.inStream
 }
 
 // scrollbar это полоса горизонтальной прокрутки во всю ширину панели, как в
 // opencode: дорожка цветом окон, ползунок приглушённым цветом. Полоса из
 // нижних полублоков, без фона клетки: она вдвое тоньше строки (#100). Длина
-// ползунка это видимая доля самой длинной строки, место это сдвиг.
+// ползунка это видимая доля самой длинной строки, место это сдвиг. У ленты это
+// строка файла, который даёт самый дальний сдвиг.
 func (m Model) scrollbar() string {
+	if m.stream.on {
+		return m.pageFor(m.stream.bar).scrollbar()
+	}
+
 	thumb := max(m.width*m.visibleWidth()/m.longest, 1)
 	start := min(m.width*m.shift/m.longest, m.width-thumb)
 	if m.shift == m.maxShift() {

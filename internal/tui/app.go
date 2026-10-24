@@ -126,6 +126,9 @@ type Model struct {
 	files    []diff.File
 	current  int
 	view     diffview.Model
+	// from откуда дифф на экране: в ленте пропавший при перечитывании файл
+	// сменяет сосед, только если дифф тот же (stream.go)
+	from source
 	// вид диффа (diffflags.go, #217): без пробелов и строки контекста, -1
 	// значит число git по умолчанию
 	ignoreSpace bool
@@ -192,7 +195,10 @@ func New(opts Options, files []diff.File) Model {
 		WithText(opts.Text).
 		WithWrap(start.Wrap)
 	files = withConflicts(files, opts.Args, opts.Index.Conflicted)
-	if len(files) > 0 {
+	switch {
+	case start.AllFiles:
+		view = view.ShowAll(files, titlesOf(files, opts.Text), 0)
+	case len(files) > 0:
 		view = view.SetFile(files[0])
 	}
 
@@ -223,6 +229,7 @@ func New(opts Options, files []diff.File) Model {
 		text:     opts.Text,
 		files:    files,
 		view:     view,
+		from:     source{repo: opts.Repo, args: opts.Args},
 		stateDir: opts.StateDir,
 
 		filesOpen:   start.Files,
@@ -236,13 +243,15 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(waitTick(m.ticks), rememberRepoCmd(m.stateDir, m.repo.Root()))
 }
 
-// Update разбирает сообщение, а после него следит, чтобы открытый
+// Update разбирает сообщение, а после него следит, чтобы видимые файлы ленты
+// были раскрашены, а текущим был файл наверху (stream.go), чтобы открытый
 // однофайловый компонент красился по файлу целиком (versions.go), чтобы у
 // новой гаснущей заметки был таймер (notice.go) и чтобы сменившийся вид попал
 // в state.json (viewstate.go).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if model, isModel := next.(Model); isModel {
+		model = model.followStream()
 		cmd = model.wantSave(m.viewState(), model.wantExpiry(m.noticeID, cmd))
 		return model.wantVersions(cmd)
 	}
@@ -471,6 +480,15 @@ func sameEntry(file diff.File, text i18n.Dictionary, label, status string) bool 
 	return fileTitle(file, text) == label && statusLabel(file.Status, text) == status
 }
 
+// indexIn это место записи file в files по подписи и статусу (sameEntry), -1
+// без неё.
+func (m Model) indexIn(files []diff.File, file diff.File) int {
+	label, status := fileTitle(file, m.text), statusLabel(file.Status, m.text)
+	return slices.IndexFunc(files, func(candidate diff.File) bool {
+		return sameEntry(candidate, m.text, label, status)
+	})
+}
+
 // chosenFile ищет выбранную в окне запись в текущем диффе (sameEntry). Окно
 // строилось по списку на момент открытия, а дифф мог перечитаться, пока оно
 // открыто: номер записи тогда указал бы на другой файл.
@@ -488,15 +506,20 @@ func (m Model) chosenFile() (int, bool) {
 
 // applyReload ставит новый дифф на место старого. Открытая запись остаётся
 // открытой, если она ещё в диффе (sameEntry), иначе открывается первая. Пустой
-// дифф сбрасывает вид: выделение без файла держать нечему.
-func (m Model) applyReload(files []diff.File) Model {
+// дифф сбрасывает вид: выделение без файла держать нечему. Ленту ставит
+// reloadStream.
+func (m Model) applyReload(msg reloadMsg) Model {
+	files := msg.files
 	kept := -1
 	if len(m.files) > 0 {
-		open := m.files[m.current]
-		label, status := fileTitle(open, m.text), statusLabel(open.Status, m.text)
-		kept = slices.IndexFunc(files, func(file diff.File) bool {
-			return sameEntry(file, m.text, label, status)
-		})
+		kept = m.indexIn(files, m.files[m.current])
+	}
+
+	from := source{repo: msg.repo, args: msg.args}
+	sameDiff := m.from.same(from)
+	m.from = from
+	if m.view.Streaming() {
+		return m.reloadStream(files, kept, sameDiff)
 	}
 
 	m.files = files
@@ -567,9 +590,18 @@ func pickerBox(p paint, files picker.Model, noFiles bool, screenWidth, screenHei
 }
 
 // openFile открывает файл по номеру в диффе. За краями списка ничего не
-// происходит: ] на последнем файле не уводит на первый.
+// происходит: ] на последнем файле не уводит на первый. В ленте файл встаёт
+// наверх заголовком, и текущий тоже: из его середины.
 func (m Model) openFile(index int) Model {
-	if index < 0 || index >= len(m.files) || index == m.current {
+	if index < 0 || index >= len(m.files) {
+		return m
+	}
+	if m.view.Streaming() {
+		m.current = index
+		m.view = m.view.Open(index)
+		return m
+	}
+	if index == m.current {
 		return m
 	}
 
@@ -640,7 +672,7 @@ func (m Model) screen() (string, []zone.Zone) {
 	if m.ui.PaneTitles {
 		title := ""
 		if len(m.files) > 0 {
-			title = header(m.width, m.files, m.current, m.viewLabel(), m.colors, m.keys, m.text)
+			title = header(m.width, m.files, m.current, m.backFile(), m.viewLabel(), m.colors, m.keys, m.text)
 		}
 		rows = append(rows, "", scan(title, 0, 1, free), "")
 	}

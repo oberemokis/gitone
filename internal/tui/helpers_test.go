@@ -29,7 +29,7 @@ import (
 // конфиги отключены, язык C: результат не должен зависеть от настроек машины,
 // а тесты сверяют английские сообщения git. Git с gettext (Homebrew) при C
 // игнорирует и LANGUAGE.
-func newRepo(t *testing.T) string {
+func newRepo(t testing.TB) string {
 	t.Helper()
 	t.Setenv("LC_ALL", "C")
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
@@ -46,7 +46,7 @@ func newRepo(t *testing.T) string {
 
 // runGit запускает git в каталоге и возвращает вывод без пробелов по краям.
 // Сбой git валит тест вместе с текстом ошибки git.
-func runGit(t *testing.T, dir string, args ...string) string {
+func runGit(t testing.TB, dir string, args ...string) string {
 	t.Helper()
 
 	var stderr strings.Builder
@@ -61,7 +61,7 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func write(t *testing.T, dir, name, content string) {
+func write(t testing.TB, dir, name, content string) {
 	t.Helper()
 
 	target := filepath.Join(dir, name)
@@ -83,7 +83,7 @@ func readText(t *testing.T, path string) string {
 	return string(data)
 }
 
-func commitAll(t *testing.T, repo string) {
+func commitAll(t testing.TB, repo string) {
 	t.Helper()
 	runGit(t, repo, "add", "-A")
 	runGit(t, repo, "commit", "-q", "-m", "commit")
@@ -137,7 +137,7 @@ func options(repo string, root layout.Node) tui.Options {
 // open загружает дифф репозитория opts.Repo с аргументами opts.Args и флагами
 // запомненного вида, индекс и место подвала так же, как cmd/gitone при
 // запуске: space решает по индексу.
-func open(t *testing.T, opts tui.Options) tea.Model {
+func open(t testing.TB, opts tui.Options) tea.Model {
 	t.Helper()
 
 	files, err := tui.Load(opts.Repo, opts.Args, opts.DiffFlags()...)
