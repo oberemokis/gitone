@@ -70,7 +70,7 @@ func (m Model) worktreeChecked(msg worktreeCheckedMsg) (tea.Model, tea.Cmd) {
 		return m.say(m.text.Error(msg.err)), nil
 	}
 
-	m.repo = msg.repo
+	m.repo = msg.repo.WithAskpass(m.askpass.Env())
 	m.args, m.baseArgs = nil, nil
 	return m.startReload()
 }

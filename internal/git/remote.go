@@ -124,16 +124,36 @@ func (r Repo) headCommit() string {
 
 // network запускает git, который ходит по сети, из каталога dir: pull и push
 // идут из каталога запуска, подмодуль из корня. Он не читает терминал
-// интерфейса: stdin пустой, пароль не спрашивается (GIT_TERMINAL_PROMPT=0 в
-// run), а ssh работает в BatchMode. Отмена ctx приходит как ctx.Err(), а не
-// как «signal: terminated» от убитого git.
+// интерфейса: stdin пустой, в терминале пароль не спрашивается
+// (GIT_TERMINAL_PROMPT=0 в run), а ssh работает в BatchMode. Логин и пароль
+// git спрашивает в окне через askpass (#375). Отмена ctx приходит как
+// ctx.Err(), а не как «signal: terminated» от убитого git.
 func (r Repo) network(ctx context.Context, dir string, args ...string) error {
-	_, err := run(call{ctx: ctx, dir: dir, env: r.sshEnv()}, args...)
+	_, err := run(call{ctx: ctx, dir: dir, env: append(r.sshEnv(), r.askpassEnv()...)}, args...)
 	if err != nil && ctx.Err() != nil {
 		return ctx.Err()
 	}
 
 	return err
+}
+
+// askpassEnv ведёт вопрос git о логине и пароле в окно gitone (#375). Свою
+// программу пользователь задаёт через GIT_ASKPASS или core.askPass: тогда
+// спрашивает она, как с ssh в sshEnv. SSH_ASKPASS git берёт только запасным,
+// его окружение перекрывает.
+func (r Repo) askpassEnv() []string {
+	vars := r.askpass.Vars()
+	if vars == nil {
+		return nil
+	}
+	if _, set := os.LookupEnv("GIT_ASKPASS"); set {
+		return nil
+	}
+	if configured, err := r.inDir("config", "--get", "core.askPass"); err == nil && strings.TrimSpace(configured) != "" {
+		return nil
+	}
+
+	return vars
 }
 
 // sshEnv заставляет ssh отказывать, а не спрашивать пароль и passphrase в

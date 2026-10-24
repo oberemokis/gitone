@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"gitone/internal/askpass"
 	"gitone/internal/config"
 	"gitone/internal/i18n"
 	"gitone/internal/keymap"
@@ -25,6 +26,15 @@ const loadingNoticeDelay = 200 * time.Millisecond
 const pollInterval = 2 * time.Second
 
 func main() {
+	// git запустил gitone как GIT_ASKPASS: логин или пароль спрашивает окно
+	// запущенного gitone (#375)
+	if asked, err := askpass.Reply(os.Args[1:], os.Stdout); asked {
+		if err != nil {
+			exit(err.Error())
+		}
+		return
+	}
+
 	if isVersionFlag(os.Args) {
 		fmt.Println(versionLine(version))
 		return
@@ -61,6 +71,14 @@ func main() {
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 		opts.Ticks = ticker.C
+	}
+
+	// без сокета git отказывает без вопроса, как до #375
+	if server, err := askpass.Listen(); err != nil {
+		opts.Notice = addNotice(text, opts.Notice, err)
+	} else {
+		defer server.Close()
+		opts.Askpass = server
 	}
 
 	model, err := loadWithNotice(opts, dir)
