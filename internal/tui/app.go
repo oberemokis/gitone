@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"gitone/internal/askpass"
 	"gitone/internal/config"
 	"gitone/internal/diff"
 	"gitone/internal/git"
@@ -103,9 +104,13 @@ type Model struct {
 	calm     string
 	// идущий pull или push (remote.go)
 	remote remote
-	keys   keymap.Keymap
-	ui     config.UI
-	layout layout.Node
+	// askpass сервер вопросов git о логине и пароле, credential вопрос, на
+	// который ещё не ответили (credential.go, #375)
+	askpass    *askpass.Server
+	credential *askpass.Request
+	keys       keymap.Keymap
+	ui         config.UI
+	layout     layout.Node
 	// filesOpen: панель файлов открыта; при запуске как в прошлый раз
 	// (viewstate.go), а впервые скрыта
 	filesOpen bool
@@ -179,6 +184,9 @@ type Options struct {
 	StateDir string
 	// View вид из state.json (config.ReadView), нулевой значит вид из Config
 	View config.View
+	// Askpass сервер вопросов git о логине и пароле (#375), nil значит git
+	// отказывает без вопроса
+	Askpass *askpass.Server
 }
 
 func New(opts Options, files []diff.File) Model {
@@ -210,12 +218,14 @@ func New(opts Options, files []diff.File) Model {
 	if run == nil {
 		run = tea.ExecProcess
 	}
+	repo := opts.Repo.WithAskpass(opts.Askpass.Env())
 
 	return Model{
 		now:      now,
 		exec:     run,
 		noFade:   opts.KeepNotices,
-		repo:     opts.Repo,
+		repo:     repo,
+		askpass:  opts.Askpass,
 		args:     opts.Args,
 		baseArgs: opts.Args,
 		ticks:    opts.Ticks,
@@ -229,7 +239,7 @@ func New(opts Options, files []diff.File) Model {
 		text:     opts.Text,
 		files:    files,
 		view:     view,
-		from:     source{repo: opts.Repo, args: opts.Args},
+		from:     source{repo: repo, args: opts.Args},
 		stateDir: opts.StateDir,
 
 		filesOpen:   start.Files,
@@ -238,20 +248,23 @@ func New(opts Options, files []diff.File) Model {
 	}
 }
 
-// Init ждёт тик опроса и записывает открытый репозиторий в недавние (#248).
+// Init ждёт тик опроса и вопрос git о пароле (#375) и записывает открытый
+// репозиторий в недавние (#248).
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(waitTick(m.ticks), rememberRepoCmd(m.stateDir, m.repo.Root()))
+	return tea.Batch(waitTick(m.ticks), waitCredential(m.askpass), rememberRepoCmd(m.stateDir, m.repo.Root()))
 }
 
 // Update разбирает сообщение, а после него следит, чтобы видимые файлы ленты
-// были раскрашены, а текущим был файл наверху (stream.go), чтобы открытый
-// однофайловый компонент красился по файлу целиком (versions.go), чтобы у
-// новой гаснущей заметки был таймер (notice.go) и чтобы сменившийся вид попал
-// в state.json (viewstate.go).
+// были раскрашены, а текущим был файл наверху (stream.go), чтобы вопрос git о
+// пароле стоял на экране до ответа (credential.go), чтобы открытый однофайловый
+// компонент красился по файлу целиком (versions.go), чтобы у новой гаснущей
+// заметки был таймер (notice.go) и чтобы сменившийся вид попал в state.json
+// (viewstate.go).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if model, isModel := next.(Model); isModel {
 		model = model.followStream()
+		model, cmd = model.followCredential(cmd)
 		cmd = model.wantSave(m.viewState(), model.wantExpiry(m.noticeID, cmd))
 		return model.wantVersions(cmd)
 	}

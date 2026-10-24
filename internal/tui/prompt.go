@@ -14,13 +14,17 @@ import (
 // тега, сообщение stash. Что делать с набранным, решает done, его задаёт тот,
 // кто открыл поле. back это окно, в которое поле возвращает по prompt.close и
 // перед done: из окна веток поле открывается поверх списка и уходит обратно к
-// нему. Пустой ввод done не получает, пока не разрешён empty.
+// нему. Пустой ввод done не получает, пока не разрешён empty. secret рисует
+// набранное точками, credential отмечает поле с вопросом git о логине и пароле
+// (credential.go).
 type prompt struct {
-	title string
-	text  string
-	empty bool
-	done  func(m Model, text string) (tea.Model, tea.Cmd)
-	back  window
+	title      string
+	text       string
+	empty      bool
+	secret     bool
+	credential bool
+	done       func(m Model, text string) (tea.Model, tea.Cmd)
+	back       window
 }
 
 // openPrompt открывает поле с заголовком title и начальным текстом text.
@@ -68,7 +72,11 @@ func promptBox(p paint, field prompt, screenWidth int) string {
 	panel := p.panel()
 	title := p.title(content, field.title, p.close(keymap.PromptClose))
 
-	input := "> " + visible(field.text) + "_"
+	typed := visible(field.text)
+	if field.secret {
+		typed = strings.Repeat("•", utf8.RuneCountInString(field.text))
+	}
+	input := "> " + typed + "_"
 	if over := ansi.StringWidth(input) - content; over > 0 {
 		input = ansi.TruncateLeft(input, over+1, "…")
 	}

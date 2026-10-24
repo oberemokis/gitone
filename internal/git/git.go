@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"gitone/internal/askpass"
 	"gitone/internal/i18n"
 )
 
@@ -35,9 +36,11 @@ var diffFlags = []string{
 // раз в Open. Команды правки идут из корня: пути в диффе идут от него, а
 // gitone может быть запущен из подкаталога. Нулевое значение не репозиторий:
 // любая команда на нём отказывает, а не уходит в текущий каталог процесса.
+// askpass ведёт вопросы сетевых команд о логине и пароле в окно (#375).
 type Repo struct {
-	dir  string
-	root string
+	dir     string
+	root    string
+	askpass askpass.Env
 }
 
 // Open находит корень репозитория, в котором лежит dir.
@@ -47,6 +50,13 @@ func Open(dir string) (Repo, error) {
 		return Repo{}, failed("rev-parse", err)
 	}
 	return Repo{dir: dir, root: root}, nil
+}
+
+// WithAskpass отдаёт вопросы сетевых команд о логине и пароле окружению env
+// (#375). Остальные команды его не получают.
+func (r Repo) WithAskpass(env askpass.Env) Repo {
+	r.askpass = env
+	return r
 }
 
 // Dir это каталог запуска.

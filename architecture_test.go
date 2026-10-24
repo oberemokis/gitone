@@ -12,8 +12,9 @@ import (
 // ошибка: новый пакет сначала получает место в графе.
 var allowedImports = map[string][]string{
 	"gitone":            {},
-	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/i18n", "gitone/internal/keymap", "gitone/internal/tui/theme", "gitone/internal/layout"},
+	"gitone/cmd/gitone": {"gitone/internal/tui", "gitone/internal/config", "gitone/internal/i18n", "gitone/internal/keymap", "gitone/internal/tui/theme", "gitone/internal/layout", "gitone/internal/askpass"},
 	"gitone/internal/tui": {
+		"gitone/internal/askpass",
 		"gitone/internal/git",
 		"gitone/internal/diff",
 		"gitone/internal/config",
@@ -38,15 +39,16 @@ var allowedImports = map[string][]string{
 	"gitone/internal/i18n":           {},
 	"gitone/internal/keymap":         {"gitone/internal/i18n"},
 	"gitone/internal/syntax":         {},
-	"gitone/internal/git":            {"gitone/internal/i18n"},
+	"gitone/internal/git":            {"gitone/internal/i18n", "gitone/internal/askpass"},
 	"gitone/internal/diff":           {},
+	"gitone/internal/askpass":        {},
 }
 
-// Листья config, git и diff не знают терминала (docs/architecture.md). Таблица
-// выше видит только пакеты gitone, поэтому библиотеки терминала проверяются
-// отдельно, по префиксу пути.
+// Листья config, git, diff и askpass не знают терминала (docs/architecture.md).
+// Таблица выше видит только пакеты gitone, поэтому библиотеки терминала
+// проверяются отдельно, по префиксу пути.
 var (
-	terminalFreeLeaves = []string{"gitone/internal/config", "gitone/internal/git", "gitone/internal/diff"}
+	terminalFreeLeaves = []string{"gitone/internal/config", "gitone/internal/git", "gitone/internal/diff", "gitone/internal/askpass"}
 	terminalPrefixes   = []string{"charm.land/", "github.com/charmbracelet/"}
 )
 
