@@ -217,12 +217,12 @@ func (m Model) remoteResult(msg remoteDoneMsg) string {
 	return m.text.Text("remote.upToDate", nil)
 }
 
-// refuseWhileRemote ставит в подвал отказ («pull is running»), пока идёт pull
+// refuseWhileRemote ставит тостом отказ («pull is running»), пока идёт pull
 // или push. refused true значит, что действие делать нельзя.
 func (m Model) refuseWhileRemote() (next Model, refused bool) {
 	if !m.remote.running() {
 		return m, false
 	}
 
-	return m.putNotice(m.text.Text(m.remote.busyKey(), nil), false), true
+	return m.putNotice(m.text.Text(m.remote.busyKey(), nil)), true
 }

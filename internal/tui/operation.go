@@ -15,7 +15,7 @@ func (m Model) askOperation() Model {
 	operation := m.location.Operation
 	switch operation {
 	case "":
-		return m.putNotice(m.text.Text("operation.none", nil), true)
+		return m.putNotice(m.text.Text("operation.none", nil))
 	// bisect не продолжается и не прерывается, а отмечает HEAD (#245)
 	case "bisect":
 		return m.askBisect("HEAD", "HEAD")

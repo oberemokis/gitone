@@ -262,9 +262,10 @@ func TestNewNoteKeepsItsOwnFiveSeconds(t *testing.T) {
 	})
 }
 
-// Case 3: ошибка git не гаснет по таймеру, а уходит со следующей клавишей, как
-// раньше. Коммит без застейдженных правок.
-func TestGitErrorStaysUntilNextKey(t *testing.T) {
+// Case 3: ошибка git гаснет через пять секунд, как итог (#371): тост стоит
+// над диффом, и висеть до нажатия ему незачем. Коммит без застейдженных
+// правок.
+func TestGitErrorFadesLikeNote(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		_, repo := remoteRepo(t)
 		app := fading(t, repo)
@@ -276,25 +277,26 @@ func TestGitErrorStaysUntilNextKey(t *testing.T) {
 			t.Fatalf("после коммита без правок подвал %q, ожидалась ошибка", got)
 		}
 
-		app.wait(10 * time.Second)
+		app.wait(5*time.Second - time.Nanosecond)
 		if got := app.footer(); !strings.Contains(got, "nothing to commit") {
-			t.Errorf("через десять секунд подвал %q, ошибка должна стоять", got)
+			t.Errorf("за наносекунду до пяти секунд подвал %q, ошибка должна стоять", got)
 		}
 
-		app.press(key('j'))
+		app.wait(time.Nanosecond)
 		if got := app.footer(); strings.Contains(got, "nothing to commit") {
-			t.Errorf("после клавиши подвал %q, ошибка должна уйти", got)
+			t.Errorf("через пять секунд подвал %q, ошибка должна пропасть", got)
 		}
 	})
 }
 
-// Отказ «pull is running» и вопрос об отмене правок живут в подвале так же, как
-// ошибка git: вопрос, на который нельзя ответить, потому что он исчез, хуже
-// ошибки, которую пропустили.
-func TestRefusalAndQuestionStayPastLifetime(t *testing.T) {
+// Вопрос об отмене правок стоит в подвале дольше пяти секунд: на вопрос,
+// который исчез, нельзя ответить. Отказ «pull is running» гаснет, как любая
+// заметка (#371).
+func TestQuestionStaysAndRefusalFades(t *testing.T) {
 	cases := []struct {
 		name  string
 		note  string
+		stays bool
 		start func(t *testing.T) *bubble
 	}{
 		{
@@ -309,8 +311,9 @@ func TestRefusalAndQuestionStayPastLifetime(t *testing.T) {
 			},
 		},
 		{
-			name: "вопрос об отмене правок",
-			note: "Discard changes",
+			name:  "вопрос об отмене правок",
+			note:  "Discard changes",
+			stays: true,
 			start: func(t *testing.T) *bubble {
 				_, repo := remoteRepo(t)
 				app := fading(t, repo)
@@ -329,8 +332,8 @@ func TestRefusalAndQuestionStayPastLifetime(t *testing.T) {
 				}
 
 				app.wait(10 * time.Second)
-				if got := app.footer(); !strings.Contains(got, tc.note) {
-					t.Errorf("через десять секунд подвал %q, заметка %q должна стоять", got, tc.note)
+				if got := app.footer(); strings.Contains(got, tc.note) != tc.stays {
+					t.Errorf("через десять секунд подвал %q: заметка %q стоит %v, ожидалось %v", got, tc.note, !tc.stays, tc.stays)
 				}
 
 				app.release()
@@ -423,6 +426,8 @@ func TestRereadMidwayNeitherExtendsNorErasesNote(t *testing.T) {
 		opts := options(repo, layout.Focus())
 		opts.KeepNotices = false
 		opts.Ticks = ticks
+		// в split новая строка стоит справа сверху, под тостом
+		opts.Config.Diff.Mode = "unified"
 		app := newBubble(t, opts)
 		app.run(app.model.Init())
 

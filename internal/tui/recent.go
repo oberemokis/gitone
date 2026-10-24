@@ -68,7 +68,7 @@ var recentActions = []windowAction[recentRepo]{
 	{action: keymap.RecentOpen, changesRepo: true, run: func(m Model, repo recentRepo) (tea.Model, tea.Cmd) {
 		switch {
 		case repo.missing:
-			return m.putNotice(m.text.Text("recent.missing", i18n.Args{"path": visible(repo.path)}), true), nil
+			return m.putNotice(m.text.Text("recent.missing", i18n.Args{"path": visible(repo.path)})), nil
 		case repo.current:
 			m.active = noWindow
 			return m, nil

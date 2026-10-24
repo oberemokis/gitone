@@ -355,8 +355,8 @@ func TestReloadErrorKeepsOldDiffUntilNextKey(t *testing.T) {
 	if body := strings.Join(screen, "\n"); !strings.Contains(body, "two") {
 		t.Fatalf("старый дифф пропал с экрана:\n%s", body)
 	}
-	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "not a git repository") {
-		t.Fatalf("в подвале %q, ожидался текст ошибки git", footer)
+	if notice := noticeOf(model); !strings.Contains(notice, "not a git repository") {
+		t.Fatalf("в тосте %q, ожидался текст ошибки git", notice)
 	}
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})

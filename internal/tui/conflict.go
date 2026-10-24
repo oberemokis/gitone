@@ -22,7 +22,7 @@ func (m Model) startConflicts(file diff.File) Model {
 				"move":   firstKey(m.keys, keymap.DiffScrollDown) + "/" + firstKey(m.keys, keymap.DiffScrollUp),
 				"choose": firstKey(m.keys, keymap.FilesStage),
 				"close":  firstKey(m.keys, keymap.HelpClose),
-			}), false)
+			}))
 		}
 	}
 

@@ -20,10 +20,6 @@ import (
 
 var ctrlL = tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl}
 
-// errorFg это цвет ошибки #070707 в ANSI, который задаёт themed: он отличим от
-// остальных цветов экрана.
-const errorFg = "38;2;7;7;7"
-
 // remoteRepo это репозиторий с двумя коммитами, ветка main которого привязана к
 // origin (bare-репозиторий во временном каталоге, сети нет), и правкой a.txt в
 // рабочем дереве.
@@ -61,8 +57,8 @@ func openRemote(t *testing.T, repo string) tea.Model {
 	return resize(open(t, options(repo, layout.Focus())), 120, 20)
 }
 
-// themed открывает репозиторий с темой, где цвет ошибки отличим от остальных
-// (errorFg), а приглушённый это mutedFg.
+// themed открывает репозиторий с темой, где цвет ошибки #070707 отличим от
+// остальных, а приглушённый это mutedFg.
 func themed(t *testing.T, repo string) tea.Model {
 	t.Helper()
 
@@ -535,15 +531,18 @@ func TestPullKeyFollowsKeybinds(t *testing.T) {
 	})
 }
 
-// Итог и отмена идут не цветом ошибки, а ошибка git и отказ идут им.
+// Тост итога и отмены в рамке не цвета ошибки, а ошибки git и отказа в
+// рамке цвета ошибки (#371).
 func TestRemoteNoticeColors(t *testing.T) {
+	errorColor := lipgloss.Color("#070707")
+
 	t.Run("успех", func(t *testing.T) {
 		_, repo := remoteRepo(t)
 
 		model := pressAndSettle(themed(t, repo), key('p'))
 
-		if got := styleBefore(t, model.View().Content, "Already up to date", "Already"); strings.Contains(got, errorFg) {
-			t.Errorf("заметка об успехе красная: %q", got)
+		if !strings.Contains(noticeOf(model), "Already up to date") || sameRGB(borderColor(t, model, toastRow), errorColor) {
+			t.Errorf("тост об успехе %q в рамке цвета ошибки", noticeOf(model))
 		}
 	})
 
@@ -554,8 +553,8 @@ func TestRemoteNoticeColors(t *testing.T) {
 
 		model = settle(model, cmd, 6)
 
-		if got := styleBefore(t, model.View().Content, "Cancelled", "Cancelled"); strings.Contains(got, errorFg) {
-			t.Errorf("заметка об отмене красная: %q", got)
+		if !strings.Contains(noticeOf(model), "Cancelled") || sameRGB(borderColor(t, model, toastRow), errorColor) {
+			t.Errorf("тост об отмене %q в рамке цвета ошибки", noticeOf(model))
 		}
 	})
 
@@ -565,8 +564,8 @@ func TestRemoteNoticeColors(t *testing.T) {
 
 		model := pressAndSettle(themed(t, repo), key('p'))
 
-		if got := styleBefore(t, model.View().Content, "detached", "pull"); !strings.Contains(got, errorFg) {
-			t.Errorf("ошибка git не цветом ошибки: %q", got)
+		if got := borderColor(t, model, toastRow); !strings.Contains(noticeOf(model), "detached") || !sameRGB(got, errorColor) {
+			t.Errorf("тост ошибки git %q в рамке %v, ожидался цвет ошибки", noticeOf(model), got)
 		}
 	})
 
@@ -575,8 +574,8 @@ func TestRemoteNoticeColors(t *testing.T) {
 		model, _ := themed(t, repo).Update(key('p'))
 		model = pressIdle(t, model, key('x'))
 
-		if got := styleBefore(t, model.View().Content, "pull is running", "pull is"); !strings.Contains(got, errorFg) {
-			t.Errorf("отказ не цветом ошибки: %q", got)
+		if got := borderColor(t, model, toastRow); !strings.Contains(noticeOf(model), "pull is running") || !sameRGB(got, errorColor) {
+			t.Errorf("тост отказа %q в рамке %v, ожидался цвет ошибки", noticeOf(model), got)
 		}
 	})
 }

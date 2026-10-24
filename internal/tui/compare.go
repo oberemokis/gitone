@@ -24,7 +24,7 @@ func (m Model) compareWith(ref, label string) (tea.Model, tea.Cmd) {
 	m.active = noWindow
 	m.args = []string{ref, "--"}
 	m.compare = comparison{ref: ref, label: label}
-	m = m.putNotice(m.text.Text("compare.started", i18n.Args{"ref": visible(label), "key": firstKey(m.keys, keymap.DiffWorkingTree)}), true)
+	m = m.putNotice(m.text.Text("compare.started", i18n.Args{"ref": visible(label), "key": firstKey(m.keys, keymap.DiffWorkingTree)}))
 	return m.startReload()
 }
 

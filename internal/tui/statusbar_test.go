@@ -175,7 +175,7 @@ func TestSpinnerIsMuted(t *testing.T) {
 	}
 }
 
-// Ошибка git по центру подвала красная.
+// Ошибка git идёт тостом в рамке цвета ошибки (#371).
 func TestGitErrorUsesErrorColor(t *testing.T) {
 	repo, model := openThemed(t)
 	// без .git git не узнаёт репозиторий, и перечитывание падает
@@ -185,8 +185,8 @@ func TestGitErrorUsesErrorColor(t *testing.T) {
 
 	model = pressReload(t, model)
 
-	if got := styleBefore(t, model.View().Content, "not a git repository", "not a git"); !strings.Contains(got, "38;2;7;7;7") {
-		t.Errorf("перед текстом ошибки %q, want цвет ошибки 38;2;7;7;7", got)
+	if got := borderColor(t, model, toastRow); !strings.Contains(noticeOf(model), "not a git repository") || !sameRGB(got, lipgloss.Color("#070707")) {
+		t.Errorf("тост %q в рамке %v, want цвет ошибки #070707", noticeOf(model), got)
 	}
 }
 

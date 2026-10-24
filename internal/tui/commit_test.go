@@ -37,14 +37,9 @@ func TestCommitFromApp(t *testing.T) {
 }
 
 // commitFooter набирает тему в поле коммита, отправляет по enter и возвращает
-// подвал после ответа git.
+// подвал с тостом после ответа git.
 func commitFooter(model tea.Model) string {
-	model, _ = model.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	model = typeText(model, "x")
-	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	screen := screenOf(settle(model, cmd, 4))
-
-	return screen[footerRow(screen)]
+	return footerOf(commitX(model))
 }
 
 // Без застейдженных правок подвал называет причину текстом из словаря. Отчёт

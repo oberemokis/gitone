@@ -22,14 +22,39 @@ func screenText(model tea.Model) string {
 	return strings.Join(screenOf(model), "\n")
 }
 
+// footerOf это подвал, а за ним через пробел текст тоста (#371): тесты,
+// написанные до тостов, ищут итог и ошибку здесь, и проверяют то, что видит
+// пользователь. Где стоит заметка, проверяет noticeOf.
 func footerOf(model tea.Model) string {
 	screen := screenOf(model)
-	return screen[footerRow(screen)]
+	footer := screen[footerRow(screen)]
+	if notice := noticeOf(model); notice != "" {
+		footer += " " + notice
+	}
+	return footer
 }
 
 // footerRow это строка подвала: под ним одна пустая строка (#103).
 func footerRow(screen []string) int {
 	return len(screen) - 2
+}
+
+// noticeOf это текст тоста (#371): строки между его рамками ┃ через пробел.
+// Перенос идёт по словам, поэтому склеенный текст совпадает с заметкой. Без
+// тоста пусто.
+func noticeOf(model tea.Model) string {
+	var parts []string
+	for _, row := range screenOf(model) {
+		right := strings.LastIndex(row, "┃")
+		left := strings.LastIndex(row[:max(right, 0)], "┃")
+		if left < 0 {
+			continue
+		}
+		if text := strings.TrimSpace(row[left+len("┃") : right]); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // openAsync нажимает клавишу, которая грузит список ответом git, и доставляет

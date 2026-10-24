@@ -32,7 +32,7 @@ func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
 	script, path := command.Run, ""
 	if strings.Contains(script, "{path}") {
 		if len(m.files) == 0 || stagedKey(m.files[m.current]) == "" {
-			return m.putNotice(m.text.Text("command.noFile", i18n.Args{"name": visible(name)}), true), nil
+			return m.putNotice(m.text.Text("command.noFile", i18n.Args{"name": visible(name)})), nil
 		}
 		script = strings.ReplaceAll(script, "{path}", pathVariable)
 		path = stagedKey(m.files[m.current])
