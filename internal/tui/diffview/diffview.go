@@ -1,6 +1,7 @@
-// Package diffview рисует один файл диффа в виде split или unified и
-// прокручивает его. Клавиш и других файлов он не знает: корень вызывает его
-// методы по действиям и сам решает, какой файл открыт.
+// Package diffview рисует файл диффа в виде split или unified и прокручивает
+// его, а в ленте (stream.go) все файлы подряд. Клавиш он не знает: корень
+// вызывает его методы по действиям и сам решает, какой файл открыт, в ленте
+// его выбирает прокрутка.
 package diffview
 
 import (
@@ -26,43 +27,55 @@ const (
 )
 
 type Model struct {
+	settings
 	file diff.File
 	// подсветка синтаксиса старой и новой стороны по номеру строки, считается
-	// при открытии файла (highlight.go)
+	// при открытии файла (highlight.go), а у страницы ленты, когда она видна;
+	// colored значит, что подсветка посчитана
 	oldCode, newCode code
-	colors           theme.Theme
-	mode             Mode
-	// с этой ширины auto выбирает split, по умолчанию 120 (diff.autoSplitMinWidth)
-	autoSplitMinWidth int
-	width             int
-	height            int
-	scroll            int
+	colored          bool
+	scroll           int
 	// Строки пересчитываются при смене файла, режима или размера, а не в
 	// View: Bubble Tea вызывает View на каждое сообщение.
 	lines       []line
 	numberWidth int
+	// longest это ширина самого длинного кода файла (wrap.go)
+	longest int
+	// versionKey ключ версий, по которым сейчас раскрашен файл, пусто при
+	// подсветке по хункам (versions.go)
+	versionKey string
+	// выделение строк для индекса (select.go)
+	selection selection
+	// лента всех файлов (stream.go); inStream значит, что модель это страница
+	// ленты: её прокрутку держит лента
+	stream   stream
+	inStream bool
+}
+
+// settings это вид и кеш версий: у ленты они общие для всех её страниц.
+type settings struct {
+	colors theme.Theme
+	mode   Mode
+	// с этой ширины auto выбирает split, по умолчанию 120 (diff.autoSplitMinWidth)
+	autoSplitMinWidth int
+	width             int
+	height            int
 	// колонка номеров скрыта: флаг меняет только рисунок, строки те же
 	hideNumbers bool
 	// служебные строки на языке интерфейса
 	text i18n.Dictionary
 	// wrap переносит длинные строки, без него код сдвигается вбок на shift
-	// колонок; longest это ширина самого длинного кода файла (wrap.go)
-	wrap    bool
-	shift   int
-	longest int
+	// колонок (wrap.go)
+	wrap  bool
+	shift int
 	// share доля левой половины split, 0 значит пополам (split.go)
 	share float64
-	// versionKey ключ версий, по которым сейчас раскрашен файл, пусто при
-	// подсветке по хункам; versions подсветка по версиям файла целиком
-	// (versions.go)
-	versionKey string
-	versions   map[string]sides
-	// выделение строк для индекса (select.go)
-	selection selection
+	// versions подсветка по версиям файла целиком (versions.go)
+	versions map[string]sides
 }
 
 func New(colors theme.Theme, mode Mode, autoSplitMinWidth int) Model {
-	return Model{colors: colors, mode: mode, autoSplitMinWidth: autoSplitMinWidth}
+	return Model{settings: settings{colors: colors, mode: mode, autoSplitMinWidth: autoSplitMinWidth}}
 }
 
 // WithText задаёт язык служебных строк. Без него они английские.
@@ -86,30 +99,59 @@ func (m Model) SetFile(file diff.File) Model {
 
 // Reload ставит на место файла его новую версию. Прокрутка и выделение
 // остаются, прокрутка обрезана по новой длине, а SetFile их сбросил бы. При
-// выделении экран идёт за курсором: после space он мог уйти за экран.
+// выделении экран идёт за курсором: после space он мог уйти за экран. В ленте
+// так обновляется файл выделения, остальные файлы ставит ReloadAll.
 func (m Model) Reload(file diff.File) Model {
-	m = m.withFile(file).rebuild()
-	if m.selection.on {
-		return m.follow()
-	}
+	return m.onPage(func(m Model) Model {
+		m = m.withFile(file).rebuild()
+		if m.selection.on {
+			return m.follow()
+		}
+		return m
+	})
+}
+
+// withFile ставит файл и размечает его код.
+func (m Model) withFile(file diff.File) Model {
+	return m.plain(file).colorize()
+}
+
+// plain ставит файл без подсветки: у страницы ленты её считает Prepare, когда
+// страница видна.
+func (m Model) plain(file diff.File) Model {
+	m.file = file
+	m.oldCode, m.newCode, m.colored = nil, nil, false
+	m.versionKey = ""
 	return m
 }
 
-// withFile ставит файл и размечает его код. Язык выбирается по пути: у
-// удалённого файла путь старый, у переименованного новый.
-func (m Model) withFile(file diff.File) Model {
-	m.file = file
-	m.oldCode, m.newCode = highlight(syntax.Detect(cmp.Or(file.NewPath, file.OldPath)), file)
-	m.versionKey = ""
+// colorize размечает код файла. Язык выбирается по пути: у удалённого файла
+// путь старый, у переименованного новый.
+func (m Model) colorize() Model {
+	m.oldCode, m.newCode = highlight(syntax.Detect(cmp.Or(m.file.NewPath, m.file.OldPath)), m.file)
+	m.colored = true
 	return m
 }
 
 // SetSize может сменить вид в режиме auto, поэтому держит на месте верхнюю
 // строку файла, как ToggleMode.
 func (m Model) SetSize(width, height int) Model {
+	return m.keepTop(func(m Model) Model {
+		m.width, m.height = width, height
+		return m
+	})
+}
+
+// keepTop меняет вид и пересчитывает строки, держа наверху ту же строку
+// файла: у одного файла по номеру строки, у ленты по файлу и номеру строки в
+// нём.
+func (m Model) keepTop(change func(Model) Model) Model {
+	if m.stream.on {
+		return change(m).relayout(m.place())
+	}
+
 	top := m.topPosition()
-	m.width, m.height = width, height
-	return m.rebuild().seek(top)
+	return change(m).rebuild().seek(top)
 }
 
 // Mode это вид из настройки или после m: auto остаётся auto, а не вид на
@@ -121,14 +163,14 @@ func (m Model) Mode() Mode {
 // ToggleMode переключает от того вида, что сейчас на экране, а не от auto, и
 // держит выбор до конца сеанса: смена ширины после этого вид не меняет.
 func (m Model) ToggleMode() Model {
-	top := m.topPosition()
-	if m.effectiveMode() == ModeSplit {
-		m.mode = ModeUnified
-	} else {
-		m.mode = ModeSplit
-	}
-
-	return m.rebuild().seek(top)
+	return m.keepTop(func(m Model) Model {
+		if m.effectiveMode() == ModeSplit {
+			m.mode = ModeUnified
+		} else {
+			m.mode = ModeSplit
+		}
+		return m
+	})
 }
 
 // position это номер строки файла наверху экрана: новый, а если его нет
@@ -189,18 +231,31 @@ func (m Model) ScrollBy(delta int) Model {
 
 func (m Model) Top() Model {
 	m.scroll = 0
-	return m
+	return m.clamp()
 }
 
 func (m Model) Bottom() Model {
 	m.scroll = len(m.lines)
+	if m.stream.on {
+		m.scroll = m.stream.total
+	}
 	return m.clamp()
 }
 
 // clamp держит прокрутку в пределах: последняя строка файла не уходит выше
-// нижнего края экрана, первая не уходит ниже верхнего.
+// нижнего края экрана, первая не уходит ниже верхнего. Пределы ленты и её
+// страниц в stream.go.
 func (m Model) clamp() Model {
-	m.scroll = max(min(m.scroll, len(m.lines)-m.rows()), 0)
+	switch {
+	case m.inStream:
+		// у страницы верх держит лента: её последняя строка может стоять у
+		// верха экрана, под ней следующий файл
+		m.scroll = max(min(m.scroll, len(m.lines)-1), 0)
+	case m.stream.on:
+		m = m.clampStream()
+	default:
+		m.scroll = max(min(m.scroll, len(m.lines)-m.rows()), 0)
+	}
 	return m
 }
 
@@ -213,15 +268,11 @@ func (m Model) rows() int {
 }
 
 func (m Model) View() string {
-	end := min(m.scroll+m.rows(), len(m.lines))
-	from, to := m.bounds()
-
-	rendered := make([]string, 0, m.height)
-	for index := m.scroll; index < end; index++ {
-		line := m.lines[index]
-		// конфликт отмечен целиком: наша сторона в нём бывает контекстом
-		marked := index >= from && index <= to && (m.selection.conflict || len(refs(line)) > 0)
-		rendered = append(rendered, m.render(line, marked))
+	var rendered []string
+	if m.stream.on {
+		rendered = m.streamRows()
+	} else {
+		rendered = m.lineRows(m.scroll, min(m.scroll+m.rows(), len(m.lines)))
 	}
 
 	if m.hasBar() {
@@ -233,6 +284,20 @@ func (m Model) View() string {
 	}
 
 	return strings.Join(rendered, "\n")
+}
+
+// lineRows рисует строки экрана с from до to, не включая to.
+func (m Model) lineRows(from, to int) []string {
+	first, last := m.bounds()
+
+	rendered := make([]string, 0, m.height)
+	for index := from; index < to; index++ {
+		line := m.lines[index]
+		// конфликт отмечен целиком: наша сторона в нём бывает контекстом
+		marked := index >= first && index <= last && (m.selection.conflict || len(refs(line)) > 0)
+		rendered = append(rendered, m.render(line, marked))
+	}
+	return rendered
 }
 
 func (m Model) effectiveMode() Mode {

@@ -30,9 +30,10 @@ func NeedsVersions(file diff.File) bool {
 }
 
 // VersionKey это ключ версий, по которым раскрашен файл, или пустая строка,
-// если файл раскрашен по хункам.
+// если файл раскрашен по хункам. В ленте версии есть только у текущего
+// файла: остальные красятся по хункам, пока не встанут наверх.
 func (m Model) VersionKey() string {
-	return m.versionKey
+	return m.focus().versionKey
 }
 
 // StoreVersions раскрашивает версии файла path целиком и кладёт подсветку в
@@ -51,20 +52,22 @@ func (m Model) StoreVersions(key, path string, old, new []byte) Model {
 
 // UseVersions раскрашивает открытый файл подсветкой версий из кеша. found
 // false, если версий по ключу ещё нет.
-func (m Model) UseVersions(key string) (Model, bool) {
+func (m Model) UseVersions(key string) (next Model, found bool) {
 	cached, found := m.versions[key]
 	if !found {
 		return m, false
 	}
 
-	if cached.old != nil {
-		m.oldCode = cached.old
-	}
-	if cached.new != nil {
-		m.newCode = cached.new
-	}
-	m.versionKey = key
-	return m, true
+	return m.onPage(func(m Model) Model {
+		if cached.old != nil {
+			m.oldCode = cached.old
+		}
+		if cached.new != nil {
+			m.newCode = cached.new
+		}
+		m.versionKey, m.colored = key, true
+		return m
+	}), true
 }
 
 // wholeFile размечает версию файла целиком, строки нумеруются с единицы, как

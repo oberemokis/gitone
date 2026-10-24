@@ -7,9 +7,9 @@ import "math"
 const minHalf = 20
 
 // SplitLeft это ширина левой половины split на экране; found false в
-// unified, где половин нет.
+// unified, где половин нет, и в ленте, где на экране нет файла в split.
 func (m Model) SplitLeft() (left int, found bool) {
-	if m.effectiveMode() != ModeSplit {
+	if m.effectiveMode() != ModeSplit || (m.stream.on && !m.splitShown()) {
 		return 0, false
 	}
 	return m.splitLeft(), true
@@ -25,9 +25,10 @@ func (m Model) WithSplit(left int) Model {
 		return m
 	}
 
-	top := m.topPosition()
-	m.share = float64(min(max(left, minHalf), m.width-minHalf)) / float64(m.width)
-	return m.rebuild().seek(top)
+	return m.keepTop(func(m Model) Model {
+		m.share = float64(min(max(left, minHalf), m.width-minHalf)) / float64(m.width)
+		return m
+	})
 }
 
 // splitLeft это ширина левой половины: пополам, пока стык не тянули, иначе

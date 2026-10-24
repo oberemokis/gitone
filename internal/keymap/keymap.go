@@ -71,6 +71,8 @@ const (
 	DiffTop          Action = "diff.top"
 	DiffBottom       Action = "diff.bottom"
 	DiffToggleWrap   Action = "diff.toggleWrap"
+	// все файлы одной лентой (#373)
+	DiffToggleAllFiles Action = "diff.toggleAllFiles"
 	// вид диффа (#217): пробелы и строки контекста
 	DiffToggleWhitespace Action = "diff.toggleWhitespace"
 	DiffMoreContext      Action = "diff.moreContext"
@@ -376,6 +378,7 @@ func decode(data []byte) (Keymap, error) {
 	}
 
 	bindings := defaults()
+	listed := make(map[Action]bool)
 	// имена идут по порядку, чтобы ошибка при нескольких проблемах не
 	// менялась от запуска к запуску
 	for _, name := range slices.Sorted(maps.Keys(f.Keybinds)) {
@@ -390,7 +393,9 @@ func decode(data []byte) (Keymap, error) {
 		}
 		// переназначение заменяет клавиши действия целиком, не добавляет к ним
 		bindings[index].Keys = keys
+		listed[bindings[index].Action] = true
 	}
+	yieldKeys(bindings, listed, f.Commands)
 
 	for _, binding := range bindings {
 		if err := checkBindingKeys(binding); err != nil {
@@ -405,6 +410,35 @@ func decode(data []byte) (Keymap, error) {
 	}
 
 	return newKeymap(bindings, f.Commands), nil
+}
+
+// yielding это действия, чья клавиша по умолчанию появилась позже, чем
+// keybinds.json у пользователей: её уступают глобальному действию и команде
+// из файла. Иначе обновление отбросило бы файл целиком из-за конфликта,
+// которого пользователь не заводил (#373). Конфликт со старыми клавишами по
+// умолчанию остаётся ошибкой: его пользователь видит, когда пишет файл.
+var yielding = actionSet(DiffToggleAllFiles)
+
+// yieldKeys снимает с непереназначенных действий из yielding клавиши, которые
+// пользователь отдал глобальному действию или команде.
+func yieldKeys(bindings []Binding, listed map[Action]bool, commands []Command) {
+	taken := make(map[string]bool)
+	for _, binding := range bindings {
+		if listed[binding.Action] && !windowActions[binding.Action] {
+			for _, key := range binding.Keys {
+				taken[key] = true
+			}
+		}
+	}
+	for _, command := range commands {
+		taken[command.Key] = true
+	}
+
+	for index, binding := range bindings {
+		if yielding[binding.Action] && !listed[binding.Action] {
+			bindings[index].Keys = slices.DeleteFunc(binding.Keys, func(key string) bool { return taken[key] })
+		}
+	}
 }
 
 // checkCommands отвергает команду без текста, клавишу с неверным именем и
@@ -707,6 +741,8 @@ func defaults() []Binding {
 		{Action: DiffBottom, Category: CategoryDiff, Keys: []string{"G"}, Help: true},
 		{Action: DiffToggleMode, Category: CategoryDiff, Keys: []string{"m"}, Help: true},
 		{Action: DiffToggleWrap, Category: CategoryDiff, Keys: []string{"w"}, Help: true},
+		// a у lazygit ставит все файлы, здесь показывает их одной лентой
+		{Action: DiffToggleAllFiles, Category: CategoryDiff, Keys: []string{"a"}, Help: true},
 		// как в lazygit: ctrl+w пробелы, } и { контекст
 		{Action: DiffToggleWhitespace, Category: CategoryDiff, Keys: []string{"ctrl+w"}, Help: true},
 		{Action: DiffMoreContext, Category: CategoryDiff, Keys: []string{"}"}, Help: true},

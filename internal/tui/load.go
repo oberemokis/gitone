@@ -175,7 +175,7 @@ func (m Model) reloaded(msg reloadMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		m = m.say(m.text.Error(msg.err))
 	} else {
-		m = m.applyReload(msg.files)
+		m = m.applyReload(msg)
 		m.index, m.location = msg.index, msg.location
 	}
 

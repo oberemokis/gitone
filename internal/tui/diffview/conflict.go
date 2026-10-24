@@ -12,30 +12,36 @@ import "gitone/internal/diff"
 // SelectConflicts включает выбор конфликтов на открытом файле, курсор на
 // первом конфликте экрана или ниже. found false, если конфликтов в диффе нет.
 func (m Model) SelectConflicts() (next Model, found bool) {
-	blocks := m.conflicts()
-	if len(blocks) == 0 {
-		return m, false
-	}
-
-	chosen := blocks[len(blocks)-1]
-	for _, block := range blocks {
-		if block.from >= m.scroll {
-			chosen = block
-			break
+	next = m.onPage(func(m Model) Model {
+		blocks := m.conflicts()
+		if len(blocks) == 0 {
+			return m
 		}
-	}
-	m.selection = selection{on: true, conflict: true, cursor: diff.LineRef{Kind: diff.LineAdded, Number: chosen.Start}}
-	return m.follow(), true
+
+		chosen := blocks[len(blocks)-1]
+		for _, block := range blocks {
+			if block.from >= m.scroll {
+				chosen = block
+				break
+			}
+		}
+		m.selection = selection{on: true, conflict: true, cursor: diff.LineRef{Kind: diff.LineAdded, Number: chosen.Start}}
+		found = true
+		return m.follow()
+	})
+	return next, found
 }
 
 // SelectingConflicts говорит, что идёт выбор конфликтов.
 func (m Model) SelectingConflicts() bool {
+	m = m.focus()
 	return m.selection.on && m.selection.conflict
 }
 
 // ConflictStart это номер строки рабочего дерева, с которой начинается
 // конфликт под курсором.
 func (m Model) ConflictStart() (line int, found bool) {
+	m = m.focus()
 	block, found := m.conflictCursor()
 	if !m.SelectingConflicts() || !found {
 		return 0, false

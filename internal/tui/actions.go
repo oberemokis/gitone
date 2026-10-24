@@ -100,7 +100,7 @@ var globalActions = map[keymap.Action]globalAction{
 		return m.resize()
 	})},
 	keymap.FilesNext:     {run: stay(func(m Model) Model { return m.openFile(m.current + 1) })},
-	keymap.FilesPrevious: {run: stay(func(m Model) Model { return m.openFile(m.current - 1) })},
+	keymap.FilesPrevious: {run: stay(func(m Model) Model { return m.openFile(m.backFile()) })},
 	keymap.FilesStage:    {run: Model.toggleStage, changesRepo: true},
 	keymap.FilesDiscard:  {run: stay(Model.askDiscard), changesRepo: true},
 	keymap.FilesCommit:   {run: stay(Model.openCommit), changesRepo: true},
@@ -123,6 +123,7 @@ var globalActions = map[keymap.Action]globalAction{
 
 	keymap.DiffToggleMode:       {run: onView(diffview.Model.ToggleMode)},
 	keymap.DiffToggleWrap:       {run: onView(diffview.Model.ToggleWrap)},
+	keymap.DiffToggleAllFiles:   {run: stay(Model.toggleAllFiles)},
 	keymap.DiffToggleWhitespace: {run: Model.toggleWhitespace},
 	keymap.DiffMoreContext:      {run: func(m Model) (tea.Model, tea.Cmd) { return m.changeContext(1) }},
 	keymap.DiffLessContext:      {run: func(m Model) (tea.Model, tea.Cmd) { return m.changeContext(-1) }},

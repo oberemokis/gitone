@@ -6,17 +6,20 @@ import (
 	"gitone/internal/config"
 )
 
-// Вид, который меняют клавиши m, w, f, ctrl+w, } и {, переживает выход (#369):
-// Update пишет его в state.json при каждой смене, New ставит запомненный при
-// запуске. Ширина панели файлов и доля половин split живут до выхода.
+// Вид, который меняют клавиши m, w, a, f, ctrl+w, } и {, переживает выход
+// (#369): Update пишет его в state.json при каждой смене, New ставит
+// запомненный при запуске. Ширина панели файлов и доля половин split живут до
+// выхода, место в диффе тоже.
 
 // startView это вид при запуске: запомненный в state.json, а без него
-// diff.mode и diff.wrap из config.json и флаги git по умолчанию.
+// diff.mode, diff.wrap и diff.allFiles из config.json и флаги git по
+// умолчанию.
 func (opts Options) startView() config.View {
 	if !opts.View.Saved.IsZero() {
 		return opts.View
 	}
-	return config.View{Mode: opts.Config.Diff.Mode, Wrap: opts.Config.Diff.Wrap, Context: -1}
+	diff := opts.Config.Diff
+	return config.View{Mode: diff.Mode, Wrap: diff.Wrap, AllFiles: diff.AllFiles, Context: -1}
 }
 
 // DiffFlags это флаги git diff вида при запуске: первый дифф грузится с ними
@@ -30,6 +33,7 @@ func (m Model) viewState() config.View {
 	return config.View{
 		Mode:             string(m.view.Mode()),
 		Wrap:             m.view.Wrapping(),
+		AllFiles:         m.view.Streaming(),
 		Files:            m.filesOpen,
 		IgnoreWhitespace: m.ignoreSpace,
 		Context:          m.context,

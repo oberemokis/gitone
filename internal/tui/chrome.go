@@ -32,8 +32,9 @@ const (
 // header показывает путь открытого файла и счётчики строк, как заголовок
 // critique: «examples.ts +6 -1», и номер файла в диффе «(2/5)»: другого места,
 // где видно число файлов, на экране нет. У краёв стрелки к соседним файлам
-// (#120), клик по ним открывает файл, как [ и ]. У края списка стрелка
-// приглушена. Рядом со стрелками первые клавиши действий (#195): слева от ‹
+// (#120), клик по ним открывает файл, как [ и ]: левая открывает файл back, в
+// ленте из середины файла это он сам. У края списка стрелка приглушена.
+// Рядом со стрелками первые клавиши действий (#195): слева от ‹
 // «предыдущий файл», справа от › «следующий», приглушённые, как подпись
 // подсказки в подвале. Клавиша и стрелка одно место клика. Действие без
 // клавиш оставляет стрелку без подписи. Место отдаётся имени: клавиши
@@ -41,7 +42,7 @@ const (
 // имя обрезается «…», стрелки и счётчики остаются видны. За счётчиком
 // приглушённо стоит вид диффа flags (#217), пока он не по умолчанию: иначе
 // спрятанные пробелы легко принять за отсутствие правок.
-func header(width int, files []diff.File, current int, flags string, colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary) string {
+func header(width int, files []diff.File, current, back int, flags string, colors theme.Theme, keys keymap.Keymap, text i18n.Dictionary) string {
 	file := files[current]
 	muted := lipgloss.NewStyle().Foreground(colors.TextMuted)
 
@@ -93,7 +94,7 @@ func header(width int, files []diff.File, current int, flags string, colors them
 	}
 
 	padding := strings.Repeat(" ", footerPadding)
-	return padding + arrow("‹", previous, current-1, true) + " " + lipgloss.PlaceHorizontal(inner, lipgloss.Center, title) + " " + arrow("›", next, current+1, false) + padding
+	return padding + arrow("‹", previous, back, true) + " " + lipgloss.PlaceHorizontal(inner, lipgloss.Center, title) + " " + arrow("›", next, current+1, false) + padding
 }
 
 // keyRoom это место клавиши рядом со стрелкой вместе с пробелом между ними,

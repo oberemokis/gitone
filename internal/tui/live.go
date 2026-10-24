@@ -79,7 +79,7 @@ func (m Model) polled(msg polledMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m = m.applyReload(msg.files)
+	m = m.applyReload(msg.reloadMsg)
 	m.index = msg.index
 	return m.refreshSelection()
 }
