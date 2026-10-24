@@ -112,6 +112,12 @@ func (m Model) SetSize(width, height int) Model {
 	return m.rebuild().seek(top)
 }
 
+// Mode это вид из настройки или после m: auto остаётся auto, а не вид на
+// экране.
+func (m Model) Mode() Mode {
+	return m.mode
+}
+
 // ToggleMode переключает от того вида, что сейчас на экране, а не от auto, и
 // держит выбор до конца сеанса: смена ширины после этого вид не меняет.
 func (m Model) ToggleMode() Model {

@@ -107,7 +107,8 @@ type Model struct {
 	keys   keymap.Keymap
 	ui     config.UI
 	layout layout.Node
-	// filesOpen: панель файлов открыта, при запуске она скрыта всегда
+	// filesOpen: панель файлов открыта; при запуске как в прошлый раз
+	// (viewstate.go), а впервые скрыта
 	filesOpen bool
 	// filesWidth ширина панели файлов, вытянутая мышью (#121), 0 значит
 	// ширина раскладки; drag идущее перетаскивание (drag.go)
@@ -171,23 +172,26 @@ type Options struct {
 	// подставляет запуск без терминала: Bubble Tea выполняет ExecProcess сам,
 	// и команда без программы его не выполнит.
 	Exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd
-	// StateDir каталог state.json со списком недавних репозиториев (#248),
-	// пусто значит без записи состояния: так работают тесты
+	// StateDir каталог state.json со списком недавних репозиториев (#248) и
+	// видом (#369), пусто значит без записи состояния: так работают тесты
 	StateDir string
+	// View вид из state.json (config.ReadView), нулевой значит вид из Config
+	View config.View
 }
 
 func New(opts Options, files []diff.File) Model {
 	colors := opts.Theme
+	start := opts.startView()
 
 	root := opts.Layout
 	if root.Pane == "" && len(root.Children) == 0 {
 		root = layout.Focus()
 	}
 
-	view := diffview.New(colors, diffview.Mode(opts.Config.Diff.Mode), opts.Config.Diff.AutoSplitMinWidth).
+	view := diffview.New(colors, diffview.Mode(start.Mode), opts.Config.Diff.AutoSplitMinWidth).
 		WithoutNumbers(!opts.Config.UI.LineNumbers).
 		WithText(opts.Text).
-		WithWrap(opts.Config.Diff.Wrap)
+		WithWrap(start.Wrap)
 	files = withConflicts(files, opts.Args, opts.Index.Conflicted)
 	if len(files) > 0 {
 		view = view.SetFile(files[0])
@@ -209,7 +213,6 @@ func New(opts Options, files []diff.File) Model {
 		repo:     opts.Repo,
 		args:     opts.Args,
 		baseArgs: opts.Args,
-		context:  -1,
 		ticks:    opts.Ticks,
 		index:    opts.Index,
 		location: opts.Location,
@@ -222,6 +225,10 @@ func New(opts Options, files []diff.File) Model {
 		files:    files,
 		view:     view,
 		stateDir: opts.StateDir,
+
+		filesOpen:   start.Files,
+		ignoreSpace: start.IgnoreWhitespace,
+		context:     start.Context,
 	}
 }
 
@@ -231,12 +238,14 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update разбирает сообщение, а после него следит, чтобы открытый
-// однофайловый компонент красился по файлу целиком (versions.go) и чтобы у
-// новой гаснущей заметки был таймер (notice.go).
+// однофайловый компонент красился по файлу целиком (versions.go), чтобы у
+// новой гаснущей заметки был таймер (notice.go) и чтобы сменившийся вид попал
+// в state.json (viewstate.go).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if model, isModel := next.(Model); isModel {
-		return model.wantVersions(model.wantExpiry(m.noticeID, cmd))
+		cmd = model.wantSave(m.viewState(), model.wantExpiry(m.noticeID, cmd))
+		return model.wantVersions(cmd)
 	}
 	return next, cmd
 }

@@ -134,12 +134,13 @@ func options(repo string, root layout.Node) tui.Options {
 	return tui.Options{Repo: opened, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true}
 }
 
-// open загружает дифф репозитория opts.Repo с аргументами opts.Args, индекс и
-// место подвала так же, как cmd/gitone при запуске: space решает по индексу.
+// open загружает дифф репозитория opts.Repo с аргументами opts.Args и флагами
+// запомненного вида, индекс и место подвала так же, как cmd/gitone при
+// запуске: space решает по индексу.
 func open(t *testing.T, opts tui.Options) tea.Model {
 	t.Helper()
 
-	files, err := tui.Load(opts.Repo, opts.Args)
+	files, err := tui.Load(opts.Repo, opts.Args, opts.DiffFlags()...)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

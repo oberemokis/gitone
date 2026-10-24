@@ -17,9 +17,24 @@ const stateFile = "state.json"
 // ponytail: число зашито, настройкой станет, если двадцати не хватит.
 const recentLimit = 20
 
-// State это содержимое state.json: недавние репозитории, последний первым.
+// State это содержимое state.json: недавние репозитории, последний первым, и
+// вид, переключённый клавишами.
 type State struct {
 	RecentRepos []string `json:"recentRepos"`
+	View        View     `json:"view,omitzero"`
+}
+
+// View это вид, который меняют клавиши и помнит state.json (#369): diff.mode и
+// diff.wrap поверх config.json, панель файлов и флаги диффа (#217). Saved
+// время записи, нулевое значит, что вида нет.
+type View struct {
+	Mode             string `json:"mode"`
+	Wrap             bool   `json:"wrap"`
+	Files            bool   `json:"files"`
+	IgnoreWhitespace bool   `json:"ignoreWhitespace"`
+	// Context строки контекста вокруг хунков, -1 значит число git
+	Context int       `json:"context"`
+	Saved   time.Time `json:"saved"`
 }
 
 // ReadState читает state.json из каталога настроек. Файла нет, значит
@@ -38,14 +53,50 @@ func ReadState(dir string) State {
 	return state
 }
 
+// ReadView читает вид из state.json. Вида нет, он испорчен или config.json
+// поправлен после его записи, значит нулевой View. Правка конфига главнее
+// клавиш: иначе поправленный руками diff.wrap молча не сработал бы, а к auto
+// после m не было бы пути.
+func ReadView(dir string) View {
+	view := ReadState(dir).View
+	if view.Saved.IsZero() || !knownMode(view.Mode) || view.Context < -1 {
+		return View{}
+	}
+
+	info, err := os.Stat(filepath.Join(dir, fileName))
+	if err == nil && info.ModTime().After(view.Saved) {
+		return View{}
+	}
+	return view
+}
+
+// SaveView записывает вид в state.json со временем записи, список недавних
+// остаётся как был.
+// ponytail: запись на каждое нажатие без очереди; два нажатия подряд, пока
+// state.json держит другой gitone, могут лечь в обратном порядке. Очередь
+// понадобится, если это заметят.
+func SaveView(dir string, view View) error {
+	view.Saved = time.Now()
+	return updateState(dir, func(state *State) { state.View = view })
+}
+
 // RememberRepo ставит root первым в список недавних, без повтора и не дальше
-// предела, и записывает state.json. Каталог настроек создаётся, если его нет.
-// Запись идёт через временный файл: оборванная запись не портит состояние, а
-// при отказе временный файл удаляется. Чтение и запись идут под блокировкой:
-// два gitone, запущенных разом, иначе прочли бы одно состояние, и запись
-// одного пропала бы. Не взяли блокировку, запись пропускается: список
-// недавних это удобство.
+// предела, и записывает state.json.
 func RememberRepo(dir, root string) error {
+	return updateState(dir, func(state *State) {
+		state.RecentRepos = slices.DeleteFunc(state.RecentRepos, func(path string) bool { return path == root })
+		state.RecentRepos = append([]string{root}, state.RecentRepos...)
+		state.RecentRepos = state.RecentRepos[:min(len(state.RecentRepos), recentLimit)]
+	})
+}
+
+// updateState меняет состояние функцией change и записывает state.json.
+// Каталог настроек создаётся, если его нет. Запись идёт через временный файл:
+// оборванная запись не портит состояние, а при отказе временный файл
+// удаляется. Чтение и запись идут под блокировкой: два gitone, запущенных
+// разом, иначе прочли бы одно состояние, и запись одного пропала бы. Не взяли
+// блокировку, запись пропускается: состояние это удобство.
+func updateState(dir string, change func(*State)) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -56,9 +107,7 @@ func RememberRepo(dir, root string) error {
 	defer unlock()
 
 	state := ReadState(dir)
-	state.RecentRepos = slices.DeleteFunc(state.RecentRepos, func(path string) bool { return path == root })
-	state.RecentRepos = append([]string{root}, state.RecentRepos...)
-	state.RecentRepos = state.RecentRepos[:min(len(state.RecentRepos), recentLimit)]
+	change(&state)
 
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
