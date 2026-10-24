@@ -91,8 +91,10 @@ func loadSettings() (tui.Options, []error) {
 	palette, themeErr := theme.Load(dir, settings.Theme)
 	root, layoutErr := layout.Load(dir, settings.Layout)
 	opts.Config, opts.Keys, opts.Theme, opts.Layout = settings, keys, palette, root
-	// state.json с недавними репозиториями лежит рядом с конфигом (#248)
+	// state.json с недавними репозиториями (#248) и видом, переключённым
+	// клавишами (#369), лежит рядом с конфигом
 	opts.StateDir = dir
+	opts.View = config.ReadView(dir)
 
 	return opts, []error{settingsErr, keysErr, themeErr, layoutErr}
 }
@@ -130,7 +132,7 @@ func loadWithNotice(opts tui.Options, dir string) (tea.Model, error) {
 		close(printed)
 	})
 
-	files, err := tui.Load(repo, opts.Args)
+	files, err := tui.Load(repo, opts.Args, opts.DiffFlags()...)
 	index, stagedErr := tui.ReadIndex(repo)
 	opts.Index = index
 	// ветку и worktree перечитывание найдёт снова, а ошибку диффа Load уже вернул

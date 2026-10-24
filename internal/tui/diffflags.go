@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"gitone/internal/config"
 	"gitone/internal/i18n"
 )
 
@@ -15,21 +16,26 @@ import (
 // считает от трёх; читать его стоит, если окажется, что его задают.
 const gitContext = 3
 
-// diffFlags это флаги вида диффа (#217): без пробелов и число строк контекста.
-// Без нажатий флагов нет, и git берёт свои настройки.
+// diffFlags это флаги вида диффа на экране.
 func (m Model) diffFlags() []string {
+	return flagsOf(m.viewState())
+}
+
+// flagsOf это флаги вида диффа (#217): без пробелов и число строк контекста.
+// Без нажатий флагов нет, и git берёт свои настройки.
+func flagsOf(view config.View) []string {
 	var flags []string
-	if m.ignoreSpace {
+	if view.IgnoreWhitespace {
 		flags = append(flags, "--ignore-all-space")
 	}
-	if m.context >= 0 {
-		flags = append(flags, "--unified="+strconv.Itoa(m.context))
+	if view.Context >= 0 {
+		flags = append(flags, "--unified="+strconv.Itoa(view.Context))
 	}
 	return flags
 }
 
 // toggleWhitespace прячет и возвращает правки из одних пробелов. Значение
-// держится до выхода из gitone, в конфиг не пишется.
+// запоминает state.json (viewstate.go), в конфиг оно не пишется.
 func (m Model) toggleWhitespace() (tea.Model, tea.Cmd) {
 	m.ignoreSpace = !m.ignoreSpace
 	return m.flagsChanged()

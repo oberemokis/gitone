@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"gitone/internal/i18n"
@@ -85,17 +86,19 @@ func decode(data []byte) (Config, error) {
 		return Config{}, err
 	}
 
-	// Список режимов записан ещё в diffview (ModeAuto, ModeSplit, ModeUnified)
-	// и в тексте config.badMode словаря. Импорт diffview граф запрещает, а без
-	// проверки здесь ошибочный файл не отбрасывался бы целиком: новый режим
-	// правится во всех трёх местах.
-	switch cfg.Diff.Mode {
-	case "auto", "split", "unified":
-	default:
+	if !knownMode(cfg.Diff.Mode) {
 		return Config{}, i18n.New("config.badMode", i18n.Args{"mode": cfg.Diff.Mode})
 	}
 
 	return cfg, nil
+}
+
+// knownMode говорит, что вид диффа из списка. Список записан ещё в diffview
+// (ModeAuto, ModeSplit, ModeUnified) и в тексте config.badMode словаря.
+// Импорт diffview граф запрещает, а без проверки здесь ошибочный файл не
+// отбрасывался бы целиком: новый режим правится во всех трёх местах.
+func knownMode(mode string) bool {
+	return slices.Contains([]string{"auto", "split", "unified"}, mode)
 }
 
 // readFile читает файл настроек. found false без ошибки значит, что файла нет.

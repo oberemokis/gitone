@@ -18,6 +18,11 @@ func (m Model) WithWrap(wrap bool) Model {
 	return m.rebuild()
 }
 
+// Wrapping говорит, что длинные строки переносятся.
+func (m Model) Wrapping() bool {
+	return m.wrap
+}
+
 // ToggleWrap переключает перенос и держит на месте верхнюю строку файла: с
 // переносом строк экрана больше, и прежняя прокрутка показала бы другое
 // место.
