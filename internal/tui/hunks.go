@@ -54,14 +54,14 @@ func (m Model) startSelect() (tea.Model, tea.Cmd) {
 
 	paths, note := m.target()
 	if len(paths) == 0 {
-		return m.putNotice(note, true), nil
+		return m.putNotice(note), nil
 	}
 	file := m.files[m.current]
 	if m.index.Conflicted[stagedKey(file)] {
 		return m.startConflicts(file), nil
 	}
 	if file.Status != diff.StatusModified || file.Binary {
-		return m.putNotice(m.text.Text("select.wholeFile", i18n.Args{"key": firstKey(m.keys, keymap.FilesStage)}), true), nil
+		return m.putNotice(m.text.Text("select.wholeFile", i18n.Args{"key": firstKey(m.keys, keymap.FilesStage)})), nil
 	}
 
 	return m, m.unstagedCmd(stagedKey(file), false)
@@ -81,10 +81,10 @@ func (m Model) unstagedArrived(msg unstagedMsg) Model {
 		return m.say(m.text.Error(msg.err))
 	case !msg.found:
 		m.view = m.view.Deselect(m.files[m.current])
-		return m.putNotice(m.text.Text("select.nothingUnstaged", nil), true)
+		return m.putNotice(m.text.Text("select.nothingUnstaged", nil))
 	case len(msg.file.Hunks) == 0:
 		m.view = m.view.Deselect(m.files[m.current])
-		return m.putNotice(m.text.Text("select.wholeFile", i18n.Args{"key": firstKey(m.keys, keymap.FilesStage)}), true)
+		return m.putNotice(m.text.Text("select.wholeFile", i18n.Args{"key": firstKey(m.keys, keymap.FilesStage)}))
 	case msg.refresh:
 		m.view = m.view.Reload(msg.file)
 	default:
@@ -95,7 +95,7 @@ func (m Model) unstagedArrived(msg unstagedMsg) Model {
 			"discard": firstKey(m.keys, keymap.FilesDiscard),
 			"select":  firstKey(m.keys, keymap.DiffSelect),
 			"close":   firstKey(m.keys, keymap.HelpClose),
-		}), false)
+		}))
 	}
 	return m
 }
@@ -170,7 +170,7 @@ func (m Model) stopSelect() Model {
 // просмотра.
 func (m Model) stageSelection() (tea.Model, tea.Cmd) {
 	if paths, note := m.target(); len(paths) == 0 {
-		return m.putNotice(note, true), nil
+		return m.putNotice(note), nil
 	}
 	selected := m.selectedSet()
 	if len(selected) == 0 {
@@ -185,7 +185,7 @@ func (m Model) stageSelection() (tea.Model, tea.Cmd) {
 // файла целиком, хоть выделена одна строка.
 func (m Model) askDiscardSelection() (tea.Model, tea.Cmd) {
 	if paths, note := m.target(); len(paths) == 0 {
-		return m.putNotice(note, true), nil
+		return m.putNotice(note), nil
 	}
 	selected := m.selectedSet()
 	if len(selected) == 0 {

@@ -36,7 +36,7 @@ func (m Model) chooseUpstream(msg remoteBranchesMsg) Model {
 	case m.active != branchWindow:
 		return m
 	case len(msg.remotes) == 0:
-		return m.putNotice(m.text.Text("upstream.none", i18n.Args{"key": firstKey(m.keys, keymap.GitFetch)}), false)
+		return m.putNotice(m.text.Text("upstream.none", i18n.Args{"key": firstKey(m.keys, keymap.GitFetch)}))
 	}
 
 	items := make([]menuItem, len(msg.remotes))

@@ -28,6 +28,9 @@ func TestViewSurvivesRestart(t *testing.T) {
 	for _, press := range []tea.KeyPressMsg{key('w'), key('m'), key('f'), ctrlW, key('}')} {
 		model = pressAndSettle(model, press)
 	}
+	// тост «Diff: …» после нажатий снимает esc: без справки и pull он больше
+	// ничего не делает
+	model = pressAndSettle(model, escape)
 	opts.View = config.ReadView(opts.StateDir)
 	restarted := resize(open(t, opts), 120, 30)
 
@@ -35,8 +38,7 @@ func TestViewSurvivesRestart(t *testing.T) {
 	if header := headerText(got); !strings.Contains(header, "whitespace hidden, context 4") {
 		t.Fatalf("заголовок %q, ожидался запомненный вид", header)
 	}
-	// подвал после нажатий называет вид, а после запуска пуст
-	if !slices.Equal(got[:footerRow(got)], want[:footerRow(want)]) {
+	if !slices.Equal(got, want) {
 		t.Fatalf("после перезапуска экран\n%s\nожидался\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

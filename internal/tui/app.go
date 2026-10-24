@@ -92,14 +92,13 @@ type Model struct {
 	recent   []recentRepo
 	stateDir string
 	picker   picker.Model
-	// заметка подвала стоит до следующего нажатия, а гаснущая (fades) ещё и
-	// пропадает сама через noticeLifetime (notice.go); noticeID номер заметки, у
-	// таймера свой номер; noFade выключает таймер (Options.KeepNotices).
-	// calm это текст итога pull или push: заметка с таким текстом идёт не цветом
-	// ошибки (sayCalm)
+	// заметка стоит тостом (toast.go) до следующего нажатия и пропадает сама
+	// через noticeLifetime (notice.go); noticeID номер заметки, у таймера свой
+	// номер; noFade выключает таймер (Options.KeepNotices). calm это текст
+	// итога pull или push: заметка с таким текстом идёт не цветом ошибки
+	// (sayCalm)
 	notice   string
 	noticeID int
-	fades    bool
 	noFade   bool
 	calm     string
 	// идущий pull или push (remote.go)
@@ -310,25 +309,24 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// say ставит асинхронное сообщение в подвал, ошибку: она остаётся до следующего
-// нажатия. Висящий вопрос discard при этом отменяется: его текст затёрт, и y не
-// должен стирать правку, о которой пользователь вопроса уже не видит.
+// say ставит тостом асинхронное сообщение, ошибку. Вопрос discard в подвале
+// остаётся: тост его не закрывает (#371).
 func (m Model) say(text string) Model {
-	return m.putNotice(text, false).dropQuestion()
+	return m.putNotice(text)
 }
 
-// sayCalm ставит в подвал итог, а не ошибку: он идёт цветом текста и гаснет
-// сам. Заметка считается итогом, пока её текст равен m.calm: любая следующая
+// sayCalm ставит тостом итог, а не ошибку: рамка тоста у него не цвета ошибки.
+// Заметка считается итогом, пока её текст равен m.calm: любая следующая
 // заметка с другим текстом снова красная, и сбрасывать флаг в каждом месте, где
 // заметка пишется или стирается, не нужно.
 func (m Model) sayCalm(text string) Model {
-	m = m.putNotice(text, true).dropQuestion()
+	m = m.putNotice(text)
 	m.calm = text
 	return m
 }
 
-// dropQuestion отменяет вопрос, который стоит в подвале. Вопрос в окне заметка
-// не затирает, он остаётся.
+// dropQuestion отменяет вопрос, который стоит в подвале: на его место встаёт
+// спиннер. Вопрос в окне остаётся.
 func (m Model) dropQuestion() Model {
 	if m.footerQuestion() {
 		m.active, m.question = noWindow, question{}
@@ -340,8 +338,8 @@ func (m Model) dropQuestion() Model {
 // второе чтение рядом не стартует, но запрос не теряется: stale заставит
 // прочитать заново, когда придёт ответ. Так W, лог, stash и b, сменившие
 // каталог или аргументы до вызова, не оставляют на экране старый дифф. Висящий
-// вопрос discard отменяется по той же причине, что в say: спиннер встаёт на его
-// место в центре подвала.
+// вопрос discard отменяется: спиннер встаёт на его место в центре подвала, и y
+// не должен стирать правку, о которой вопроса уже не видно.
 func (m Model) startReload() (Model, tea.Cmd) {
 	if m.loading {
 		m.stale = true
@@ -652,31 +650,30 @@ func (m Model) screen() (string, []zone.Zone) {
 	if modal {
 		screen = backdrop(screen, box, x, top+y, m.terminal)
 	}
+
+	// тост ложится последним: поверх окна, и подложка его не гасит. Он стоит
+	// на пустой строке под заголовком и не ниже тела
+	toastTop := max(top-1, 0)
+	if toast := m.toast(m.width, top+height-toastTop); toast != "" {
+		screen = overlay(screen, toast, m.width-toastMargin-lipgloss.Width(toast), toastTop)
+	}
 	return screen, zones
 }
 
-// footerLine собирает подвал: ветку слева, статус по центру, подсказки справа.
-// Пока идёт перечитывание, в центре спиннер, а висящая ошибка git ждёт
-// следующего нажатия. Пока идёт pull или push, спиннер с его надписью занимает
-// то же место и важнее загрузки, а заметка (отказ «pull is running») важнее
-// спиннера: иначе её не увидеть.
+// footerLine собирает подвал: ветку слева, состояние по центру, подсказки
+// справа. Пока идёт перечитывание, в центре спиннер. Пока идёт pull или push,
+// спиннер с его надписью занимает то же место и важнее загрузки. Ошибки и
+// итоги стоят не здесь, а тостом (toast.go).
 func (m Model) footerLine() string {
 	center := ""
 	switch {
 	// вопрос с главного экрана стоит в подвале, пока на него не ответили
 	case m.footerQuestion():
 		center = lipgloss.NewStyle().Foreground(m.colors.Error).Render(visible(m.question.text))
-	case m.remote.running() && m.notice == "":
+	case m.remote.running():
 		center = spinner(m.remote.spin, m.colors, m.text.Text(m.remote.labelKey(), nil))
-	case m.loading && !m.remote.running():
+	case m.loading:
 		center = spinner(m.spin, m.colors, m.text.Text("screen.loading", nil))
-	case m.notice != "":
-		first, _, _ := strings.Cut(m.notice, "\n")
-		note := lipgloss.NewStyle().Foreground(m.colors.Error)
-		if m.notice == m.calm {
-			note = lipgloss.NewStyle()
-		}
-		center = note.Render(visible(first))
 	}
 
 	hints := ""

@@ -65,7 +65,7 @@ func TestPaneTitlesOffFreesThreeRows(t *testing.T) {
 	}
 }
 
-// Подсказок нет, но ошибка в подвале видна: без неё пользователь не узнает о
+// Подсказок нет, но ошибка видна тостом: без неё пользователь не узнает о
 // сбое.
 func TestKeyHintsOffKeepsStatusLine(t *testing.T) {
 	repo := newRepo(t)
@@ -81,8 +81,8 @@ func TestKeyHintsOffKeepsStatusLine(t *testing.T) {
 	}
 
 	screen = openWithUI(t, repo, cfg, "config.json: ошибка в настройках")
-	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "ошибка в настройках") {
-		t.Fatalf("ошибка не видна в подвале: %q", footer)
+	if body := strings.Join(screen, "\n"); !strings.Contains(body, "ошибка в настройках") {
+		t.Fatalf("ошибка не видна на экране:\n%s", body)
 	}
 }
 

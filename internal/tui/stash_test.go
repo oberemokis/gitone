@@ -236,10 +236,10 @@ func TestStashApplyConflictShowsConflictInFooter(t *testing.T) {
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
 	model = settle(model, cmd, 4)
 	model, cmd = model.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
-	screen := screenOf(settle(model, cmd, 4))
+	notice := noticeOf(settle(model, cmd, 4))
 
-	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "stash apply: CONFLICT (content): Merge conflict in a.txt") {
-		t.Fatalf("подвал = %q, ожидалась строка CONFLICT", footer)
+	if !strings.Contains(notice, "stash apply: CONFLICT (content): Merge conflict in a.txt") {
+		t.Fatalf("тост = %q, ожидалась строка CONFLICT", notice)
 	}
 }
 

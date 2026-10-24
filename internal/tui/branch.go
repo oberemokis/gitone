@@ -149,7 +149,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // сразу говорит, что нужна другая. Итог успеха noteKey гаснет сам.
 func (m Model) ontoCurrent(branch git.Branch, run func(repo git.Repo, name string) error, noteKey string) (tea.Model, tea.Cmd) {
 	if branch.Current {
-		return m.putNotice(m.text.Text("branches.sameBranch", nil), false), nil
+		return m.putNotice(m.text.Text("branches.sameBranch", nil)), nil
 	}
 
 	m.active = noWindow
@@ -187,7 +187,7 @@ func (m Model) askRename(from string) Model {
 // вопрос не задаётся: подвал сразу говорит почему.
 func (m Model) askDeleteBranch(branch git.Branch) Model {
 	if branch.Current {
-		return m.putNotice(m.text.Text("branches.deleteCurrent", nil), false)
+		return m.putNotice(m.text.Text("branches.deleteCurrent", nil))
 	}
 
 	args := questionArgs(m.keys)

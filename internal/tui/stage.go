@@ -95,7 +95,7 @@ func (m Model) target() (paths []string, note string) {
 func (m Model) toggleStage() (tea.Model, tea.Cmd) {
 	paths, note := m.target()
 	if len(paths) == 0 {
-		return m.putNotice(note, true), nil
+		return m.putNotice(note), nil
 	}
 
 	return m, stageCmd(m.repo, paths, m.index.Staged[stagedKey(m.files[m.current])])
@@ -108,7 +108,7 @@ func (m Model) toggleStage() (tea.Model, tea.Cmd) {
 func (m Model) ignoreFile() (tea.Model, tea.Cmd) {
 	paths, note := m.target()
 	if len(paths) == 0 {
-		return m.putNotice(note, true), nil
+		return m.putNotice(note), nil
 	}
 
 	repo, path := m.repo, stagedKey(m.files[m.current])
@@ -124,7 +124,7 @@ func (m Model) ignoreFile() (tea.Model, tea.Cmd) {
 func (m Model) askDiscard() Model {
 	paths, note := m.target()
 	if len(paths) == 0 {
-		return m.putNotice(note, true)
+		return m.putNotice(note)
 	}
 
 	args := questionArgs(m.keys)

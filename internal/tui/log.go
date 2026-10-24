@@ -47,7 +47,7 @@ func logCmd(repo git.Repo, filter git.LogFilter) tea.Cmd {
 func (m Model) logArrived(msg logMsg) Model {
 	switch {
 	case msg.err == nil && msg.filter.File && len(msg.entries) == 0 && m.active == noWindow:
-		return m.putNotice(m.text.Text("history.empty", i18n.Args{"path": visible(msg.filter.Path)}), true)
+		return m.putNotice(m.text.Text("history.empty", i18n.Args{"path": visible(msg.filter.Path)}))
 	case msg.err == nil && m.beneath() == logWindow:
 		return m.refilterLog(msg)
 	}
@@ -64,7 +64,7 @@ func (m Model) fileHistory() (tea.Model, tea.Cmd) {
 
 	path := stagedKey(m.files[m.current])
 	if path == "" {
-		return m.putNotice(m.text.Text("stage.noFile", nil), true), nil
+		return m.putNotice(m.text.Text("stage.noFile", nil)), nil
 	}
 	return m, logCmd(m.repo, git.LogFilter{Path: path, File: true})
 }
@@ -189,7 +189,7 @@ var logActions = []windowAction[git.LogEntry]{
 	{action: keymap.LogAutosquash, changesRepo: true, run: Model.autosquash},
 	{action: keymap.CherryPickCopy, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		m.copied = entry
-		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)}), true), nil
+		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)})), nil
 	}},
 	{action: keymap.CherryPickPaste, run: func(m Model, _ git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.pasteCommit()
@@ -234,7 +234,7 @@ func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) showCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
 	m.active = noWindow
 	if entry.Root {
-		return m.putNotice(m.text.Text("log.firstCommitHidden", nil), true), nil
+		return m.putNotice(m.text.Text("log.firstCommitHidden", nil)), nil
 	}
 
 	m.args = []string{entry.Hash + "^!"}
@@ -247,7 +247,7 @@ func (m Model) showCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
 func (m Model) pasteCommit() (tea.Model, tea.Cmd) {
 	entry := m.copied
 	if entry.Hash == "" {
-		return m.putNotice(m.text.Text("log.nothingCopied", i18n.Args{"key": firstKey(m.keys, keymap.CherryPickCopy)}), false), nil
+		return m.putNotice(m.text.Text("log.nothingCopied", i18n.Args{"key": firstKey(m.keys, keymap.CherryPickCopy)})), nil
 	}
 
 	return m.changeHistory(m.text.Text("log.picked", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {

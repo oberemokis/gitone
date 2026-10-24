@@ -83,7 +83,7 @@ func TestLateListKeepsCommitField(t *testing.T) {
 	}
 }
 
-// Ошибка из ответа со списком уходит в подвал и при открытом окне, а окно
+// Ошибка из ответа со списком уходит в тост и при открытом окне, а окно
 // коммита с набранной темой остаётся.
 func TestLateLogErrorReachesFooter(t *testing.T) {
 	repo, model := threeFileRepo(t)
@@ -97,8 +97,8 @@ func TestLateLogErrorReachesFooter(t *testing.T) {
 	model, _ = model.Update(logCmd())
 
 	screen := screenOf(model)
-	if footer := screen[footerRow(screen)]; !strings.Contains(footer, "not a git repository") {
-		t.Fatalf("в подвале %q, ожидалась ошибка git", footer)
+	if notice := noticeOf(model); !strings.Contains(notice, "not a git repository") {
+		t.Fatalf("в тосте %q, ожидалась ошибка git", notice)
 	}
 	if !strings.Contains(strings.Join(screen, "\n"), "> тема") {
 		t.Fatalf("окно коммита с темой пропало:\n%s", strings.Join(screen, "\n"))

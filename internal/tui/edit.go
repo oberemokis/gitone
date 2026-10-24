@@ -34,7 +34,7 @@ func (m Model) editFile() (tea.Model, tea.Cmd) {
 
 	path := stagedKey(m.files[m.current])
 	if path == "" {
-		return m.putNotice(m.text.Text("stage.noFile", nil), true), nil
+		return m.putNotice(m.text.Text("stage.noFile", nil)), nil
 	}
 	return m, editorCmd(m.repo.Root(), path)
 }
