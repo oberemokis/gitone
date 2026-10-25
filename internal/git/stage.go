@@ -42,7 +42,9 @@ func (r Repo) unstage(paths []string) error {
 	command := []string{"restore", "--staged", "--"}
 	if !hasCommits(r.root) {
 		// Без HEAD восстанавливать не из чего: запись просто выходит из индекса.
-		command = []string{"rm", "--cached", "--quiet", "--"}
+		// -f снимает только сверку индекса с файлом: без него файл, изменённый
+		// после add, git не отпускал (#384), а рабочее дерево --cached не трогает.
+		command = []string{"rm", "--cached", "-f", "--quiet", "--"}
 	}
 
 	_, err := run(literal(r.root), append(command, paths...)...)
@@ -97,26 +99,40 @@ func (r Repo) discard(paths []string) error {
 		}
 	}
 
+	// Сначала уходят новые пути, потом возвращаются пути из HEAD. При
+	// переименовании только регистра (Foo.txt в foo.txt) на нечувствительной к
+	// регистру ФС это один файл: restore, а за ним удаление «нового» стирали
+	// его с диска (#384).
+	for i, path := range paths {
+		if !tracked[i] {
+			if err := r.dropNew(path); err != nil {
+				return err
+			}
+		}
+	}
 	for i, path := range paths {
 		if tracked[i] {
 			if _, err := run(literal(root), "restore", "--source=HEAD", "--staged", "--worktree", "--", path); err != nil {
 				return err
 			}
-			continue
-		}
-
-		if _, err := run(literal(root), "rm", "-f", "--cached", "--ignore-unmatch", "--quiet", "--", path); err != nil {
-			return err
-		}
-		name, err := r.file(path)
-		if err != nil {
-			return err
-		}
-		if err := os.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
 		}
 	}
 
+	return nil
+}
+
+// dropNew убирает путь, которого нет в HEAD, из индекса и с диска.
+func (r Repo) dropNew(path string) error {
+	if _, err := run(literal(r.root), "rm", "-f", "--cached", "--ignore-unmatch", "--quiet", "--", path); err != nil {
+		return err
+	}
+	name, err := r.file(path)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
 	return nil
 }
 

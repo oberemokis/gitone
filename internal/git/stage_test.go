@@ -164,6 +164,56 @@ func TestUnstageBeforeFirstCommit(t *testing.T) {
 	}
 }
 
+// Файл, изменённый после add, rm --cached без -f снять не давал: «staged
+// content different from both the file and the HEAD» (#384, случай 1).
+func TestUnstageBeforeFirstCommitAfterEdit(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "a.txt")
+	write(t, repo, "a.txt", "two\n")
+
+	if err := open(t, repo).Unstage([]string{"a.txt"}); err != nil {
+		t.Fatalf("Unstage: %v", err)
+	}
+	if got := runGit(t, repo, "ls-files"); got != "" {
+		t.Fatalf("в индексе %q, ожидалось пусто", got)
+	}
+	if got := readFile(t, filepath.Join(repo, "a.txt")); got != "two\n" {
+		t.Fatalf("файл на диске = %q, ожидалась правка", got)
+	}
+}
+
+// Переименование только регистра: на нечувствительной к регистру ФС (macOS)
+// Foo.txt и foo.txt это один файл, и restore до удаления «нового» стирал его
+// (#384, случай 2). На чувствительной ФС ответ тот же.
+func TestDiscardCaseOnlyRename(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "Foo.txt", "one\n")
+	commitAll(t, repo)
+	runGit(t, repo, "mv", "Foo.txt", "foo.txt")
+
+	if err := open(t, repo).Discard([]string{"Foo.txt", "foo.txt"}); err != nil {
+		t.Fatalf("Discard: %v", err)
+	}
+	entries, err := os.ReadDir(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if !slices.Equal(names, []string{".git", "Foo.txt"}) {
+		t.Fatalf("на диске %q, ожидался Foo.txt", names)
+	}
+	if got := readFile(t, filepath.Join(repo, "Foo.txt")); got != "one\n" {
+		t.Fatalf("Foo.txt = %q, ожидалось содержимое HEAD", got)
+	}
+	if got := runGit(t, repo, "status", "--porcelain"); got != "" {
+		t.Fatalf("git status %q, ожидалось чисто", got)
+	}
+}
+
 // Правка в индексе уходит и из индекса, и с диска: тест не должен смотреть
 // только на диск, иначе restore без --staged остался бы незамеченным.
 func TestDiscardRestoresStagedChange(t *testing.T) {
