@@ -164,7 +164,7 @@ func (m Model) commitTitle() string {
 	case m.amending:
 		return m.text.Text("commit.amendTitle", nil)
 	case m.rewording != "":
-		return m.text.Text("commit.rewordTitle", i18n.Args{"hash": m.rewording[:7]})
+		return m.text.Text("commit.rewordTitle", i18n.Args{"hash": shortCommit(m.rewording)})
 	}
 	return m.text.Text("commit.title", nil)
 }

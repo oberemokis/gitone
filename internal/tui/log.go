@@ -175,20 +175,20 @@ func logTitle(text i18n.Dictionary, filter git.LogFilter) string {
 var logActions = []windowAction[git.LogEntry]{
 	{action: keymap.LogOpen, run: Model.showCommit},
 	{action: keymap.LogCheckout, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": shortCommit(entry.Hash)}), func(repo git.Repo) error {
 			return repo.CheckoutCommit(entry.Hash)
 		})
 	}},
 	{action: keymap.LogNewBranch, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
+		return m.askBranchName(shortCommit(entry.Hash), entry.Hash), nil
 	}},
 	{action: keymap.LogRevert, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": shortCommit(entry.Hash)}), func(repo git.Repo) error {
 			return repo.Revert(entry.Hash)
 		})
 	}},
 	{action: keymap.LogReset, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.askReset(entry.Hash, entry.Hash[:7], -1), nil
+		return m.askReset(entry.Hash, shortCommit(entry.Hash), -1), nil
 	}},
 	{action: keymap.LogSquash, changesRepo: true, run: rewriteAction(git.RewriteSquash)},
 	{action: keymap.LogFixup, changesRepo: true, run: rewriteAction(git.RewriteFixup)},
@@ -200,7 +200,7 @@ var logActions = []windowAction[git.LogEntry]{
 	{action: keymap.LogAutosquash, changesRepo: true, run: Model.autosquash},
 	{action: keymap.CherryPickCopy, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		m.copied = entry
-		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)})), nil
+		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": shortCommit(entry.Hash), "key": firstKey(m.keys, keymap.CherryPickPaste)})), nil
 	}},
 	{action: keymap.CherryPickPaste, changesRepo: true, run: func(m Model, _ git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.pasteCommit()
@@ -209,10 +209,10 @@ var logActions = []windowAction[git.LogEntry]{
 		return m.askCopy(entry), nil
 	}},
 	{action: keymap.CompareWith, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.compareWith(entry.Hash, entry.Hash[:7])
+		return m.compareWith(entry.Hash, shortCommit(entry.Hash))
 	}},
 	{action: keymap.LogBisect, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
-		return m.askBisect(entry.Hash, entry.Hash[:7]), nil
+		return m.askBisect(entry.Hash, shortCommit(entry.Hash)), nil
 	}},
 }
 
@@ -261,7 +261,7 @@ func (m Model) pasteCommit() (tea.Model, tea.Cmd) {
 		return m.putNotice(m.text.Text("log.nothingCopied", i18n.Args{"key": firstKey(m.keys, keymap.CherryPickCopy)})), nil
 	}
 
-	return m.changeHistory(m.text.Text("log.picked", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+	return m.changeHistory(m.text.Text("log.picked", i18n.Args{"hash": shortCommit(entry.Hash)}), func(repo git.Repo) error {
 		return repo.CherryPick(entry.Hash)
 	})
 }
@@ -385,7 +385,7 @@ func logBox(p paint, entries []git.LogEntry, filter git.LogFilter, cursor int, q
 	for index, entry := range entries {
 		box.rows[index] = graph(entry)
 		if entry.Hash != "" {
-			box.rows[index] += tableRow(panel, widths, styles, entry.Hash[:7], entry.Subject, entry.Author, entry.When)
+			box.rows[index] += tableRow(panel, widths, styles, shortCommit(entry.Hash), entry.Subject, entry.Author, entry.When)
 		}
 	}
 

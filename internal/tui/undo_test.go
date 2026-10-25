@@ -45,6 +45,25 @@ func TestUndoRedoKeys(t *testing.T) {
 	}
 }
 
+// В репозитории SHA-256 вопрос отката тоже называет короткий хэш, а не все 64
+// знака (#400).
+func TestUndoQuestionShortensSHA256(t *testing.T) {
+	newRepo(t)
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-q", "-b", "main", "--object-format=sha256")
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	first := runGit(t, repo, "rev-parse", "HEAD")
+	write(t, repo, "a.txt", "two\n")
+	commitAll(t, repo)
+	model := resize(open(t, options(repo, layout.Focus())), 120, 20)
+
+	model = pressAndSettle(model, key('u'))
+	if footer := footerOf(model); !strings.Contains(footer, "HEAD goes back to "+first[:7]+",") {
+		t.Fatalf("подвал %q, ожидался короткий хэш %s", footer, first[:7])
+	}
+}
+
 // Отказ git, например после stash, идёт причиной в подвал (случай 5).
 func TestUndoAfterStashRefused(t *testing.T) {
 	repo := newRepo(t)

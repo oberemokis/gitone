@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
 	"gitone/internal/git"
@@ -42,8 +44,9 @@ func (m Model) askUndo(msg undoStepMsg) Model {
 
 	step := msg.step
 	target := step.Target
-	if len(target) == 40 {
-		target = target[:7]
+	// полный хэш SHA-1 или SHA-256 короче, имя ветки остаётся как есть
+	if (len(target) == 40 || len(target) == 64) && strings.Trim(target, "0123456789abcdef") == "" {
+		target = shortCommit(target)
 	}
 	args := questionArgs(m.keys)
 	args["action"], args["subject"], args["target"] = visible(step.Action), visible(step.Subject), visible(target)
