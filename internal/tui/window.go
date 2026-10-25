@@ -2,7 +2,6 @@ package tui
 
 import (
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -10,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/keymap"
+	"gitone/internal/tui/editor"
 	"gitone/internal/tui/zone"
 )
 
@@ -227,18 +227,12 @@ func (m Model) paste(content string) Model {
 	return m
 }
 
-// pastedLine готовит вставку для однострочного поля, как поле описания: строка
-// до первого `\r` или `\n`, таб четырьмя пробелами, управляющие символы
-// отбрасываются: ESC из буфера ушёл бы в тему коммита кодом терминала.
+// pastedLine готовит вставку для однострочного поля так же, как поле описания
+// (editor.Clean): ESC из буфера ушёл бы в тему коммита кодом терминала. Из
+// вставки остаётся строка до первого перевода строки.
 func pastedLine(content string) string {
-	line, _, _ := strings.Cut(strings.ReplaceAll(content, "\r", "\n"), "\n")
-	line = strings.ReplaceAll(line, "\t", "    ")
-	return strings.Map(func(char rune) rune {
-		if unicode.IsControl(char) {
-			return -1
-		}
-		return char
-	}, line)
+	line, _, _ := strings.Cut(editor.Clean(content), "\n")
+	return line
 }
 
 // matching оставляет элементы, в тексте которых есть запрос без учёта
