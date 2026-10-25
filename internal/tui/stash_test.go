@@ -185,6 +185,51 @@ func TestStashDropTakesStashUnderCursor(t *testing.T) {
 	}
 }
 
+// Список после нового stash приходит под вопросом об удалении и сдвигает номера
+// и курсор: вопрос и ответ остаются о записи, про которую спросили (#379,
+// случай 1). Раньше y удалял только что сделанный stash.
+func TestStashDropQuestionSurvivesNewStash(t *testing.T) {
+	repo, model := openTwoStashes(t)
+	write(t, repo, "a.txt", "four\n")
+
+	model, _ = model.Update(key('n'))
+	model = typeText(enterKey(model), "draft")
+	model, push := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	model, _ = model.Update(key('j'))
+	model, _ = model.Update(key('d'))
+	model = settle(model, push, 4)
+	if body := screenText(model); !strings.Contains(body, "Drop stash@{2}?") {
+		t.Fatalf("после нового stash вопрос не о stash@{2} «two»:\n%s", body)
+	}
+
+	answerYes(model)
+	if got := runGit(t, repo, "stash", "list", "--format=%gs"); strings.Contains(got, "two") || !strings.Contains(got, "draft") {
+		t.Fatalf("stash после y:\n%s\nожидались draft и three без two", got)
+	}
+}
+
+// Запись, о которой спросили, удалили снаружи, а на её номер встала другая: y
+// отказывает и ничего не удаляет (случай 2).
+func TestStashDropRefusesWhenAskedEntryIsGone(t *testing.T) {
+	repo, model := openTwoStashes(t)
+
+	model, _ = model.Update(key('j'))
+	model, _ = model.Update(key('d'))
+	runGit(t, repo, "stash", "drop", "-q", "stash@{1}")
+	write(t, repo, "a.txt", "four\n")
+	runGit(t, repo, "stash", "push", "-q")
+	before := runGit(t, repo, "stash", "list")
+
+	model = answerYes(model)
+	if after := runGit(t, repo, "stash", "list"); after != before {
+		t.Fatalf("список stash изменился:\nдо:\n%s\nпосле:\n%s", before, after)
+	}
+	if body := screenText(model); !strings.Contains(body, "stash changed, reopen the list") {
+		t.Fatalf("отказа нет на экране:\n%s", body)
+	}
+}
+
 // Курсор на втором stash: a применяет его, а не первый.
 func TestStashApplyTakesStashUnderCursor(t *testing.T) {
 	repo, model := openTwoStashes(t)
