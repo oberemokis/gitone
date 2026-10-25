@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestResetToUpstream(t *testing.T) {
 	}
 
 	model = hardReset(model)
-	if body := screenText(model); !strings.Contains(body, "1 local commits and uncommitted changes are lost") {
+	if body := screenText(model); !strings.Contains(body, "1 local commit and uncommitted changes are lost") {
 		t.Fatalf("вопрос не назвал число коммитов:\n%s", body)
 	}
 	model = pressAndSettle(model, key('n'))
@@ -46,6 +47,35 @@ func TestResetToUpstream(t *testing.T) {
 	}
 	if got := readText(t, filepath.Join(repo, "a.txt")); got != "one\n" {
 		t.Fatalf("a.txt = %q, ожидалось содержимое remote", got)
+	}
+}
+
+// Вопрос hard называет коммиты в нужном числе, а без них о коммитах молчит
+// (#399).
+func TestHardResetQuestionCountsCommits(t *testing.T) {
+	cases := []struct {
+		commits int
+		want    string
+	}{
+		{commits: 0, want: "Hard reset to origin/main? Uncommitted changes are lost."},
+		{commits: 1, want: "1 local commit and uncommitted changes are lost"},
+		{commits: 2, want: "2 local commits and uncommitted changes are lost"},
+	}
+
+	for _, tc := range cases {
+		t.Run(strconv.Itoa(tc.commits), func(t *testing.T) {
+			_, repo := remoteRepo(t)
+			for number := range tc.commits {
+				write(t, repo, "a.txt", "local "+strconv.Itoa(number)+"\n")
+				commitAll(t, repo)
+			}
+
+			model := openAsync(resize(open(t, options(repo, layout.Focus())), 120, 24), key('B'))
+			model = hardReset(pressAndSettle(model, key('g')))
+			if body := screenText(model); !strings.Contains(body, tc.want) {
+				t.Fatalf("вопрос без %q:\n%s", tc.want, body)
+			}
+		})
 	}
 }
 

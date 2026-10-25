@@ -70,23 +70,24 @@ func createBranchCmd(repo git.Repo, name, base string) tea.Cmd {
 
 // deleteBranchCmd удаляет ветку и отвечает новым списком: окно веток остаётся
 // открытым.
-func deleteBranchCmd(repo git.Repo, name string) tea.Cmd {
-	return thenBranches(repo, func() error { return repo.DeleteBranch(name) })
+func deleteBranchCmd(repo git.Repo, name, note string) tea.Cmd {
+	return thenBranches(repo, note, func() error { return repo.DeleteBranch(name) })
 }
 
-func renameBranchCmd(repo git.Repo, from, to string) tea.Cmd {
-	return thenBranches(repo, func() error { return repo.RenameBranch(from, to) })
+func renameBranchCmd(repo git.Repo, from, to, note string) tea.Cmd {
+	return thenBranches(repo, note, func() error { return repo.RenameBranch(from, to) })
 }
 
-// thenBranches выполняет правку веток и отвечает новым списком, а отказ git
-// ошибкой: окно веток остаётся открытым, корень перечитывает подвал.
-func thenBranches(repo git.Repo, change func() error) tea.Cmd {
+// thenBranches выполняет правку веток и отвечает новым списком с итогом note,
+// а отказ git ошибкой: окно веток остаётся открытым, корень перечитывает
+// подвал.
+func thenBranches(repo git.Repo, note string, change func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := change(); err != nil {
 			return branchesMsg{repo: repo, err: err}
 		}
 		msg := branchesCmd(repo)().(branchesMsg)
-		msg.edit = true
+		msg.edit, msg.note = true, note
 		return msg
 	}
 }
@@ -183,7 +184,8 @@ func (m Model) askRename(from string) Model {
 		if to == from {
 			return m, nil
 		}
-		return m, renameBranchCmd(m.repo, from, to)
+		note := m.text.Text("branches.renamed", i18n.Args{"from": visible(from), "to": visible(to)})
+		return m, renameBranchCmd(m.repo, from, to, note)
 	})
 }
 
@@ -196,8 +198,9 @@ func (m Model) askDeleteBranch(branch git.Branch) Model {
 
 	args := questionArgs(m.keys)
 	args["name"] = visible(branch.Name)
+	note := m.text.Text("branches.deleted", i18n.Args{"name": visible(branch.Name)})
 	return m.ask(m.text.Text("branches.deleteQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
-		return m, deleteBranchCmd(m.repo, branch.Name)
+		return m, deleteBranchCmd(m.repo, branch.Name, note)
 	})
 }
 

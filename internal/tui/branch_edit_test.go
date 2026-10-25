@@ -128,6 +128,9 @@ func TestDeleteMergedBranch(t *testing.T) {
 	if !strings.Contains(body, "Branches") || strings.Contains(body, "  merged") || strings.Contains(body, "› merged") {
 		t.Fatalf("окно веток не осталось открытым с новым списком:\n%s", body)
 	}
+	if notice := noticeOf(model); !strings.Contains(notice, "Branch merged deleted") {
+		t.Fatalf("тост %q, ожидался итог удаления (#399)", notice)
+	}
 }
 
 // Неслитую ветку git не удаляет, подвал показывает его отказ (случай 4).
@@ -190,6 +193,9 @@ func TestRenameCurrentBranch(t *testing.T) {
 	}
 	if footer := footerOf(model); !strings.Contains(footer, "trunk") {
 		t.Fatalf("подвал %q, ожидалось новое имя", footer)
+	}
+	if notice := noticeOf(model); !strings.Contains(notice, "Branch main renamed to trunk") {
+		t.Fatalf("тост %q, ожидался итог переименования (#399)", notice)
 	}
 }
 

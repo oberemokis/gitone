@@ -111,8 +111,9 @@ func TestBranchDeleteReplyUnderQuestion(t *testing.T) {
 	if body := screenText(model); !strings.Contains(body, "Branches") || !strings.Contains(body, "unmerged") {
 		t.Fatalf("окно веток пропало после ответа:\n%s", body)
 	}
+	// тост «Branch merged deleted» строкой списка не считается
 	for _, row := range strings.Split(screenText(model), "\n") {
-		if strings.Contains(row, "merged") && !strings.Contains(row, "unmerged") {
+		if strings.Contains(row, "merged") && !strings.Contains(row, "unmerged") && !strings.Contains(row, "deleted") {
 			t.Fatalf("удалённая ветка осталась в окне:\n%s", screenText(model))
 		}
 	}
