@@ -248,7 +248,7 @@ func TestRemoteSpinnerTurns(t *testing.T) {
 
 	model, cmd := openRemote(t, repo).Update(key('p'))
 	turned := false
-	for _, msg := range runAll(cmd) {
+	for _, msg := range spinFirst(runAll(cmd)) {
 		model, _ = model.Update(msg)
 		turned = turned || strings.Contains(footerOf(model), "⠙ Pulling…")
 	}

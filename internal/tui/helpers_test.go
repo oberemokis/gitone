@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -153,7 +154,7 @@ func numberedLines(count int) string {
 // стёр бы заметку, которую тест хочет увидеть. Гашение проверяет notice_test.go.
 // Шаг спиннера в микросекунду по той же причине: settle ждал бы 80 мс на
 // каждом перечитывании и каждой сетевой операции, а порядок шага и ответа git
-// задаёт пакет команд, а не время. Репозиторий открывается сразу: каталог
+// задаёт тест (spinFirst), а не время. Репозиторий открывается сразу: каталог
 // repo создан тестом, и отказ git здесь значит сломанный тест, а не
 // проверяемое поведение. Пустой repo это модель без репозитория для тестов
 // одного экрана: git на нулевом Repo отказывает.
@@ -297,6 +298,23 @@ func oneTick() <-chan time.Time {
 	ticks <- time.Time{}
 	close(ticks)
 	return ticks
+}
+
+// isSpin говорит, что ответ это шаг спиннера загрузки или сетевой операции.
+func isSpin(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tui.SpinMsg, tui.RemoteSpinMsg:
+		return true
+	}
+	return false
+}
+
+// spinFirst ставит шаги спиннера раньше остальных ответов: так их доставил бы
+// Bubble Tea, пока git отвечает дольше шага. Место шага в пакете команд на
+// порядок не влияет.
+func spinFirst(msgs []tea.Msg) []tea.Msg {
+	spins := slices.DeleteFunc(slices.Clone(msgs), func(msg tea.Msg) bool { return !isSpin(msg) })
+	return append(spins, slices.DeleteFunc(msgs, isSpin)...)
 }
 
 // runAll выполняет команду, как Bubble Tea: части пакетной команды идут

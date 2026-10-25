@@ -1,6 +1,8 @@
 package tui_test
 
 import (
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -88,16 +90,28 @@ func (b *bubble) press(msg tea.KeyPressMsg) {
 }
 
 // pressSlow нажимает клавишу, которая запускает pull или перечитывание, и
-// запускает только спиннер из пакета команд: git «ещё не ответил». Без этого
-// ответ приходил бы сразу, а проверять надо индикатор, который идёт дольше пяти
-// секунд. Остальные команды ждут в held до release.
+// запускает из пакета команд только таймеры, то есть шаг спиннера: git «ещё не
+// ответил». Без этого ответ приходил бы сразу, а проверять надо индикатор,
+// который идёт дольше пяти секунд. Остальные команды ждут в held до release и
+// до него не начинаются: esc должен застать git идущим.
 func (b *bubble) pressSlow(msg tea.KeyPressMsg) {
 	var cmd tea.Cmd
 	b.model, cmd = b.model.Update(msg)
-	parts := cmd().(tea.BatchMsg)
-	b.run(parts[0])
-	b.held = parts[1:]
+	for _, part := range cmd().(tea.BatchMsg) {
+		if isTimer(part) {
+			b.run(part)
+		} else {
+			b.held = append(b.held, part)
+		}
+	}
 	b.deliver()
+}
+
+// isTimer говорит, что команда это таймер tea.Tick. По типу ответа таймер не
+// узнать, не запустив команду, а запуск соседней части это и есть git, поэтому
+// таймер узнаётся по замыканию, а не по месту в пакете.
+func isTimer(cmd tea.Cmd) bool {
+	return strings.Contains(runtime.FuncForPC(reflect.ValueOf(cmd).Pointer()).Name(), "bubbletea/v2.Tick.")
 }
 
 // release отдаёт ответ git, который держал pressSlow. Цепочка спиннера на

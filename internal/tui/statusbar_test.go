@@ -198,7 +198,7 @@ func TestSpinnerTurnsWhileLoading(t *testing.T) {
 
 	model, cmd := model.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	turned := false
-	for _, msg := range runAll(cmd) {
+	for _, msg := range spinFirst(runAll(cmd)) {
 		model, _ = model.Update(msg)
 		turned = turned || strings.Contains(footerOf(model), "⠙ loading")
 	}
