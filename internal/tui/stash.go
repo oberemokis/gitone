@@ -185,8 +185,9 @@ var stashActions = []windowAction[git.Stash]{
 		m.active = noWindow
 		return m, stashPopCmd(m.repo, stash)
 	}},
-	{action: keymap.StashDrop, changesRepo: true, run: func(m Model, _ git.Stash) (tea.Model, tea.Cmd) {
+	{action: keymap.StashDrop, changesRepo: true, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
 		m.active = stashDropWindow
+		m.dropping = stash
 		return m, nil
 	}},
 	{action: keymap.StashRename, changesRepo: true, run: func(m Model, stash git.Stash) (tea.Model, tea.Cmd) {
@@ -216,12 +217,26 @@ func (m Model) answerStashDrop(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.active = noWindow
-	return m, stashDropCmd(m.repo, m.stashes[m.cursor])
+	return m, stashDropCmd(m.repo, m.droppingNow())
 }
 
-// stashBox рисует список stash. Вопрос об удалении стоит в последней строке
-// окна, пока не отвечен.
-func stashBox(p paint, stashes []git.Stash, cursor int, asking bool, screenWidth, screenHeight int) string {
+// droppingNow это stash из вопроса об удалении под его нынешним номером.
+// Список, пришедший под вопросом, сдвигает номера и курсор: после нового
+// stash прежний stash@{1} стал stash@{2}, и удаление по курсору унесло бы
+// другую запись (#379). Запись ищется по хэшу. Если её в списке нет, остаётся
+// номер из вопроса, и StashDrop откажет: ссылка указывает на другой коммит.
+func (m Model) droppingNow() git.Stash {
+	for _, stash := range m.stashes {
+		if stash.Hash == m.dropping.Hash {
+			return stash
+		}
+	}
+	return m.dropping
+}
+
+// stashBox рисует список stash. Вопрос об удалении stash asking стоит в
+// последней строке окна, пока не отвечен; без вопроса asking пустой.
+func stashBox(p paint, stashes []git.Stash, cursor int, asking git.Stash, screenWidth, screenHeight int) string {
 	rows := make([]string, len(stashes))
 	for index, stash := range stashes {
 		rows[index] = visible(stash.Ref + "  " + stash.Subject)
@@ -236,9 +251,9 @@ func stashBox(p paint, stashes []git.Stash, cursor int, asking bool, screenWidth
 		empty:  []string{p.text.Text("stash.empty", nil)},
 		hint:   p.hint(stashHint...),
 	}
-	if asking {
+	if asking.Ref != "" {
 		args := questionArgs(p.keys)
-		args["ref"] = visible(stashes[cursor].Ref)
+		args["ref"] = visible(asking.Ref)
 		box.question = p.text.Text("stash.dropQuestion", args)
 	}
 

@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"gitone/internal/git"
 	"gitone/internal/keymap"
 )
 
@@ -107,7 +108,7 @@ var windowKinds = map[window]windowKind{
 	stashWindow: {
 		key: Model.stashKey,
 		box: func(m Model, p paint, _ string) string {
-			return stashBox(p, m.stashes, m.cursor, false, m.width, m.bodyHeight())
+			return stashBox(p, m.stashes, m.cursor, git.Stash{}, m.width, m.bodyHeight())
 		},
 		rows:  func(m Model) int { return len(m.stashes) },
 		enter: keymap.StashDiff,
@@ -182,7 +183,7 @@ var windowKinds = map[window]windowKind{
 	stashDropWindow: {
 		key: Model.answerStashDrop,
 		box: func(m Model, p paint, _ string) string {
-			return stashBox(p, m.stashes, m.cursor, true, m.width, m.bodyHeight())
+			return stashBox(p, m.stashes, m.cursor, m.droppingNow(), m.width, m.bodyHeight())
 		},
 	},
 	// общий вопрос своего рисунка не имеет: он стоит последней строкой окна под

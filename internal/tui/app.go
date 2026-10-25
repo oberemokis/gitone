@@ -81,6 +81,7 @@ type Model struct {
 	branches  []git.Branch
 	worktrees []git.Worktree
 	stashes   []git.Stash
+	dropping  git.Stash // о нём спрашивает вопрос удаления stash (stash.go)
 	tags      []git.Tag
 	remotes   []git.Remote
 	reflog    []git.ReflogEntry

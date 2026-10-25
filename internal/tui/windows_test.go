@@ -223,8 +223,16 @@ func TestCtrlCAnswersQuestions(t *testing.T) {
 		if cmd != nil {
 			t.Fatal("ctrl c в вопросе удаления stash дал команду, want ответ нет")
 		}
-		if !strings.Contains(screenText(model), "stash@{0}") {
-			t.Fatalf("окно stash закрылось после ответа нет:\n%s", screenText(model))
+		// строка stash@{0} есть и в самом вопросе: окно проверяется по ней,
+		// а снятие вопроса по его тексту (#379, случай 3)
+		body := screenText(model)
+		if !strings.Contains(body, "stash@{0}") || strings.Contains(body, "Drop stash@{0}?") {
+			t.Fatalf("после ответа нет ожидалось окно stash без вопроса:\n%s", body)
+		}
+
+		answerYes(model)
+		if out := runGit(t, repo, "stash", "list"); out == "" {
+			t.Fatal("y после ctrl c удалил stash")
 		}
 	})
 }
