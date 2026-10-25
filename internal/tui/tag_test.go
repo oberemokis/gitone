@@ -48,6 +48,20 @@ func TestTagsListShowsBothKinds(t *testing.T) {
 	}
 }
 
+// Поиск в окне тегов фильтрует по имени, как в окне веток: «/rel» оставляет
+// release и убирает light.
+func TestTagsSearchFilters(t *testing.T) {
+	_, model := tagRepo(t)
+
+	screen := screenText(typeText(model, "/rel"))
+	if !strings.Contains(screen, "/ rel") {
+		t.Fatalf("строки поиска нет:\n%s", screen)
+	}
+	if !strings.Contains(screen, "release annotated") || strings.Contains(screen, "light") {
+		t.Fatalf("поиск оставил не один release:\n%s", screen)
+	}
+}
+
 // enter на теге первого коммита не показывает дифф до рабочего дерева, подвал
 // объясняет почему; на обычном коммите дифф коммита (#297, случаи 1 и 2).
 func TestTagsDiffOfFirstCommit(t *testing.T) {

@@ -98,47 +98,44 @@ func (m Model) remoteSpinTick(id int) tea.Cmd {
 	return tea.Tick(m.spinStep, func(time.Time) tea.Msg { return remoteSpinMsg{id: id} })
 }
 
-// pullCmd и pushCmd запускают git в команде, а не в Update: сеть бывает
-// медленной, и экран не должен висеть.
-func pullCmd(ctx context.Context, repo git.Repo, id int) tea.Cmd {
-	return func() tea.Msg {
+// syncWork это git операций pull, push, принудительного push и fetch для
+// startRemote.
+func syncWork(repo git.Repo, kind remoteKind) func(context.Context) remoteDoneMsg {
+	switch kind {
+	case pushing, forcePushing:
+		push := repo.Push
+		if kind == forcePushing {
+			push = repo.PushForceLease
+		}
+		return func(ctx context.Context) remoteDoneMsg {
+			target, err := push(ctx)
+			return remoteDoneMsg{target: target, err: err}
+		}
+	case fetching:
+		return func(ctx context.Context) remoteDoneMsg { return remoteDoneMsg{err: repo.Fetch(ctx)} }
+	}
+
+	return func(ctx context.Context) remoteDoneMsg {
 		updated, err := repo.Pull(ctx)
-		return remoteDoneMsg{id: id, kind: pulling, updated: updated, err: err}
+		return remoteDoneMsg{updated: updated, err: err}
 	}
 }
 
-func pushCmd(ctx context.Context, repo git.Repo, id int, kind remoteKind) tea.Cmd {
-	push := repo.Push
-	if kind == forcePushing {
-		push = repo.PushForceLease
-	}
-	return func() tea.Msg {
-		target, err := push(ctx)
-		return remoteDoneMsg{id: id, kind: kind, target: target, err: err}
-	}
-}
-
-func fetchCmd(ctx context.Context, repo git.Repo, id int) tea.Cmd {
-	return func() tea.Msg {
-		return remoteDoneMsg{id: id, kind: fetching, err: repo.Fetch(ctx)}
-	}
-}
-
-// startRemote запускает сетевую операцию. Вторая операция не стартует, пока
-// идёт первая: это отказ из changesRepo, он решён выше по вызову.
-func (m Model) startRemote(kind remoteKind) (tea.Model, tea.Cmd) {
+// startRemote запускает сетевую операцию kind со спиннером в подвале и отменой
+// по esc. work это её git: он идёт в команде, а не в Update, потому что сеть
+// бывает медленной и экран не должен висеть. Номер и вид операции в ответ
+// ставит startRemote. Вторая операция не стартует, пока идёт первая: это
+// отказ из changesRepo, он решён выше по вызову.
+func (m Model) startRemote(kind remoteKind, work func(context.Context) remoteDoneMsg) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.remote = remote{kind: kind, id: m.remote.id + 1, cancel: cancel}
 
-	run := pullCmd(ctx, m.repo, m.remote.id)
-	switch kind {
-	case pushing, forcePushing:
-		run = pushCmd(ctx, m.repo, m.remote.id, kind)
-	case fetching:
-		run = fetchCmd(ctx, m.repo, m.remote.id)
-	}
-
-	return m, tea.Batch(m.remoteSpinTick(m.remote.id), run)
+	id := m.remote.id
+	return m, tea.Batch(m.remoteSpinTick(id), func() tea.Msg {
+		msg := work(ctx)
+		msg.id, msg.kind = id, kind
+		return msg
+	})
 }
 
 // stopRemote отменяет идущую операцию: git убит, ответ придёт сообщением с
@@ -195,7 +192,7 @@ func (m Model) askForcePush(upstream any) Model {
 		if next, refused := m.refuseWhileRemote(); refused {
 			return next, nil
 		}
-		return m.startRemote(forcePushing)
+		return m.startRemote(forcePushing, syncWork(m.repo, forcePushing))
 	})
 }
 

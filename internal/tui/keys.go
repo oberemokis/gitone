@@ -72,7 +72,7 @@ func (p paint) hint(actions ...keymap.Action) string {
 		}
 	}
 
-	return strings.Join(hints, panel.Render("   "))
+	return strings.Join(hints, panel.Render(hintGap))
 }
 
 // pressable помечает подсказку местом клика: клик нажимает первую клавишу
@@ -86,6 +86,10 @@ func pressable(action keymap.Action, hint string) string {
 func keyHint(base lipgloss.Style, colors theme.Theme, key, label string) string {
 	return base.Render(key) + base.Foreground(colors.TextMuted).Render(" "+label)
 }
+
+// hintGap стоит между парами «клавиша подпись» в подвале, окнах и ряду под «No
+// changes». packHint переносит подсказку окна по нему.
+const hintGap = "   "
 
 // close это «esc close» для заголовка окна по его действию закрытия.
 // Отключённое закрытие даёт пустую строку, как в подсказках.

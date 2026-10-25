@@ -2,7 +2,6 @@ package tui
 
 import (
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -10,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/keymap"
+	"gitone/internal/tui/editor"
 	"gitone/internal/tui/zone"
 )
 
@@ -49,7 +49,7 @@ const (
 // гаснет сам по таймеру (notice.go).
 func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if kind, open := windowKinds[m.active]; open {
-		return kind.key(m, key)
+		return kind.press(m, key)
 	}
 
 	m.notice = ""
@@ -162,9 +162,9 @@ func (m Model) wheelList(button tea.MouseButton) Model {
 	return m
 }
 
-// searchKey разбирает поиск в списке лога, reflog, веток, worktree и тегов
-// (#110, #118): пока поле открыто, клавиши идут в него, list.search его
-// открывает. handled false значит, что клавиша остаётся окну.
+// searchKey разбирает поиск в списке окна с windowKind.search (#110, #118):
+// пока поле открыто, клавиши идут в него, list.search его открывает. handled
+// false значит, что клавиша остаётся окну.
 func (m Model) searchKey(key tea.KeyPressMsg) (next Model, cmd tea.Cmd, handled bool) {
 	if m.searching {
 		next, cmd = m.typeSearch(key)
@@ -220,25 +220,19 @@ func (m Model) paste(content string) Model {
 		m.picker = m.picker.Type(line)
 	case m.active == promptWindow:
 		m.prompt.text += line
-	case m.searching && (m.active == logWindow || m.active == branchWindow || m.active == worktreeWindow || m.active == tagWindow || m.active == reflogWindow):
+	case m.searching && windowKinds[m.active].search:
 		m.query += line
 		m.cursor = 0
 	}
 	return m
 }
 
-// pastedLine готовит вставку для однострочного поля, как поле описания: строка
-// до первого `\r` или `\n`, таб четырьмя пробелами, управляющие символы
-// отбрасываются: ESC из буфера ушёл бы в тему коммита кодом терминала.
+// pastedLine готовит вставку для однострочного поля так же, как поле описания
+// (editor.Clean): ESC из буфера ушёл бы в тему коммита кодом терминала. Из
+// вставки остаётся строка до первого перевода строки.
 func pastedLine(content string) string {
-	line, _, _ := strings.Cut(strings.ReplaceAll(content, "\r", "\n"), "\n")
-	line = strings.ReplaceAll(line, "\t", "    ")
-	return strings.Map(func(char rune) rune {
-		if unicode.IsControl(char) {
-			return -1
-		}
-		return char
-	}, line)
+	line, _, _ := strings.Cut(editor.Clean(content), "\n")
+	return line
 }
 
 // matching оставляет элементы, в тексте которых есть запрос без учёта
@@ -262,7 +256,7 @@ func matching[T any](items []T, query string, text func(T) string) []T {
 // строки с курсором и последняя строка с подсказкой или вопросом.
 type list struct {
 	title string
-	// close это «esc close» справа от заголовка (closeHint)
+	// close это «esc close» справа от заголовка (paint.close)
 	close string
 	// наибольшая ширина окна, на узком экране оно ужимается
 	width int
@@ -400,11 +394,11 @@ func (l list) view(p paint, screenWidth, screenHeight int) string {
 }
 
 // packHint раскладывает подсказку окна по строкам шириной width: пары
-// «клавиша подпись» (windowHint) не рвутся, строка переносится между ними. Пара
+// «клавиша подпись» (paint.hint) не рвутся, строка переносится между ними. Пара
 // шире строки обрезается «…»: длинную переназначенную клавишу иначе нечем
 // показать.
 func packHint(panel, muted lipgloss.Style, hint string, width int) []string {
-	gap := panel.Render("   ")
+	gap := panel.Render(hintGap)
 	ellipsis := muted.Render("…")
 
 	var lines []string

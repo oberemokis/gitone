@@ -220,14 +220,10 @@ var logActions = []windowAction[git.LogEntry]{
 // список сверяется с группой окна в keymap.
 var logHint = actionsOf(logActions, keymap.ListSearch, keymap.LogFilter)
 
-// logKey отдаёт клавиши окну лога: list.search открывает поле поиска,
-// log.filter меню фильтров, остальное logActions. Курсор стоит только на
+// logKey отдаёт клавиши окну лога: log.filter меню фильтров, остальное
+// logActions. Поиск разбирает windowKind.press. Курсор стоит только на
 // коммитах.
 func (m Model) logKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.searchKey(key); handled {
-		return next, cmd
-	}
-
 	shown := m.logShown()
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		next.cursor = commitRow(shown, m.cursor, next.cursor)

@@ -32,6 +32,9 @@ type windowKind struct {
 	// close это клавиша закрытия: её жмёт клик мимо окна, как кнопку закрытия
 	// в заголовке (#367). Пусто у окон-списков и меню, их закрывает list.close
 	close keymap.Action
+	// search это поиск в списке (searchKey): нажатие сначала идёт полю поиска,
+	// вставка из буфера уходит в запрос
+	search bool
 }
 
 var windowKinds = map[window]windowKind{
@@ -63,7 +66,8 @@ var windowKinds = map[window]windowKind{
 		close: keymap.CommitClose,
 	},
 	logWindow: {
-		key: Model.logKey,
+		key:    Model.logKey,
+		search: true,
 		box: func(m Model, p paint, question string) string {
 			return logBox(p, m.logShown(), m.logFilter, m.cursor, m.query, m.searching, question, m.width, m.bodyHeight())
 		},
@@ -90,7 +94,8 @@ var windowKinds = map[window]windowKind{
 		},
 	},
 	branchWindow: {
-		key: Model.branchKey,
+		key:    Model.branchKey,
+		search: true,
 		box: func(m Model, p paint, question string) string {
 			return branchBox(p, m.branchesShown(), m.cursor, m.query, m.searching, question, m.width, m.bodyHeight())
 		},
@@ -98,7 +103,8 @@ var windowKinds = map[window]windowKind{
 		enter: keymap.BranchesSwitch,
 	},
 	worktreeWindow: {
-		key: Model.worktreeKey,
+		key:    Model.worktreeKey,
+		search: true,
 		box: func(m Model, p paint, _ string) string {
 			return worktreeBox(p, m.worktreesShown(), m.cursor, m.query, m.searching, m.width, m.bodyHeight())
 		},
@@ -114,7 +120,8 @@ var windowKinds = map[window]windowKind{
 		enter: keymap.StashDiff,
 	},
 	tagWindow: {
-		key: Model.tagKey,
+		key:    Model.tagKey,
+		search: true,
 		box: func(m Model, p paint, question string) string {
 			return tagBox(p, m.tagsShown(), m.cursor, m.query, m.searching, question, m.width, m.bodyHeight())
 		},
@@ -130,7 +137,8 @@ var windowKinds = map[window]windowKind{
 		rows: func(m Model) int { return len(m.remotes) },
 	},
 	reflogWindow: {
-		key: Model.reflogKey,
+		key:    Model.reflogKey,
+		search: true,
 		box: func(m Model, p paint, _ string) string {
 			return reflogBox(p, m.reflogShown(), m.cursor, m.query, m.searching, m.width, m.bodyHeight())
 		},
@@ -189,6 +197,18 @@ var windowKinds = map[window]windowKind{
 	// общий вопрос своего рисунка не имеет: он стоит последней строкой окна под
 	// ним (asking) или в подвале
 	questionWindow: {key: Model.answerQuestion},
+}
+
+// press отдаёт нажатие окну, а у окна с поиском сначала полю поиска: пока оно
+// открыто, клавиши идут в запрос, list.search его открывает.
+func (k windowKind) press(m Model, key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if !k.search {
+		return k.key(m, key)
+	}
+	if next, cmd, handled := m.searchKey(key); handled {
+		return next, cmd
+	}
+	return k.key(m, key)
 }
 
 // moveBy сдвигает курсор окна на delta строк: своим move или общим курсором

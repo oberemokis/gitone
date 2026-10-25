@@ -89,18 +89,27 @@ func (m Model) handle(key tea.KeyPressMsg) Model {
 }
 
 // Type вставляет text в позицию курсора, как набранные клавиши: так приходит
-// вставка из буфера. Конец строки любого вида становится переводом строки,
-// таб четырьмя пробелами, остальные управляющие символы отбрасываются: на
-// экран они ушли бы кодами терминала. Поле идёт за курсором.
+// вставка из буфера. Текст проходит Clean. Поле идёт за курсором.
 func (m Model) Type(text string) Model {
 	return m.insert(text).follow()
 }
 
-func (m Model) insert(text string) Model {
+// Clean готовит набранное или вставленное для поля: конец строки любого вида
+// становится переводом строки, таб четырьмя пробелами, остальные управляющие
+// символы отбрасываются: на экран они ушли бы кодами терминала. Однострочные
+// поля корня чистят вставку так же.
+func Clean(text string) string {
 	text = strings.NewReplacer("\r\n", "\n", "\r", "\n", "\t", "    ").Replace(text)
-	inserted := slices.DeleteFunc([]rune(text), func(char rune) bool {
-		return char != '\n' && unicode.IsControl(char)
-	})
+	return strings.Map(func(char rune) rune {
+		if char != '\n' && unicode.IsControl(char) {
+			return -1
+		}
+		return char
+	}, text)
+}
+
+func (m Model) insert(text string) Model {
+	inserted := []rune(Clean(text))
 
 	m.text = slices.Concat(m.text[:m.cursor], inserted, m.text[m.cursor:])
 	m.cursor += len(inserted)
