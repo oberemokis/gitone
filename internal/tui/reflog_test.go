@@ -38,6 +38,20 @@ func TestReflogList(t *testing.T) {
 	}
 }
 
+// Поиск в reflog фильтрует по действию и описанию: «/moving» оставляет запись
+// reset и убирает коммит lost.
+func TestReflogSearchFilters(t *testing.T) {
+	_, lost, model := lostCommitRepo(t)
+
+	screen := screenText(typeText(model, "/moving"))
+	if !strings.Contains(screen, "/ moving") || !strings.Contains(screen, "moving to HEAD~1") {
+		t.Fatalf("строки поиска или записи reset нет:\n%s", screen)
+	}
+	if strings.Contains(screen, lost[:7]) {
+		t.Fatalf("запись коммита lost осталась:\n%s", screen)
+	}
+}
+
 // enter на записи потерянного коммита показывает его дифф (случай 2).
 func TestReflogOpenShowsCommit(t *testing.T) {
 	_, _, model := lostCommitRepo(t)
