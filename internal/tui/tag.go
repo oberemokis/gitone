@@ -15,17 +15,19 @@ import (
 // tagsMsg несёт список тегов или ошибку git. note это итог правки, после
 // которой список пришёл в открытое окно.
 type tagsMsg struct {
+	repo git.Repo
 	tags []git.Tag
 	err  error
 	note string
 }
 
 func (msg tagsMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.tagsArrived(msg), nil }
+func (msg tagsMsg) from() git.Repo                     { return msg.repo }
 
 func tagsCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
 		tags, err := repo.Tags()
-		return tagsMsg{tags: tags, err: err}
+		return tagsMsg{repo: repo, tags: tags, err: err}
 	}
 }
 
@@ -34,7 +36,7 @@ func tagsCmd(repo git.Repo) tea.Cmd {
 func thenTags(repo git.Repo, note string, change func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := change(); err != nil {
-			return tagsMsg{err: err}
+			return tagsMsg{repo: repo, err: err}
 		}
 		msg := tagsCmd(repo)().(tagsMsg)
 		msg.note = note

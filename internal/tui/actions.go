@@ -109,7 +109,7 @@ var globalActions = map[keymap.Action]globalAction{
 	keymap.FilesEdit:     {run: Model.editFile},
 	keymap.FilesIgnore:   {run: Model.ignoreFile, changesRepo: true},
 
-	keymap.AppLog:        {run: inRepo(func(repo git.Repo) tea.Cmd { return logCmd(repo, git.LogFilter{}) })},
+	keymap.AppLog:        {run: func(m Model) (tea.Model, tea.Cmd) { return m.requestLog(git.LogFilter{}) }},
 	keymap.AppBranches:   {run: inRepo(branchesCmd)},
 	keymap.AppWorktrees:  {run: inRepo(worktreesCmd)},
 	keymap.AppTags:       {run: inRepo(tagsCmd)},

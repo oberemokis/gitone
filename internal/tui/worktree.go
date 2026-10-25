@@ -16,16 +16,18 @@ import (
 
 // worktreesMsg несёт список рабочих деревьев или ошибку git.
 type worktreesMsg struct {
+	repo      git.Repo
 	worktrees []git.Worktree
 	err       error
 }
 
 func (msg worktreesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.worktreesArrived(msg), nil }
+func (msg worktreesMsg) from() git.Repo                     { return msg.repo }
 
 func worktreesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
 		worktrees, err := repo.Worktrees()
-		return worktreesMsg{worktrees: worktrees, err: err}
+		return worktreesMsg{repo: repo, worktrees: worktrees, err: err}
 	}
 }
 
@@ -65,6 +67,11 @@ func checkWorktreeCmd(path string) tea.Cmd {
 // запуска относятся к прежнему дереву, поэтому после переключения показывается
 // дифф рабочего дерева, и b возвращает к нему же. Недоступный каталог оставляет
 // прежнее дерево и ставит причину в подвал.
+//
+// Окна, меню, вопросы и окно коммита, открытые, пока шла проверка, показывают
+// прежнее дерево, а их действия ушли бы в новое: hard reset на коммит main в
+// side-tree, коммит индекса side-tree сообщением для main (#380). Поэтому
+// переключение закрывает их. Набранное в окне коммита остаётся в полях.
 func (m Model) worktreeChecked(msg worktreeCheckedMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.say(m.text.Error(msg.err)), nil
@@ -72,6 +79,8 @@ func (m Model) worktreeChecked(msg worktreeCheckedMsg) (tea.Model, tea.Cmd) {
 
 	m.repo = msg.repo.WithAskpass(m.askpass.Env())
 	m.args, m.baseArgs = nil, nil
+	m.active = noWindow
+	m.query, m.searching = "", false
 	return m.startReload()
 }
 

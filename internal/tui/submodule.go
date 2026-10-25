@@ -16,16 +16,18 @@ import (
 
 // submodulesMsg несёт список подмодулей или ошибку git.
 type submodulesMsg struct {
+	repo       git.Repo
 	submodules []git.Submodule
 	err        error
 }
 
 func (msg submodulesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.submodulesArrived(msg), nil }
+func (msg submodulesMsg) from() git.Repo                     { return msg.repo }
 
 func submodulesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
 		submodules, err := repo.Submodules()
-		return submodulesMsg{submodules: submodules, err: err}
+		return submodulesMsg{repo: repo, submodules: submodules, err: err}
 	}
 }
 

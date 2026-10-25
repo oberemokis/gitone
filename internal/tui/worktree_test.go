@@ -150,6 +150,49 @@ func TestWorktreeSwitchShowsItsDiff(t *testing.T) {
 	}
 }
 
+// switchPending выбирает side-tree в окне worktree и возвращает проверку его
+// каталога недоставленной: она идёт, пока пользователь работает дальше.
+func switchPending(model tea.Model) (tea.Model, tea.Cmd) {
+	model = openAsync(model, key('W'))
+	model, _ = model.Update(key('j'))
+	return model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+}
+
+// Пока шла проверка каталога, открыли лог прежнего дерева и меню reset.
+// Переключение их закрывает: hard и y после него не стирают правку side-tree
+// (#380, случай 1).
+func TestWorktreeSwitchClosesOpenWindows(t *testing.T) {
+	_, side, model := twoWorktrees(t)
+	head := runGit(t, side, "rev-parse", "HEAD")
+
+	model, check := switchPending(model)
+	model = openAsync(model, key('l'))
+	model, _ = model.Update(key('g'))
+	model = settle(model, check, 3)
+	if body := screenText(model); strings.Contains(body, "Hard: discard") || !strings.Contains(body, "side-edit") {
+		t.Fatalf("после переключения ожидался дифф side-tree без меню reset:\n%s", body)
+	}
+
+	answerYes(hardReset(model))
+	if got := readText(t, filepath.Join(side, "a.txt")); got != "side-edit\n" || runGit(t, side, "rev-parse", "HEAD") != head {
+		t.Fatalf("side-tree изменён: a.txt %q", got)
+	}
+}
+
+// Лог, запрошенный в прежнем дереве и пришедший после переключения, окна не
+// открывает: в нём коммиты прежнего дерева (случай 2).
+func TestWorktreeSwitchDropsOldList(t *testing.T) {
+	_, _, model := twoWorktrees(t)
+
+	model, check := switchPending(model)
+	model, log := model.Update(key('l'))
+	model = settle(model, check, 3)
+	model = settle(model, log, 2)
+	if body := screenText(model); strings.Contains(body, "Log") {
+		t.Fatalf("лог прежнего дерева открылся в side-tree:\n%s", body)
+	}
+}
+
 // enter на текущем закрывает окно и ничего не перечитывает; esc закрывает.
 func TestWorktreeWindowCloses(t *testing.T) {
 	for _, press := range []tea.KeyPressMsg{{Code: tea.KeyEnter}, {Code: tea.KeyEscape}} {
