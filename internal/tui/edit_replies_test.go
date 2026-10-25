@@ -107,6 +107,10 @@ func TestBranchDeleteReplyUnderQuestion(t *testing.T) {
 	model = deliver(model, pending)
 	model, _ = model.Update(key('n'))
 
+	// окно на месте: пустой экран тоже обошёлся бы без удалённой ветки
+	if body := screenText(model); !strings.Contains(body, "Branches") || !strings.Contains(body, "unmerged") {
+		t.Fatalf("окно веток пропало после ответа:\n%s", body)
+	}
 	for _, row := range strings.Split(screenText(model), "\n") {
 		if strings.Contains(row, "merged") && !strings.Contains(row, "unmerged") {
 			t.Fatalf("удалённая ветка осталась в окне:\n%s", screenText(model))
@@ -124,7 +128,11 @@ func TestRewriteReplyUnderQuestion(t *testing.T) {
 	model = deliver(model, pending)
 	model, _ = model.Update(key('n'))
 
-	if body := screenText(model); strings.Contains(body, "three") {
+	body := screenText(model)
+	if !strings.Contains(body, "Log") || !strings.Contains(body, "four") || !strings.Contains(body, "two") {
+		t.Fatalf("лог пропал после ответа:\n%s", body)
+	}
+	if strings.Contains(body, "three") {
 		t.Fatalf("лог со старой историей после squash:\n%s", body)
 	}
 }

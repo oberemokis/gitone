@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
@@ -79,7 +80,17 @@ func TestThemeFileSetsSyntaxKinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if palette.SyntaxTag != lipgloss.Color("#060606") || palette.SyntaxFunction != lipgloss.Color("#010101") {
-		t.Fatalf("ключи новых видов не прочитаны: %+v", palette)
+	got := map[string]color.Color{
+		"syntaxFunction": palette.SyntaxFunction,
+		"syntaxType":     palette.SyntaxType,
+		"syntaxConstant": palette.SyntaxConstant,
+		"syntaxProperty": palette.SyntaxProperty,
+		"syntaxOperator": palette.SyntaxOperator,
+		"syntaxTag":      palette.SyntaxTag,
+	}
+	for name, want := range file.Colors {
+		if got[name] != lipgloss.Color(string(want)) {
+			t.Errorf("%s = %v, ожидался %s из файла", name, got[name], want)
+		}
 	}
 }

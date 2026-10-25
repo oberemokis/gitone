@@ -80,7 +80,7 @@ func TestRemotesDeleteUpstream(t *testing.T) {
 	if body := screenText(model); !strings.Contains(body, "loses its upstream") {
 		t.Fatalf("вопрос без предупреждения об upstream:\n%s", body)
 	}
-	model, _ = model.Update(key('n'))
+	model = pressAndSettle(model, key('n'))
 	if got := runGit(t, repo, "remote"); got != "origin" {
 		t.Fatalf("remote %q, удалён без y", got)
 	}

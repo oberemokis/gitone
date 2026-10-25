@@ -94,6 +94,9 @@ func TestHelpReturnsAfterLogCloses(t *testing.T) {
 	}
 }
 
+// Окно поиска и окно коммита закрывают справку. Пока окно открыто, справку не
+// видно в любом случае (helpShown), поэтому проверка после esc: esc закрывает
+// окно, а не справку, и незакрытая справка встала бы обратно.
 func TestSearchAndCommitCloseHelp(t *testing.T) {
 	opens := map[string]tea.KeyPressMsg{
 		"поиск":  {Code: 'p', Mod: tea.ModCtrl},

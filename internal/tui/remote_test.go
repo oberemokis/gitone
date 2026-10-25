@@ -346,8 +346,13 @@ func TestWindowActionsRefuseWhilePullRuns(t *testing.T) {
 			name:  "новый тег",
 			setup: func(t *testing.T, repo string) {},
 			open:  key('t'),
-			keys:  []tea.KeyPressMsg{key('n')},
-			check: func(t *testing.T, repo string) {},
+			// имя и пустое сообщение: открытое поле поставило бы лёгкий тег v9
+			keys: []tea.KeyPressMsg{key('n'), key('v'), key('9'), {Code: tea.KeyEnter}, {Code: tea.KeyEnter}},
+			check: func(t *testing.T, repo string) {
+				if got := runGit(t, repo, "tag", "--list"); got != "" {
+					t.Errorf("теги %q, ожидалось ни одного", got)
+				}
+			},
 		},
 		{
 			name: "переключение worktree",
@@ -397,8 +402,10 @@ func TestWindowActionsRefuseWhilePullRuns(t *testing.T) {
 			model, _ := openRemote(t, repo).Update(key('p'))
 			model = openAsync(model, tc.open)
 
+			// команды нажатий доводятся до конца: действие, которое отказ
+			// пропустил, иначе не дошло бы до git, и проверка не упала бы
 			for _, pressed := range tc.keys {
-				model, _ = model.Update(pressed)
+				model = pressAndSettle(model, pressed)
 			}
 
 			if footer := footerOf(model); !strings.Contains(footer, "pull is running") {

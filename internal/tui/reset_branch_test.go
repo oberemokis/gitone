@@ -35,7 +35,7 @@ func TestResetToUpstream(t *testing.T) {
 	if body := screenText(model); !strings.Contains(body, "1 local commits and uncommitted changes are lost") {
 		t.Fatalf("вопрос не назвал число коммитов:\n%s", body)
 	}
-	model, _ = model.Update(key('n'))
+	model = pressAndSettle(model, key('n'))
 	if got := runGit(t, repo, "log", "-1", "--format=%s"); got != "local" {
 		t.Fatal("reset выполнен без y")
 	}
