@@ -29,7 +29,7 @@ const (
 // может работать долго, и экран не должен висеть.
 func commitCmd(repo git.Repo, subject, description string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: repo.Commit(subject, description)}
+		return commitDoneMsg{actionDoneMsg{err: repo.Commit(subject, description)}}
 	}
 }
 
@@ -41,8 +41,57 @@ func amendCmd(repo git.Repo, subject, description, note, warning string) tea.Cmd
 		if !published {
 			warning = ""
 		}
-		return actionDoneMsg{err: err, note: note, warning: warning}
+		return commitDoneMsg{actionDoneMsg{err: err, note: note, warning: warning}}
 	}
+}
+
+// commitDoneMsg это ответ git на коммит или amend из окна коммита.
+type commitDoneMsg struct {
+	actionDoneMsg
+}
+
+func (msg commitDoneMsg) apply(m Model) (tea.Model, tea.Cmd) {
+	return m.settleDraft(msg.err).actionDone(msg.actionDoneMsg)
+}
+
+// commitDraft это сообщение, отправленное из окна коммита, со своим режимом.
+// Окно закрывается до ответа git, а отказ (пустой индекс, хук) не должен
+// стирать набранное: refused возвращает его в следующее открытие окна в том
+// же режиме (#393).
+type commitDraft struct {
+	subject, description, opened, rewording string
+	amending, refused                       bool
+}
+
+// keepDraft запоминает набранное перед отправкой.
+func (m Model) keepDraft() Model {
+	m.draft = commitDraft{subject: m.subject, description: m.description.Text(), opened: m.opened, rewording: m.rewording, amending: m.amending}
+	return m
+}
+
+// settleDraft разбирает ответ git: успех черновик забывает, отказ отдаёт его
+// следующему открытию окна.
+func (m Model) settleDraft(err error) Model {
+	if err == nil {
+		m.draft = commitDraft{}
+	} else {
+		m.draft.refused = true
+	}
+	return m
+}
+
+// restoreDraft возвращает в окно отвергнутое git сообщение, если окно открыто
+// в том же режиме: коммит, amend или reword того же коммита.
+func (m Model) restoreDraft() (Model, bool) {
+	draft := m.draft
+	if !draft.refused || draft.amending != m.amending || draft.rewording != m.rewording {
+		return m, false
+	}
+
+	m.draft = commitDraft{}
+	m.subject, m.opened = draft.subject, draft.opened
+	m.description = m.description.Type(draft.description)
+	return m, true
 }
 
 // lastMessageMsg несёт тему и описание последнего коммита для amend или
@@ -73,17 +122,27 @@ func (m Model) openAmend(msg lastMessageMsg) Model {
 		return m
 	}
 
-	m = m.openCommit()
+	m = m.blankCommit()
 	m.amending = true
+	if restored, ok := m.restoreDraft(); ok {
+		return restored
+	}
 	m.subject = msg.subject
 	m.description = m.description.Type(msg.description)
 	m.opened = fullMessage(m.subject, m.description.Text())
 	return m
 }
 
-// openCommit открывает окно коммита с пустой темой и описанием, курсор в теме.
-// Клавиши уходят в окно целиком, как в окно поиска.
+// openCommit открывает окно коммита с пустой темой и описанием, а после отказа
+// git с тем, что было набрано (restoreDraft).
 func (m Model) openCommit() Model {
+	m, _ = m.blankCommit().restoreDraft()
+	return m
+}
+
+// blankCommit открывает окно коммита с пустыми полями, курсор в теме. Клавиши
+// уходят в окно целиком, как в окно поиска.
+func (m Model) blankCommit() Model {
 	m.active = commitWindow
 	m.helpOpen = false
 	return m.clearCommit()
@@ -156,7 +215,7 @@ func (m Model) typeCommit(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// пробелами, и отправка их бы заменила
 		unchanged := fullMessage(m.subject, description) == m.opened
 		m.active = back
-		m = m.clearCommit()
+		m = m.keepDraft().clearCommit()
 		switch {
 		case amending && unchanged:
 			note := m.text.Text("commit.amended", nil)

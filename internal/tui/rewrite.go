@@ -13,13 +13,15 @@ import (
 // rewrittenMsg несёт итог правки истории (#219): ошибку git, переписаны ли
 // коммиты из upstream, итог для подвала и коммит, на который встанет курсор,
 // если лог ещё открыт: follow по теме и автору, at строкой на случай, если
-// его не найти.
+// его не найти. reword говорит, что правку отправило окно коммита: его
+// черновик ждёт этого ответа (commitDraft).
 type rewrittenMsg struct {
 	err       error
 	published bool
 	note      string
 	follow    git.LogEntry
 	at        int
+	reword    bool
 }
 
 func (msg rewrittenMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.rewritten(msg) }
@@ -108,7 +110,7 @@ func (m Model) rewrite(hash string, change git.Rewrite, message string, follow g
 	note := m.text.Text("rewrite.done."+string(change), i18n.Args{"hash": hash[:7]})
 	return func() tea.Msg {
 		published, err := repo.RewriteHistory(hash, change, message)
-		return rewrittenMsg{err: err, published: published, note: note, follow: follow, at: at}
+		return rewrittenMsg{err: err, published: published, note: note, follow: follow, at: at, reword: change == git.RewriteReword}
 	}
 }
 
@@ -118,6 +120,10 @@ func (m Model) rewrite(hash string, change git.Rewrite, message string, follow g
 // курсор остаётся на своём коммите. Переписанные коммиты из upstream дают
 // предупреждение, как amend и reset.
 func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
+	if msg.reword {
+		m = m.settleDraft(msg.err)
+	}
+
 	switch {
 	case msg.err != nil:
 		m = m.say(m.text.ErrorWith(msg.err, m.conflictKeys()))
@@ -170,8 +176,11 @@ func (m Model) openReword(msg rewordMsg) Model {
 		return m
 	}
 
-	m = m.openCommit()
+	m = m.blankCommit()
 	m.rewording = msg.hash
+	if restored, ok := m.restoreDraft(); ok {
+		return restored
+	}
 	m.subject = msg.subject
 	m.description = m.description.Type(msg.description)
 	m.opened = fullMessage(m.subject, m.description.Text())

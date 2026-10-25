@@ -59,6 +59,27 @@ func TestAmendUnchangedKeepsMessage(t *testing.T) {
 	}
 }
 
+// pre-commit отказывает при amend: A снова открывает окно amend с набранной
+// темой, а не с сообщением коммита (#393, случай 3).
+func TestRefusedAmendKeepsDraft(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	runGit(t, repo, "add", "-A")
+	runGit(t, repo, "commit", "-q", "-m", "fix tpyo")
+	failingHook(t, repo, "")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 24)
+
+	model = enterKey(typeText(eraseText(pressAndSettle(model, key('A')), len("tpyo")), "typo"))
+	if notice := noticeOf(model); !strings.Contains(notice, "exit status 1") {
+		t.Fatalf("тост %q, ожидался отказ хука", notice)
+	}
+
+	model = pressAndSettle(model, key('A'))
+	if body := screenText(model); !strings.Contains(body, "Amend last commit") || !strings.Contains(body, "> fix typo_") {
+		t.Fatalf("A после отказа открыл окно без набранного:\n%s", body)
+	}
+}
+
 // Без коммитов подвал называет причину, окно не открывается (случай 3).
 func TestAmendWithoutCommits(t *testing.T) {
 	repo := newRepo(t)

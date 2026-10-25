@@ -127,3 +127,37 @@ func TestQuitKeysTypeIntoSubject(t *testing.T) {
 		t.Fatalf("q и ? не набрались в поле темы:\n%s", screen)
 	}
 }
+
+// Отказ git оставляет набранное: следующее c открывает окно с темой и
+// описанием. После успешного коммита c открывает пустое окно (#393, случаи 1
+// и 2).
+func TestRefusedCommitKeepsDraft(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	model := resize(open(t, options(repo, layout.Focus())), 100, 30)
+
+	model, _ = model.Update(key('c'))
+	model = press(typeText(model, "fix"), tab)
+	model = press(typeText(model, "why"), tab)
+	model = submit(model)
+	if notice := noticeOf(model); !strings.Contains(notice, "nothing to commit") {
+		t.Fatalf("тост %q, ожидался отказ пустого индекса", notice)
+	}
+
+	model, _ = model.Update(key('c'))
+	if body := screenText(model); !strings.Contains(body, "> fix_") || !strings.Contains(body, "why") {
+		t.Fatalf("после отказа окно без набранного:\n%s", body)
+	}
+
+	runGit(t, repo, "add", "a.txt")
+	model = submit(model)
+	if subject, body := commitMessage(t, repo); subject != "fix" || body != "why" {
+		t.Fatalf("коммит с темой %q и телом %q, ожидались fix и why", subject, body)
+	}
+	model, _ = model.Update(key('c'))
+	if body := screenText(model); !strings.Contains(body, "> _") {
+		t.Fatalf("после коммита окно не пустое:\n%s", body)
+	}
+}

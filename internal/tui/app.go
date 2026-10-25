@@ -69,6 +69,7 @@ type Model struct {
 	amending   bool
 	rewording  string
 	opened     string
+	draft      commitDraft
 	logEntries []git.LogEntry
 	// logFilter фильтр открытого лога по автору и пути (#226)
 	logFilter git.LogFilter
