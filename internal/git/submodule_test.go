@@ -47,6 +47,15 @@ func TestSubmodules(t *testing.T) {
 		t.Fatalf("подмодуль %+v", got)
 	}
 
+	// в подмодуле коммит, которого суперпроект не записал
+	inside := filepath.Join(repo, "libs", "lib")
+	write(t, inside, "y.txt", "moved\n")
+	commitAll(t, inside)
+	submodules, _ = open(t, repo).Submodules()
+	if len(submodules) != 1 || !submodules[0].Moved || submodules[0].Path != "libs/lib" || submodules[0].Commit != revision(t, inside, "HEAD") {
+		t.Fatalf("сдвинутый подмодуль %+v", submodules)
+	}
+
 	clone := filepath.Join(t.TempDir(), "clone")
 	runGit(t, filepath.Dir(clone), "clone", "-q", repo, clone)
 	submodules, _ = open(t, clone).Submodules()

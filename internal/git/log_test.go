@@ -78,6 +78,12 @@ func TestLogListsNewestFirst(t *testing.T) {
 	if !commits[1].Root {
 		t.Fatalf("корневой коммит не помечен: %+v", commits[1])
 	}
+
+	// предел отрезает старые коммиты
+	newest, err := open(t, repo).Log(1, git.LogFilter{})
+	if err != nil || len(newest) != 1 || newest[0].Hash != commits[0].Hash {
+		t.Fatalf("Log(1) = %+v, %v; ожидался только новый коммит", newest, err)
+	}
 }
 
 // Слияние ветки рисуется, как в git log --graph: у коммитов свой рисунок,

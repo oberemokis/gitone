@@ -78,6 +78,27 @@ func TestRememberRepoConcurrent(t *testing.T) {
 	}
 }
 
+// Блокировку, брошенную упавшим gitone, следующий запуск снимает по возрасту:
+// иначе список недавних больше никогда не записался бы.
+func TestRememberRepoTakesStaleLock(t *testing.T) {
+	dir := t.TempDir()
+	lock := filepath.Join(dir, "state.json.lock")
+	if err := os.WriteFile(lock, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-time.Minute)
+	if err := os.Chtimes(lock, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := config.RememberRepo(dir, "/a"); err != nil {
+		t.Fatalf("RememberRepo: %v", err)
+	}
+	if got := config.ReadState(dir).RecentRepos; !slices.Equal(got, []string{"/a"}) {
+		t.Fatalf("недавние %q, запись пропала из-за брошенной блокировки", got)
+	}
+}
+
 // Без файла и с испорченным файлом состояние пустое.
 func TestReadStateBroken(t *testing.T) {
 	dir := t.TempDir()

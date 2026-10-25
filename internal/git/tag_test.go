@@ -50,6 +50,28 @@ func TestTags(t *testing.T) {
 	}
 }
 
+// Теги на коммите с родителем корнем не помечены: у аннотированного родитель
+// берётся у коммита, а у объекта тега родителя нет (#297).
+func TestTagOnLaterCommitIsNotRoot(t *testing.T) {
+	repo := newRepo(t)
+	for _, content := range []string{"one\n", "two\n"} {
+		write(t, repo, "a.txt", content)
+		commitAll(t, repo)
+	}
+	runGit(t, repo, "tag", "--annotate", "--message", "second", "v2")
+	runGit(t, repo, "tag", "light")
+
+	tags, err := open(t, repo).Tags()
+	if err != nil || len(tags) != 2 {
+		t.Fatalf("Tags = %+v, %v", tags, err)
+	}
+	for _, tag := range tags {
+		if tag.Root {
+			t.Errorf("тег %s на втором коммите помечен корнем", tag.Name)
+		}
+	}
+}
+
 // Тег уходит на origin (случай 4).
 func TestPushTag(t *testing.T) {
 	origin, local := remotePair(t)

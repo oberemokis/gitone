@@ -168,17 +168,31 @@ func TestSplitAndUnifiedPairInterleavedLinesTheSame(t *testing.T) {
 	}
 }
 
-// Длинная строка не считается: ограничение памяти важнее подсветки.
+// Длинная строка не считается: ограничение памяти важнее подсветки. Таблица
+// LCS ровно в 250 000 клеток (500 токенов на 500) ещё считается, на клетку
+// больше уже нет: «w » это два токена, «x y» три.
 func TestLongLinesGetNoMarks(t *testing.T) {
-	long := strings.Repeat("w ", 400)
-
-	rows := diff.Split(change(long, long+"tail"))
-	if len(rows) != 1 {
-		t.Fatalf("строк %d, ожидалась 1", len(rows))
+	old := strings.Repeat("w ", 250)
+	tests := []struct {
+		name  string
+		new   string
+		marks bool
+	}{
+		{name: "на пределе", new: strings.Repeat("w ", 249) + "x ", marks: true},
+		{name: "за пределом", new: strings.Repeat("w ", 249) + "x y"},
 	}
 
-	left, right := rows[0].Left, rows[0].Right
-	if len(left.Changed) != 0 || len(right.Changed) != 0 {
-		t.Errorf("у длинной строки есть отрезки: %d и %d", len(left.Changed), len(right.Changed))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rows := diff.Split(change(old, tc.new))
+			if len(rows) != 1 {
+				t.Fatalf("строк %d, ожидалась 1", len(rows))
+			}
+
+			left, right := rows[0].Left, rows[0].Right
+			if got := len(left.Changed) > 0 && len(right.Changed) > 0; got != tc.marks {
+				t.Errorf("отрезки есть: %v, ожидалось %v (%d и %d)", got, tc.marks, len(left.Changed), len(right.Changed))
+			}
+		})
 	}
 }

@@ -3,7 +3,6 @@ package git_test
 import (
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gitone/internal/i18n"
@@ -87,7 +86,23 @@ func TestRevertRefusals(t *testing.T) {
 	commitAll(t, repo)
 	err := open(t, repo).Revert(revision(t, repo, "feature"))
 	refusedWith(t, err, "git.stoppedOnConflict")
-	if !strings.Contains(runGit(t, repo, "status"), "revert") {
-		t.Fatal("revert не остался незавершённым")
+	if got := operationOf(t, repo); got != "revert" {
+		t.Fatalf("Operation = %q, revert не остался незавершённым", got)
+	}
+}
+
+// Merge-коммит не переносится: номер родителя не спрашиваем. Пока слияние
+// стоит на конфликте, cherry-pick отказывает словами git: он не начинался, и
+// конфликт не его.
+func TestCherryPickRefusals(t *testing.T) {
+	repo := divergedRepo(t)
+	runGit(t, repo, "merge", "-q", "--no-edit", "feature")
+	refusedWith(t, open(t, repo).CherryPick(revision(t, repo, "HEAD")), "git.pickMerge")
+
+	repo = conflictBranches(t)
+	stopsOnConflict(t, repo, "merge", "topic")
+	err := open(t, repo).CherryPick(revision(t, repo, "topic"))
+	if err == nil || errorKey(err) == "git.stoppedOnConflict" {
+		t.Fatalf("ошибка %v, ожидался отказ git при незавершённом слиянии", err)
 	}
 }
