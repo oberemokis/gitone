@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -263,7 +264,9 @@ type piece struct {
 // pieces режет текст по всем границам сразу: отрезков слов и категорий. Внутри
 // одного куска ни слово, ни категория не меняются. Граница за концом текста
 // встаёт на конец: подсветка по файлу целиком (#140) знает строку длиннее
-// обрезанной в диффе, а файл мог измениться после диффа.
+// обрезанной в диффе, а файл мог измениться после диффа. По той же причине
+// граница бывает внутри руны, например внутри «…» обрезки, и сдвигается к её
+// началу: половина руны на экране это знак замены (#394).
 func pieces(text string, changed []diff.Span, code []syntax.Span) []piece {
 	cuts := []int{0, len(text)}
 	for _, span := range changed {
@@ -271,6 +274,12 @@ func pieces(text string, changed []diff.Span, code []syntax.Span) []piece {
 	}
 	for _, span := range code {
 		cuts = append(cuts, min(span.Start, len(text)), min(span.End, len(text)))
+	}
+	for index, cut := range cuts {
+		for cut < len(text) && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		cuts[index] = cut
 	}
 	slices.Sort(cuts)
 	cuts = slices.Compact(cuts)
