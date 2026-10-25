@@ -100,6 +100,15 @@ func TestAmendRefusalsAndPublished(t *testing.T) {
 	if published, err := open(t, local).Amend("rewritten", ""); err != nil || !published {
 		t.Fatalf("Amend опубликованного = %v, %v; ожидалось расхождение", published, err)
 	}
+
+	// upstream есть, но последний коммит в него не отправлен: amend его не
+	// расходит с remote
+	_, local = remotePair(t)
+	write(t, local, "b.txt", "local\n")
+	commitAll(t, local)
+	if published, err := open(t, local).Amend("rewritten", ""); err != nil || published {
+		t.Fatalf("Amend неотправленного = %v, %v; ожидалось без расхождения", published, err)
+	}
 }
 
 func TestCommitRecordsSubject(t *testing.T) {

@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -22,8 +23,12 @@ func TestReflog(t *testing.T) {
 	if got := entries[0]; got.Hash != first || got.Action != "checkout" || got.Subject != "moving from main to "+first {
 		t.Fatalf("первая запись %+v, ожидался checkout", got)
 	}
-	if got := entries[2]; got.Action != "commit (initial)" || got.Subject != "commit" || !got.Root || got.When == "" {
+	if got := entries[2]; got.Action != "commit (initial)" || got.Subject != "commit" || !got.Root {
 		t.Fatalf("последняя запись %+v, ожидался первый коммит", got)
+	}
+	// время из селектора HEAD@{…} без самого селектора
+	if when := entries[2].When; !strings.HasSuffix(when, " ago") || strings.ContainsAny(when, "@{}") {
+		t.Fatalf("время записи %q, ожидалось «… ago»", when)
 	}
 }
 

@@ -60,3 +60,23 @@ func TestWorktrees(t *testing.T) {
 		})
 	}
 }
+
+// Голое хранилище git перечисляет первым, но переключаться на него некуда:
+// в списке только рабочие деревья.
+func TestWorktreesSkipBareRepository(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	bare := filepath.Join(t.TempDir(), "bare.git")
+	runGit(t, repo, "clone", "-q", "--bare", repo, bare)
+	tree := filepath.Join(t.TempDir(), "tree")
+	runGit(t, bare, "worktree", "add", "-q", "-b", "work", tree)
+
+	worktrees, err := open(t, tree).Worktrees()
+	if err != nil {
+		t.Fatalf("Worktrees: %v", err)
+	}
+	if got := worktreeNames(worktrees); strings.Join(got, ", ") != "tree work *" {
+		t.Fatalf("Worktrees = %q, ожидалось только дерево tree", got)
+	}
+}
