@@ -52,11 +52,5 @@ func (m Model) chooseUpstream(msg remoteBranchesMsg) Model {
 // setUpstreamCmd привязывает ветку к upstream и отвечает новым списком веток:
 // окно веток остаётся открытым, тост говорит итог.
 func setUpstreamCmd(repo git.Repo, branch, upstream, note string) tea.Cmd {
-	return func() tea.Msg {
-		msg := thenBranches(repo, func() error { return repo.SetUpstream(branch, upstream) })().(branchesMsg)
-		if msg.err == nil {
-			msg.note = note
-		}
-		return msg
-	}
+	return thenBranches(repo, note, func() error { return repo.SetUpstream(branch, upstream) })
 }
