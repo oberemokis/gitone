@@ -2,6 +2,7 @@ package git_test
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"gitone/internal/git"
@@ -220,5 +221,99 @@ func TestUndoPullRebase(t *testing.T) {
 	undo(t, local)
 	if got := revision(t, local, "HEAD"); got != before {
 		t.Fatalf("HEAD %s после отката перемотки, ожидался %s", got, before)
+	}
+}
+
+// Посреди операции откат и повтор отказывают: reset --soft снимал
+// CHERRY_PICK_HEAD, и коммит пропадал из ветки, а посреди pull --rebase
+// двигал HEAD внутри rebase (#385, случаи 1 и 2).
+func TestUndoRefusesDuringOperation(t *testing.T) {
+	t.Run("cherry-pick", func(t *testing.T) {
+		repo := newRepo(t)
+		write(t, repo, "a.txt", "one\n")
+		commitAll(t, repo)
+		runGit(t, repo, "switch", "-q", "-c", "other")
+		write(t, repo, "a.txt", "other\n")
+		commitAll(t, repo)
+		runGit(t, repo, "switch", "-q", "main")
+		write(t, repo, "a.txt", "main\n")
+		commitAll(t, repo)
+		stopsOnConflict(t, repo, "cherry-pick", "other")
+		write(t, repo, "a.txt", "resolved\n")
+		runGit(t, repo, "add", "a.txt")
+
+		_, err := open(t, repo).UndoStep()
+		refusedWith(t, err, "git.undoUnfinished")
+		_, err = open(t, repo).RedoStep()
+		refusedWith(t, err, "git.undoUnfinished")
+		runGit(t, repo, "rev-parse", "--verify", "-q", "CHERRY_PICK_HEAD")
+	})
+
+	// первый коммит встаёт, второй конфликтует: rebase успел записать
+	// «pull --rebase (pick)», и откат принимал её за шаг
+	t.Run("pull --rebase", func(t *testing.T) {
+		origin, local := remotePair(t)
+		write(t, local, "c.txt", "local\n")
+		commitAll(t, local)
+		write(t, local, "b.txt", "local\n")
+		commitAll(t, local)
+		publish(t, origin, "b.txt", "peer\n")
+		stopsOnConflict(t, local, "pull", "-q", "--rebase")
+
+		_, err := open(t, local).UndoStep()
+		refusedWith(t, err, "git.undoUnfinished")
+	})
+}
+
+// switch -C и checkout -B переставляют текущую ветку записью «branch: Reset
+// to», а следом пишут «checkout: moving from main to main». Откат возвращает
+// ветку туда, где она стояла (случай 3).
+func TestUndoBranchReset(t *testing.T) {
+	for _, command := range [][]string{{"switch", "-q", "-C", "main", "other"}, {"checkout", "-q", "-B", "main", "other"}} {
+		t.Run(command[0], func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", "one\n")
+			commitAll(t, repo)
+			runGit(t, repo, "branch", "other")
+			write(t, repo, "a.txt", "two\n")
+			commitAll(t, repo)
+			second := revision(t, repo, "HEAD")
+			runGit(t, repo, command...)
+
+			undo(t, repo)
+			if got := revision(t, repo, "main"); got != second {
+				t.Fatalf("main %s после отката, ожидался %s", got, second)
+			}
+			if got := runGit(t, repo, "branch", "--show-current"); got != "main\n" {
+				t.Fatalf("после отката ветка %q, ожидалась main", got)
+			}
+		})
+	}
+}
+
+// Коммит из git am откатывается один, а повтор его возвращает (случай 4).
+func TestUndoAm(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "p.txt", "patch\n")
+	runGit(t, repo, "add", "-A")
+	runGit(t, repo, "commit", "-q", "-m", "patch")
+	patch := filepath.Join(t.TempDir(), "p.patch")
+	runGit(t, repo, "format-patch", "-q", "-1", "-o", filepath.Dir(patch))
+	runGit(t, repo, "reset", "-q", "--hard", "HEAD~1")
+	write(t, repo, "m.txt", "mine\n")
+	runGit(t, repo, "add", "-A")
+	runGit(t, repo, "commit", "-q", "-m", "mine")
+	mine := revision(t, repo, "HEAD")
+	runGit(t, repo, "am", "-q", filepath.Join(filepath.Dir(patch), "0001-patch.patch"))
+	applied := revision(t, repo, "HEAD")
+
+	if step := undo(t, repo); step.Target != mine {
+		t.Fatalf("откат %+v, ожидался к коммиту mine %s", step, mine)
+	}
+	redo(t, repo)
+	if got := revision(t, repo, "HEAD"); got != applied {
+		t.Fatalf("HEAD %s после повтора, ожидался коммит патча %s", got, applied)
 	}
 }
