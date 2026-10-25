@@ -57,6 +57,18 @@ func (r Repo) stoppedOnConflict() bool {
 	return len(conflicted) > 0 && unfinished(r.root)
 }
 
+// autostashConflict проверяет операцию, которую git закончил успехом: с
+// autostash (--autostash, rebase.autoStash, merge.autoStash) он выходит с 0,
+// даже когда отложенные правки не встали обратно. Они тогда лежат в stash, а
+// в дереве маркеры конфликта (#388). Неслитые пути до операции git бы не
+// пропустил, поэтому после успеха они значат именно это.
+func (r Repo) autostashConflict(operation string) error {
+	if conflicted, _ := r.ConflictedPaths(); len(conflicted) > 0 {
+		return i18n.New("git.autostashConflict", i18n.Args{"operation": operation})
+	}
+	return nil
+}
+
 // Abort прерывает незавершённую операцию: HEAD, индекс и дерево
 // возвращаются к состоянию до неё.
 func (r Repo) Abort() error {

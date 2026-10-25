@@ -130,6 +130,37 @@ func TestMergeAndRebaseTakeBranchOverTag(t *testing.T) {
 	}
 }
 
+// Отложенные autostash правки, которые не встали обратно, дают ошибку, а не
+// итог «слито»: git выходит с 0, правки лежат в stash (#388, случай 1).
+func TestMergeAndRebaseAutostashConflict(t *testing.T) {
+	cases := []struct {
+		operation string
+		run       func(git.Repo) error
+	}{
+		{"merge", func(repo git.Repo) error { return repo.Merge("other") }},
+		{"rebase", func(repo git.Repo) error { return repo.Rebase("other") }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.operation, func(t *testing.T) {
+			repo := newRepo(t)
+			write(t, repo, "a.txt", "one\n")
+			commitAll(t, repo)
+			runGit(t, repo, "switch", "-q", "-c", "other")
+			write(t, repo, "a.txt", "other\n")
+			commitAll(t, repo)
+			runGit(t, repo, "switch", "-q", "main")
+			runGit(t, repo, "config", tc.operation+".autoStash", "true")
+			write(t, repo, "a.txt", "dirty\n")
+
+			refusedWith(t, tc.run(open(t, repo)), "git.autostashConflict")
+			if stash := runGit(t, repo, "stash", "list"); stash == "" {
+				t.Fatal("отложенных правок нет в stash")
+			}
+		})
+	}
+}
+
 // Правка, которую затронет операция, останавливает её до начала одной строкой
 // git (случай 4), а конфликт останавливает её посредине: ошибка говорит, что
 // операция не закончена (случай 5).

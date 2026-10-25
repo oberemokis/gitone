@@ -141,6 +141,52 @@ func TestStashPop(t *testing.T) {
 	}
 }
 
+// Pop посреди слияния с конфликтом отказывает до git: запись цела, а отказ не
+// говорит, что конфликт дал сам pop (#388, случай 2).
+func TestStashPopDuringConflict(t *testing.T) {
+	repo := conflictBranches(t)
+	write(t, repo, "c.txt", "c\n")
+	commitAll(t, repo)
+	write(t, repo, "c.txt", "dirty\n")
+	if err := open(t, repo).StashPush(git.StashOptions{}); err != nil {
+		t.Fatalf("StashPush: %v", err)
+	}
+	stopsOnConflict(t, repo, "merge", "topic")
+	stashes, _ := open(t, repo).Stashes()
+
+	refusedWith(t, open(t, repo).StashPop(stashes[0]), "git.stashUnmerged")
+	if after, _ := open(t, repo).Stashes(); len(after) != 1 {
+		t.Fatalf("stash осталось %d, ожидалась одна запись", len(after))
+	}
+	if got := readFile(t, filepath.Join(repo, "c.txt")); got != "c\n" {
+		t.Fatalf("c.txt %q, pop не должен был ничего применить", got)
+	}
+}
+
+// Под немецким языком конфликт apply узнаётся: git отвечает по-английски, и
+// headline находит строку CONFLICT (#388, случай 3).
+func TestStashApplyConflictInOtherLanguage(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "a.txt", "two\n")
+	if err := open(t, repo).StashPush(git.StashOptions{}); err != nil {
+		t.Fatalf("StashPush: %v", err)
+	}
+	write(t, repo, "a.txt", "three\n")
+	commitAll(t, repo)
+	stashes, _ := open(t, repo).Stashes()
+	// newRepo ставит LC_ALL=C, тест её переопределяет; без немецкой локали в
+	// системе git говорит по-английски, и тест проходит без проверки
+	t.Setenv("LANGUAGE", "de")
+	t.Setenv("LC_ALL", "de_DE.UTF-8")
+
+	err := open(t, repo).StashApply(stashes[0])
+	if want := "stash apply: CONFLICT (content): Merge conflict in a.txt"; err == nil || err.Error() != want {
+		t.Fatalf("StashApply = %v, want %q", err, want)
+	}
+}
+
 // Переименование средней записи меняет только её сообщение: коммит и порядок
 // записей прежние. Пустое сообщение отвергается (#237).
 func TestStashRenameKeepsOrder(t *testing.T) {

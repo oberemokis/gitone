@@ -376,8 +376,11 @@ func execute(options call, args []string) (string, error) {
 	command.Stdin = strings.NewReader(options.stdin)
 	// GIT_OPTIONAL_LOCKS=0: чтение диффа не берёт index.lock, иначе
 	// параллельный git add пользователя падает. GIT_TERMINAL_PROMPT=0: git не
-	// спрашивает пароль поверх интерфейса.
-	command.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	// спрашивает пароль поверх интерфейса. LANGUAGE=en: отказы git разбираются
+	// по тексту (headline ищет CONFLICT, fatal: и error:), и перевод ломал бы
+	// разбор (#388). LANGUAGE меняет только язык сообщений и не трогает
+	// кодировку, поэтому хукам пользователя при коммите она безопаснее LC_ALL.
+	command.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "LANGUAGE=en")
 	command.Env = append(command.Env, options.env...)
 
 	out, err := command.Output()

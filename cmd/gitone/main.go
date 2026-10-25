@@ -60,13 +60,6 @@ func main() {
 	}
 	opts.Notice = addNotice(text, "", append(settingsErrs, languageErr)...)
 
-	// git отвечает на языке интерфейса, если у него есть такой перевод.
-	// LANGUAGE меняет только язык сообщений и не трогает кодировку, поэтому
-	// хукам пользователя при коммите она безопаснее LC_ALL.
-	if err := os.Setenv("LANGUAGE", text.Lang()); err != nil {
-		opts.Notice = addNotice(text, opts.Notice, err)
-	}
-
 	if opts.Config.UI.AutoReload {
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()

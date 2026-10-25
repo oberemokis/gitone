@@ -109,7 +109,13 @@ func (r Repo) StashApply(stash Stash) error {
 // (#235). На конфликте git правки применяет с маркерами, а запись оставляет:
 // отказ тогда говорит именно это, строка CONFLICT называла бы один файл.
 // Правку, которой мешает дерево, git отвергает до начала, и stash остаётся.
+// Неслитые пути до pop (идёт слияние с конфликтом) отказывают до git: иначе
+// его отказ выглядел бы конфликтом самого pop (#388).
 func (r Repo) StashPop(stash Stash) error {
+	if r.conflicted() {
+		return failed("stash pop", i18n.New("git.stashUnmerged", nil))
+	}
+
 	err := headline(r.stashAt(stash, "pop"))
 	if err != nil && r.conflicted() {
 		err = i18n.New("git.stashKept", nil)
