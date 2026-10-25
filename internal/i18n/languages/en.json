@@ -231,6 +231,7 @@
   "layout.badSize": "{path}: \"{size}\" is not a size, use \"30%\" or a number of cells",
   "layout.cellsPositive": "{path}: cells must be greater than zero",
   "layout.noChildren": "{path}.children: empty, a container needs children",
+  "layout.noDiff": "no \"diff\" pane in the layout, the diff would show nowhere",
   "layout.notFound": "layout \"{name}\" not found: no layouts/{name}.json",
   "layout.paneAndContainer": "{path}: a node cannot be both a pane and a container",
   "layout.paneTwice": "{path}.pane: pane \"{pane}\" is already in the layout",

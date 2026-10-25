@@ -60,6 +60,27 @@ func TestBuildChecksTree(t *testing.T) {
 			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: json.RawMessage(`"wide"`)}, diff}},
 			wantErr: "root.children[0].size",
 		},
+		{
+			// без панели diff дифф не показывался бы нигде (#390, случай 1)
+			name:    "нет панели diff",
+			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{files}},
+			wantErr: `no "diff" pane`,
+		},
+		{
+			name:    "ноль процентов",
+			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: json.RawMessage(`"0%"`)}, diff}},
+			wantErr: `root.children[0].size: "0%" is out of range`,
+		},
+		{
+			name:    "больше ста процентов",
+			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: json.RawMessage(`"101%"`)}, diff}},
+			wantErr: `root.children[0].size: "101%" is out of range`,
+		},
+		{
+			name:    "ноль ячеек",
+			root:    config.LayoutNode{Direction: "row", Children: []config.LayoutNode{{Pane: "files", Size: json.RawMessage(`0`)}, diff}},
+			wantErr: "root.children[0].size: cells must be greater than zero",
+		},
 	}
 
 	for _, tc := range tests {
@@ -111,6 +132,14 @@ func TestSplitSizes(t *testing.T) {
 			root:  layout.Node{Direction: "row", Children: []layout.Node{{Pane: "files", Size: layout.Size{Percent: 30}}, {Pane: "diff", Size: layout.Size{Percent: 70}}}},
 			width: 101, height: 5,
 			want: []layout.Placed{{Pane: "files", Width: 30, Height: 5}, {Pane: "diff", Width: 71, Height: 5}},
+		},
+		{
+			// после скрытия или сужения панели проценты не дают 100, а ничьих
+			// колонок всё равно нет (#390)
+			name:  "проценты меньше 100 тоже отдают остаток последнему",
+			root:  layout.Node{Direction: "row", Children: []layout.Node{{Pane: "files", Size: layout.Size{Cells: 15}}, {Pane: "diff", Size: layout.Size{Percent: 75}}}},
+			width: 100, height: 5,
+			want: []layout.Placed{{Pane: "files", Width: 15, Height: 5}, {Pane: "diff", Width: 85, Height: 5}},
 		},
 		{
 			name:  "по высоте тоже",
@@ -166,6 +195,10 @@ func TestWithoutAndHas(t *testing.T) {
 		{name: "default: дифф во всю ширину", root: layout.Default(), wantDiff: 100},
 		{name: "контейнер без детей уходит вместе с панелью", root: nested, wantDiff: 100},
 		{name: "focus без панели не меняется", root: layout.Focus(), wantDiff: 100},
+		{name: "дифф в процентах забирает освободившееся место (#390, случай 2)", root: layout.Node{Direction: "row", Children: []layout.Node{
+			{Pane: "files", Size: layout.Size{Percent: 25}},
+			{Pane: "diff", Size: layout.Size{Percent: 75}},
+		}}, wantDiff: 100},
 	}
 
 	for _, tc := range tests {
@@ -197,6 +230,15 @@ func TestResized(t *testing.T) {
 	placed := layout.Split(layout.Resized(nested, "files", layout.Size{Cells: 42}), 100, 20)
 	if width := diffWidth(placed); width != 58 {
 		t.Errorf("дифф шириной %d, want 58: %+v", width, placed)
+	}
+
+	// сужение мышью не оставляет ничьих колонок (#390, случай 3)
+	percents := layout.Node{Direction: "row", Children: []layout.Node{
+		{Pane: "files", Size: layout.Size{Percent: 25}},
+		{Pane: "diff", Size: layout.Size{Percent: 75}},
+	}}
+	if placed := layout.Split(layout.Resized(percents, "files", layout.Size{Cells: 15}), 100, 20); placed.Children[0].Width+placed.Children[1].Width != 100 {
+		t.Errorf("ширины %d и %d, want в сумме 100", placed.Children[0].Width, placed.Children[1].Width)
 	}
 
 	if got := layout.Resized(layout.Focus(), "files", layout.Size{Cells: 42}); got.Pane != "diff" || got.Size != (layout.Size{}) {
