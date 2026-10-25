@@ -49,7 +49,7 @@ const (
 // гаснет сам по таймеру (notice.go).
 func (m Model) keyPress(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if kind, open := windowKinds[m.active]; open {
-		return kind.key(m, key)
+		return kind.press(m, key)
 	}
 
 	m.notice = ""
@@ -162,9 +162,9 @@ func (m Model) wheelList(button tea.MouseButton) Model {
 	return m
 }
 
-// searchKey разбирает поиск в списке лога, reflog, веток, worktree и тегов
-// (#110, #118): пока поле открыто, клавиши идут в него, list.search его
-// открывает. handled false значит, что клавиша остаётся окну.
+// searchKey разбирает поиск в списке окна с windowKind.search (#110, #118):
+// пока поле открыто, клавиши идут в него, list.search его открывает. handled
+// false значит, что клавиша остаётся окну.
 func (m Model) searchKey(key tea.KeyPressMsg) (next Model, cmd tea.Cmd, handled bool) {
 	if m.searching {
 		next, cmd = m.typeSearch(key)
@@ -220,7 +220,7 @@ func (m Model) paste(content string) Model {
 		m.picker = m.picker.Type(line)
 	case m.active == promptWindow:
 		m.prompt.text += line
-	case m.searching && (m.active == logWindow || m.active == branchWindow || m.active == worktreeWindow || m.active == tagWindow || m.active == reflogWindow):
+	case m.searching && windowKinds[m.active].search:
 		m.query += line
 		m.cursor = 0
 	}

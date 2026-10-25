@@ -137,10 +137,6 @@ var branchActions = []windowAction[git.Branch]{
 var branchHint = actionsOf(branchActions, keymap.ListSearch)
 
 func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.searchKey(key); handled {
-		return next, cmd
-	}
-
 	shown := m.branchesShown()
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd

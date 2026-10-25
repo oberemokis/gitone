@@ -100,10 +100,6 @@ var worktreeActions = []windowAction[git.Worktree]{
 var worktreeHint = actionsOf(worktreeActions, keymap.ListSearch)
 
 func (m Model) worktreeKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.searchKey(key); handled {
-		return next, cmd
-	}
-
 	shown := m.worktreesShown()
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd

@@ -53,10 +53,6 @@ var reflogActions = []windowAction[git.ReflogEntry]{
 var reflogHint = actionsOf(reflogActions, keymap.ListSearch)
 
 func (m Model) reflogKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.searchKey(key); handled {
-		return next, cmd
-	}
-
 	shown := m.reflogShown()
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd

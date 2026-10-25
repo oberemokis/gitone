@@ -73,13 +73,9 @@ var tagActions = []windowAction[git.Tag]{
 
 var tagHint = actionsOf(tagActions, keymap.ListSearch)
 
-// tagKey отдаёт клавиши окну тегов: list.search ищет по имени, остальное
-// tagActions.
+// tagKey отдаёт клавиши окну тегов, tagActions. Поиск по имени разбирает
+// windowKind.press.
 func (m Model) tagKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if next, cmd, handled := m.searchKey(key); handled {
-		return next, cmd
-	}
-
 	shown := m.tagsShown()
 	if next, cmd, handled := m.navigate(key, len(shown)); handled {
 		return next, cmd
