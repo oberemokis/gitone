@@ -210,6 +210,76 @@ func TestPushSendsAheadCommits(t *testing.T) {
 	}
 }
 
+// Push отправляет текущую ветку в её upstream, что бы ни говорили push.default
+// и remote.pushDefault: туда смотрит проверка расхождения и заметка «Pushed to
+// origin/main» (#383).
+func TestPushGoesToUpstreamOnly(t *testing.T) {
+	t.Run("push.default=matching не трогает другие ветки", func(t *testing.T) {
+		origin, local := remotePair(t)
+		runGit(t, local, "push", "-q", "origin", "main:wip")
+		runGit(t, local, "switch", "-q", "-c", "wip")
+		write(t, local, "wip.txt", "draft\n")
+		commitAll(t, local)
+		runGit(t, local, "switch", "-q", "main")
+		write(t, local, "b.txt", "two\n")
+		commitAll(t, local)
+		runGit(t, local, "config", "push.default", "matching")
+		wip := revision(t, origin, "wip")
+
+		pushTo(t, local, "origin/main")
+		if got := revision(t, origin, "main"); got != revision(t, local, "HEAD") {
+			t.Errorf("main на origin %s, ожидался HEAD", got)
+		}
+		if got := revision(t, origin, "wip"); got != wip {
+			t.Errorf("wip на origin сдвинут на %s, ожидался прежний %s", got, wip)
+		}
+	})
+
+	t.Run("push.default=current не создаёт ветку", func(t *testing.T) {
+		origin, local := remotePair(t)
+		runGit(t, local, "switch", "-q", "-c", "feature", "--track", "origin/main")
+		write(t, local, "b.txt", "two\n")
+		commitAll(t, local)
+		runGit(t, local, "config", "push.default", "current")
+
+		pushTo(t, local, "origin/main")
+		if got := revision(t, origin, "main"); got != revision(t, local, "HEAD") {
+			t.Errorf("main на origin %s, ожидался HEAD", got)
+		}
+		if got := runGit(t, origin, "branch", "--list", "feature"); got != "" {
+			t.Errorf("на origin появилась ветка feature: %q", got)
+		}
+	})
+
+	t.Run("remote.pushDefault не уводит в другой remote", func(t *testing.T) {
+		origin, local := remotePair(t)
+		fork := filepath.Join(t.TempDir(), "fork.git")
+		runGit(t, local, "init", "-q", "--bare", "-b", "main", fork)
+		runGit(t, local, "remote", "add", "fork", fork)
+		runGit(t, local, "config", "remote.pushDefault", "fork")
+		write(t, local, "b.txt", "two\n")
+		commitAll(t, local)
+
+		pushTo(t, local, "origin/main")
+		if got := revision(t, origin, "main"); got != revision(t, local, "HEAD") {
+			t.Errorf("main на origin %s, ожидался HEAD", got)
+		}
+		if got := runGit(t, fork, "branch", "--list"); got != "" {
+			t.Errorf("в fork ушли ветки: %q", got)
+		}
+	})
+}
+
+// pushTo отправляет текущую ветку local и ждёт цель target в ответе.
+func pushTo(t *testing.T, local, target string) {
+	t.Helper()
+
+	got, err := open(t, local).Push(context.Background())
+	if err != nil || got != target {
+		t.Fatalf("Push = %q, %v; ожидалась цель %s", got, err, target)
+	}
+}
+
 // Ветка без upstream создаётся на origin и привязывается, как git push -u.
 func TestPushCreatesUpstreamForNewBranch(t *testing.T) {
 	origin, local := remotePair(t)

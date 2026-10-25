@@ -58,7 +58,11 @@ func (r Repo) pull(ctx context.Context) (bool, error) {
 // нет в ветке (после amend, reset, rebase или чужого push), обычным push не
 // отправляется: отказ git.pushDiverged идёт до сети, и решать, отправлять ли
 // принудительно, будет пользователь (PushForceLease, #234). Отмена ctx убивает
-// git, ошибка тогда context.Canceled.
+// git, ошибка тогда context.Canceled. Ветка уходит явным refspec в свой
+// upstream: без него цель выбирают push.default и remote.pushDefault, и при
+// matching уходили другие ветки, при current создавалась новая на remote, а
+// при pushDefault коммит уходил в другой remote, хотя заметка называла
+// upstream (#383).
 func (r Repo) Push(ctx context.Context) (target string, err error) {
 	target, err = r.push(ctx, false)
 	return target, failed("push", headline(err))
@@ -67,9 +71,8 @@ func (r Repo) Push(ctx context.Context) (target string, err error) {
 // PushForceLease отправляет текущую ветку поверх upstream с
 // `--force-with-lease` (#234): remote переписывается, только если он стоит
 // там же, где его видел последний fetch. Иначе git отказывает, и чужие коммиты
-// не теряются. Refspec задан явно: без него что отправлять, решает
-// push.default, и при matching git переписал бы и другие ветки, о которых
-// вопрос не спрашивал.
+// не теряются. Refspec задан явно, как у Push: при matching git переписал бы
+// и другие ветки, о которых вопрос не спрашивал.
 func (r Repo) PushForceLease(ctx context.Context) (target string, err error) {
 	target, err = r.push(ctx, true)
 	return target, failed("push", headline(err))
@@ -87,18 +90,19 @@ func (r Repo) push(ctx context.Context, force bool) (string, error) {
 	}
 	upstream = strings.TrimSpace(upstream)
 
+	where, err := r.inDir("for-each-ref", "--format=%(upstream:remotename)%00%(upstream:remoteref)", "refs/heads/"+branch)
+	if err != nil {
+		return upstream, err
+	}
+	remote, ref, _ := strings.Cut(strings.TrimSpace(where), "\x00")
+
 	if force {
-		where, err := r.inDir("for-each-ref", "--format=%(upstream:remotename)%00%(upstream:remoteref)", "refs/heads/"+branch)
-		remote, ref, found := strings.Cut(strings.TrimSpace(where), "\x00")
-		if err != nil || !found {
-			return upstream, err
-		}
 		return upstream, r.network(ctx, r.dir, "push", "--force-with-lease="+ref, remote, "HEAD:"+ref)
 	}
 	if _, err := r.inDir("merge-base", "--is-ancestor", "@{upstream}", "HEAD"); err != nil {
 		return upstream, i18n.New("git.pushDiverged", i18n.Args{"upstream": upstream})
 	}
-	return upstream, r.network(ctx, r.dir, "push")
+	return upstream, r.network(ctx, r.dir, "push", remote, "HEAD:"+ref)
 }
 
 // currentBranch возвращает имя ветки. При detached HEAD отказывает ошибкой из
