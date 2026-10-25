@@ -1,6 +1,8 @@
 package git_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"gitone/internal/diff"
@@ -82,5 +84,23 @@ func TestVersionWithoutObject(t *testing.T) {
 	}
 	if _, err := open(t, repo).Version("1234567890123456789012345678901234567890", ""); err == nil {
 		t.Error("хэша нет в git, а ошибки нет")
+	}
+}
+
+// У симлинка git хэширует текст ссылки, и версия из рабочего дерева тоже
+// текст ссылки, а не файл, на который она ведёт: иначе подсветка ложилась бы
+// на чужие строки (#389, случай 4).
+func TestVersionOfSymlinkIsLinkText(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "real.vue", "<template>\n  <p>real</p>\n</template>\n")
+	commitAll(t, repo)
+	if err := os.Symlink("real.vue", filepath.Join(repo, "link.vue")); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, repo, "add", "-N", "link.vue")
+	link := fileAt(t, load(t, repo, nil), "link.vue")
+
+	if got, err := open(t, repo).Version(link.NewBlob, link.NewPath); err != nil || string(got) != "real.vue" {
+		t.Errorf("Version(link.vue) = %q, %v; want %q", got, err, "real.vue")
 	}
 }

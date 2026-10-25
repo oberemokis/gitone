@@ -45,11 +45,12 @@ func (r Repo) Tags() ([]Tag, error) {
 }
 
 // CreateTag ставит тег name на HEAD: аннотированный с сообщением, лёгкий без
-// него. Занятое имя git отвергает, тег не перезаписывается.
+// него. Занятое имя git отвергает, тег не перезаписывается. Имя стоит после
+// «--»: «-d» git иначе прочёл бы флагом и ответил успехом без тега (#389).
 func (r Repo) CreateTag(name, message string) error {
-	args := []string{"tag", name}
+	args := []string{"tag", "--", name}
 	if message != "" {
-		args = []string{"tag", "--annotate", "--message", message, name}
+		args = []string{"tag", "--annotate", "--message", message, "--", name}
 	}
 
 	_, err := r.inRoot(args...)
@@ -57,9 +58,9 @@ func (r Repo) CreateTag(name, message string) error {
 }
 
 // DeleteTag удаляет локальный тег. Тег на remote остаётся: его удаление это
-// отдельная отправка на remote.
+// отдельная отправка на remote. Имя после «--», как у CreateTag.
 func (r Repo) DeleteTag(name string) error {
-	_, err := r.inRoot("tag", "--delete", name)
+	_, err := r.inRoot("tag", "--delete", "--", name)
 	return failed("tag", headline(err))
 }
 
