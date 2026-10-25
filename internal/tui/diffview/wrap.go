@@ -76,12 +76,14 @@ func (m Model) visibleWidth() int {
 
 // maxShift это сдвиг, при котором конец самой длинной строки встаёт к правому
 // краю самой узкой колонки. Сдвиг у ленты общий, и предел у неё по всем
-// файлам (stream.go).
+// файлам (stream.go). Панель уже номера строки даёт отрицательную ширину кода,
+// она считается нулём: иначе у файла без строк кода (longest 0) нашёлся бы
+// сдвиг, и полоса делила бы на longest (#378).
 func (m Model) maxShift() int {
 	if m.stream.on {
 		return m.stream.widest
 	}
-	return max(m.longest-m.visibleWidth(), 0)
+	return max(m.longest-max(m.visibleWidth(), 0), 0)
 }
 
 // hasBar: полоса прокрутки нужна, только когда есть что сдвигать. У страницы

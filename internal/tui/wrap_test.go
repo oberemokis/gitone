@@ -414,3 +414,31 @@ func TestSplitNumberPadding(t *testing.T) {
 		t.Fatalf("строка split %q, want « 1 - old» и « 1 + new»", row)
 	}
 }
+
+// У файла без строк кода (бинарный, переименование без правок) самая длинная
+// строка пустая. Панель уже номера строки давала ей отрицательную ширину
+// кода, полоса включалась и делила на ноль (#378). Лента рисует ту же полосу.
+func TestNarrowPanelWithoutCodeLines(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "image.bin", "\x00\x01old")
+	write(t, repo, "old.txt", "same\n")
+	commitAll(t, repo)
+	write(t, repo, "image.bin", "\x00\x02new")
+	runGit(t, repo, "mv", "old.txt", "new.txt")
+
+	for _, mode := range []string{"unified", "split"} {
+		opts := options(repo, layout.Focus())
+		opts.Config.Diff.Mode = mode
+		noWrap(&opts.Config)
+		model := open(t, opts)
+		stream, _ := model.Update(key('a'))
+
+		for width := 1; width <= 12; width++ {
+			for _, shown := range []tea.Model{model, stream} {
+				if screen := render(shown, width, 20); len(screen) == 0 {
+					t.Fatalf("%s, ширина %d: пустой экран", mode, width)
+				}
+			}
+		}
+	}
+}
