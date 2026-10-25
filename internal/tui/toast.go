@@ -35,11 +35,11 @@ func (m Model) toast(screenWidth, height int) string {
 
 	var lines []string
 	for line := range strings.SplitSeq(m.notice, "\n") {
-		lines = append(lines, strings.Split(ansi.Wrap(visible(line), inner, ""), "\n")...)
+		lines = append(lines, wrapToast(visible(line), inner)...)
 	}
 	if room := height - 2; len(lines) > room {
 		lines = lines[:room]
-		lines[room-1] = ansi.Truncate(lines[room-1], inner-1, "") + "…"
+		lines[room-1] = truncate(lines[room-1], inner-1, "") + "…"
 	}
 
 	edge := m.colors.Error
@@ -50,7 +50,7 @@ func (m Model) toast(screenWidth, height int) string {
 	border := panel.Foreground(edge).Render("┃")
 	row := func(text string) string {
 		field := strings.Repeat(" ", toastPadding)
-		return border + panel.Render(field+text+strings.Repeat(" ", inner-ansi.StringWidth(text))+field) + border
+		return border + panel.Render(field+text+strings.Repeat(" ", max(inner-ansi.StringWidth(text), 0))+field) + border
 	}
 
 	rows := []string{row("")}
@@ -58,4 +58,25 @@ func (m Model) toast(screenWidth, height int) string {
 		rows = append(rows, row(line))
 	}
 	return strings.Join(append(rows, row("")), "\n")
+}
+
+// wrapToast переносит строку заметки по словам в ширину inner. ansi.Wrap
+// меряет keycap уже, чем StringWidth, и оставляет строку шире inner: её хвост
+// уходит на следующую строку (#377). Символ шире самого тоста (CJK при inner 1)
+// не помещается никуда и отбрасывается.
+func wrapToast(text string, inner int) []string {
+	var lines []string
+	for _, line := range strings.Split(ansi.Wrap(text, inner, ""), "\n") {
+		for ansi.StringWidth(line) > inner {
+			head := truncate(line, inner, "")
+			if head == "" {
+				head, _ = ansi.FirstGraphemeCluster(line, ansi.GraphemeWidth)
+			} else {
+				lines = append(lines, head)
+			}
+			line = line[len(head):]
+		}
+		lines = append(lines, line)
+	}
+	return lines
 }

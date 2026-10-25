@@ -340,7 +340,7 @@ func (l list) view(p paint, screenWidth, screenHeight int) string {
 	// помещается в строку (#229)
 	bottom := packHint(panel, muted, l.hint, content)
 	if l.question != "" {
-		bottom = []string{panel.Foreground(p.colors.Error).Render(ansi.Truncate(l.question, content, "…"))}
+		bottom = []string{panel.Foreground(p.colors.Error).Render(truncate(l.question, content, "…"))}
 	}
 
 	// без двух отступов окна, заголовка с пустой строкой под ним, пустой строки
@@ -362,10 +362,10 @@ func (l list) view(p paint, screenWidth, screenHeight int) string {
 	lines := []string{p.title(content, l.title, l.close), ""}
 	// поиск отделён пустыми строками сверху и снизу (#133)
 	if l.search != "" {
-		lines = append(lines, ansi.Truncate(l.search, content, "…"), "")
+		lines = append(lines, truncate(l.search, content, "…"), "")
 	}
 	if l.header != "" && len(l.rows) > 0 {
-		lines = append(lines, panel.Render(ansi.Truncate("  "+l.header, content, "…")))
+		lines = append(lines, panel.Render(truncate("  "+l.header, content, "…")))
 	}
 	if len(l.rows) == 0 {
 		for _, line := range l.empty {
@@ -384,7 +384,7 @@ func (l list) view(p paint, screenWidth, screenHeight int) string {
 		if index == l.cursor {
 			marker = "› "
 		}
-		row := panel.Render(ansi.Truncate(marker+l.rows[index], content, "…"))
+		row := panel.Render(truncate(marker+l.rows[index], content, "…"))
 		row += panel.Render(strings.Repeat(" ", max(content-ansi.StringWidth(row), 0)))
 		lines = append(lines, zone.Mark(zone.Row(index), row))
 	}
@@ -416,11 +416,11 @@ func packHint(panel, muted lipgloss.Style, hint string, width int) []string {
 		case ansi.StringWidth(line+gap+pair) <= width:
 			line += gap + pair
 		default:
-			lines = append(lines, ansi.Truncate(line, width, ellipsis))
+			lines = append(lines, truncate(line, width, ellipsis))
 			line = pair
 		}
 	}
-	return append(lines, ansi.Truncate(line, width, ellipsis))
+	return append(lines, truncate(line, width, ellipsis))
 }
 
 // windowPaddingX это боковой отступ окон списка и коммита.

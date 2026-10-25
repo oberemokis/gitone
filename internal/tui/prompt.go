@@ -81,7 +81,7 @@ func promptBox(p paint, field prompt, screenWidth int) string {
 		input = ansi.TruncateLeft(input, over+1, "…")
 	}
 
-	hint := ansi.Truncate(p.hint(keymap.PromptSubmit), content, p.muted().Render("…"))
+	hint := truncate(p.hint(keymap.PromptSubmit), content, p.muted().Render("…"))
 	lines := []string{title, "", panel.Render(input), "", hint}
 
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))

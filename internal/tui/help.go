@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"gitone/internal/keymap"
 	"gitone/internal/tui/zone"
@@ -153,7 +152,7 @@ func groupByCategory(all []keymap.Binding) ([]keymap.Category, map[keymap.Catego
 // justify прижимает left к левому краю, right к правому. Не влезает, left
 // обрезается: клавиши справа важнее хвоста описания.
 func justify(panel lipgloss.Style, width int, left, right string) string {
-	left = ansi.Truncate(left, max(width-lipgloss.Width(right)-1, 0), "…")
+	left = truncate(left, max(width-lipgloss.Width(right)-1, 0), "…")
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	return left + panel.Render(strings.Repeat(" ", gap)) + right
 }

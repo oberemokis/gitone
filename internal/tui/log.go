@@ -407,8 +407,8 @@ func tableRow(panel lipgloss.Style, widths []int, styles []lipgloss.Style, cells
 		if index > 0 {
 			row.WriteString(panel.Render(strings.Repeat(" ", columnGap)))
 		}
-		cell = ansi.Truncate(visible(cell), widths[index], "…")
-		row.WriteString(styles[index].Render(cell + strings.Repeat(" ", widths[index]-ansi.StringWidth(cell))))
+		cell = truncate(visible(cell), widths[index], "…")
+		row.WriteString(styles[index].Render(cell + strings.Repeat(" ", max(widths[index]-ansi.StringWidth(cell), 0))))
 	}
 	return row.String()
 }

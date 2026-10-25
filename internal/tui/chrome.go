@@ -68,8 +68,8 @@ func header(width int, files []diff.File, current, back int, flags string, color
 	} else {
 		previous, next = "", ""
 	}
-	name = ansi.Truncate(name, max(inner-ansi.StringWidth(tail), 1), "…")
-	title := ansi.Truncate(name+tail, inner, "…")
+	name = truncate(name, max(inner-ansi.StringWidth(tail), 1), "…")
+	title := truncate(name+tail, inner, "…")
 
 	// клавиша стоит снаружи стрелки: «[ ‹» слева и «› ]» справа
 	arrow := func(symbol, key string, index int, keyFirst bool) string {
@@ -132,6 +132,19 @@ const tabSpaces = "    "
 // нужно git как есть.
 func visible(field string) string {
 	return strings.ReplaceAll(diff.Printable(field), "\t", tabSpaces)
+}
+
+// truncate обрезает строку до width клеток, как ansi.Truncate, но ширину
+// результата меряет ansi.StringWidth, той же мерой, которой строки дополняются
+// до столбца. ansi.Truncate считает ASCII в обход графем: keycap «1️⃣» для него
+// одна клетка, для StringWidth две, и дополнение после обрезки уходило в минус
+// (#377). Каждый лишний шаг цикла снимает одну клетку, а их не больше ширины.
+func truncate(text string, width int, tail string) string {
+	cut := ansi.Truncate(text, width, tail)
+	for limit := width - 1; limit >= 0 && ansi.StringWidth(cut) > width; limit-- {
+		cut = ansi.Truncate(text, limit, tail)
+	}
+	return cut
 }
 
 // statusLabel пустой у изменённого файла, это обычный случай. У остальных
@@ -269,12 +282,12 @@ func footer(width int, left, center, right string) string {
 		return strings.Repeat(" ", max(width, 0))
 	}
 
-	right = ansi.Truncate(right, inner, "…")
+	right = truncate(right, inner, "…")
 	rightWidth := ansi.StringWidth(right)
 	// между частями хотя бы один пробел
 	room := max(inner-rightWidth-1, 0)
 
-	center = ansi.Truncate(center, room, "…")
+	center = truncate(center, room, "…")
 	centerWidth := ansi.StringWidth(center)
 	centerStart := min((inner-centerWidth)/2, room-centerWidth)
 
@@ -282,17 +295,17 @@ func footer(width int, left, center, right string) string {
 	if centerWidth > 0 {
 		leftRoom = max(centerStart-1, 0)
 	}
-	left = ansi.Truncate(left, leftRoom, "…")
+	left = truncate(left, leftRoom, "…")
 	leftWidth := ansi.StringWidth(left)
 
 	var line strings.Builder
 	line.WriteString(left)
 	if centerWidth > 0 {
-		line.WriteString(strings.Repeat(" ", centerStart-leftWidth))
+		line.WriteString(strings.Repeat(" ", max(centerStart-leftWidth, 0)))
 		line.WriteString(center)
 		leftWidth = centerStart + centerWidth
 	}
-	line.WriteString(strings.Repeat(" ", inner-leftWidth-rightWidth))
+	line.WriteString(strings.Repeat(" ", max(inner-leftWidth-rightWidth, 0)))
 	line.WriteString(right)
 
 	padding := strings.Repeat(" ", footerPadding)
