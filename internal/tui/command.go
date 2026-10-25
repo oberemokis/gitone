@@ -20,7 +20,10 @@ import (
 // {path} заменяется переменной окружения с путём открытого файла в кавычках
 // shell: значение переменной shell повторно не разбирает, и пробелы,
 // кавычки и `$` в пути команду не ломают. stdin пустой: команда, которая
-// ждёт ввода, получает конец файла, а не висит. Подвал говорит первую строку
+// ждёт ввода, получает конец файла, а не висит. git в ней не спрашивает логин
+// (GIT_TERMINAL_PROMPT=0), а на unix у неё нет и терминала (shellCommand),
+// иначе вопрос встал бы поверх экрана и ждал ввода, который читает интерфейс
+// (#392). Подвал говорит первую строку
 // вывода, а при ошибке код выхода и первую строку stderr. После команды
 // дифф перечитывается: она могла поменять репозиторий.
 func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
@@ -58,7 +61,7 @@ func (m Model) runCommand(command keymap.Command) (tea.Model, tea.Cmd) {
 func runShell(dir, script, path string) (string, error) {
 	shell := shellCommand(script)
 	shell.Dir = dir
-	shell.Env = append(os.Environ(), "GITONE_PATH="+path)
+	shell.Env = append(os.Environ(), "GITONE_PATH="+path, "GIT_TERMINAL_PROMPT=0")
 	shell.WaitDelay = time.Second
 
 	var stdout, stderr bytes.Buffer
