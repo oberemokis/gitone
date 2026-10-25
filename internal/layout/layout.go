@@ -44,9 +44,15 @@ var percentSize = regexp.MustCompile(`^[0-9]{1,3}%$`)
 var cellSize = regexp.MustCompile(`^[0-9]+$`)
 
 // Build проверяет дерево из файла и переводит его в Node. Ошибка называет путь
-// внутри файла, например root.children[1].pane.
+// внутри файла, например root.children[1].pane. Раскладка без панели diff
+// отвергается: дифф иначе не показывался бы нигде (#390).
 func Build(file config.LayoutFile) (Node, error) {
-	return build(file.Root, "root", map[string]bool{})
+	seen := map[string]bool{}
+	root, err := build(file.Root, "root", seen)
+	if err == nil && !seen["diff"] {
+		err = i18n.New("layout.noDiff", nil)
+	}
+	return root, err
 }
 
 func build(node config.LayoutNode, path string, seen map[string]bool) (Node, error) {
@@ -168,19 +174,18 @@ func Split(root Node, width, height int) Placed {
 }
 
 // shares возвращает длину каждого ребенка вдоль оси. Проценты округляются
-// вниз, и когда все дети в процентах и вместе дают 100, остаток отходит
-// последнему: иначе колонка или строка у края осталась бы ничьей.
+// вниз, и когда размер есть у всех детей, остаток отходит последнему: иначе
+// колонка или строка у края осталась бы ничьей. Сумма тут не важна: скрытая
+// панель или ширина, заданная мышью, ломают и ровные 100% (#390).
 func shares(children []Node, axis int) []int {
 	lengths := make([]int, len(children))
 	left := axis
-	free, percent, lastPercent := 0, 0, -1
+	free := 0
 
 	for index, child := range children {
 		switch {
 		case child.Size.Percent > 0:
 			lengths[index] = min(axis*child.Size.Percent/100, left)
-			percent += child.Size.Percent
-			lastPercent = index
 		case child.Size.Cells > 0:
 			lengths[index] = min(child.Size.Cells, left)
 		default:
@@ -191,9 +196,7 @@ func shares(children []Node, axis int) []int {
 	}
 
 	if free == 0 {
-		if percent == 100 {
-			lengths[lastPercent] += left
-		}
+		lengths[len(lengths)-1] += left
 		return lengths
 	}
 
