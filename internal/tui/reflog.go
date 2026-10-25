@@ -12,16 +12,18 @@ import (
 
 // reflogMsg несёт reflog HEAD или ошибку git.
 type reflogMsg struct {
+	repo    git.Repo
 	entries []git.ReflogEntry
 	err     error
 }
 
 func (msg reflogMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.reflogArrived(msg), nil }
+func (msg reflogMsg) from() git.Repo                     { return msg.repo }
 
 func reflogCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := repo.Reflog()
-		return reflogMsg{entries: entries, err: err}
+		return reflogMsg{repo: repo, entries: entries, err: err}
 	}
 }
 

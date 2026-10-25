@@ -67,3 +67,19 @@ func TestLogFilters(t *testing.T) {
 		t.Fatalf("курсор на %q, ожидался тот же коммит bob-src", row)
 	}
 }
+
+// Фильтр автора git ищет по всей истории долго, сброс приходит раньше: поздний
+// ответ фильтра в лог не ложится (#380, случай 3).
+func TestLateFilterReplyAfterClear(t *testing.T) {
+	model, _ := filteredRepo(t).Update(ctrlS)
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model, slow := typeText(model, "zzz").Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	model, _ = model.Update(ctrlS)
+	model, _ = model.Update(key('j'))
+	model, _ = model.Update(key('j'))
+	model = settle(enterKey(model), slow, 2)
+	if body := screenText(model); strings.Contains(body, "author zzz") || !strings.Contains(body, "bob-doc") {
+		t.Fatalf("поздний ответ фильтра лёг после сброса:\n%s", body)
+	}
+}

@@ -134,10 +134,11 @@ func (m Model) rewritten(msg rewrittenMsg) (tea.Model, tea.Cmd) {
 		return next, reload
 	}
 
-	filter, repo := next.logFilter, next.repo
+	next, read := next.requestLog(next.logFilter)
 	return next, tea.Batch(reload, func() tea.Msg {
-		entries, err := repo.Log(logLimit, filter)
-		return logMsg{entries: entries, filter: filter, err: err, follow: msg.follow, at: msg.at}
+		reply := read().(logMsg)
+		reply.follow, reply.at = msg.follow, msg.at
+		return reply
 	})
 }
 

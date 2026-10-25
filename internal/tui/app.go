@@ -72,6 +72,8 @@ type Model struct {
 	logEntries []git.LogEntry
 	// logFilter фильтр открытого лога по автору и пути (#226)
 	logFilter git.LogFilter
+	// logRequest номер последнего запроса лога, ответ на прежний устарел (#380)
+	logRequest int
 	// copied коммит, скопированный для cherry-pick (#222), до выхода из gitone
 	copied git.LogEntry
 	// поиск в логе, ветках и worktree: запрос и открытое поле (window.go).
@@ -278,7 +280,18 @@ type applier interface {
 	apply(Model) (tea.Model, tea.Cmd)
 }
 
+// repoReply это ответ окна-списка, который знает репозиторий запроса. После
+// смены дерева ответ прежнего лёг бы списком в окно нового: лог main в
+// side-tree, и space перевёл бы side-tree на коммит main (#380). update
+// отбрасывает его до apply, вместе со всем, что ответ сделал бы после списка.
+type repoReply interface {
+	from() git.Repo
+}
+
 func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if reply, ok := msg.(repoReply); ok && reply.from() != m.repo {
+		return m, nil
+	}
 	if own, ok := msg.(applier); ok {
 		return own.apply(m)
 	}

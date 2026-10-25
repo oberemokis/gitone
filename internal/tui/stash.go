@@ -13,6 +13,7 @@ import (
 // stashesMsg несёт список stash или ошибку git. edit значит, что список
 // пришёл после правки, at это строка, на которую тогда встаёт курсор.
 type stashesMsg struct {
+	repo    git.Repo
 	stashes []git.Stash
 	err     error
 	edit    bool
@@ -20,11 +21,12 @@ type stashesMsg struct {
 }
 
 func (msg stashesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.stashesArrived(msg) }
+func (msg stashesMsg) from() git.Repo                     { return msg.repo }
 
 func stashListCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
 		stashes, err := repo.Stashes()
-		return stashesMsg{stashes: stashes, err: err}
+		return stashesMsg{repo: repo, stashes: stashes, err: err}
 	}
 }
 
@@ -90,7 +92,7 @@ func stashPushCmd(repo git.Repo) tea.Cmd {
 func stashNewCmd(repo git.Repo, opts git.StashOptions) tea.Cmd {
 	return func() tea.Msg {
 		if err := repo.StashPush(opts); err != nil {
-			return stashesMsg{err: err}
+			return stashesMsg{repo: repo, err: err}
 		}
 		msg := stashListCmd(repo)().(stashesMsg)
 		msg.edit = true
@@ -103,7 +105,7 @@ func stashNewCmd(repo git.Repo, opts git.StashOptions) tea.Cmd {
 func stashRenameCmd(repo git.Repo, stash git.Stash, at int, message string) tea.Cmd {
 	return func() tea.Msg {
 		if err := repo.StashRename(stash, message); err != nil {
-			return stashesMsg{err: err}
+			return stashesMsg{repo: repo, err: err}
 		}
 		msg := stashListCmd(repo)().(stashesMsg)
 		msg.edit, msg.at = true, at

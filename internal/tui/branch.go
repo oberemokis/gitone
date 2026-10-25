@@ -16,6 +16,7 @@ import (
 // branchesMsg несёт список локальных веток или ошибку git. edit значит, что
 // список пришёл после правки, note это её итог.
 type branchesMsg struct {
+	repo     git.Repo
 	branches []git.Branch
 	err      error
 	edit     bool
@@ -23,11 +24,12 @@ type branchesMsg struct {
 }
 
 func (msg branchesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.branchesArrived(msg) }
+func (msg branchesMsg) from() git.Repo                     { return msg.repo }
 
 func branchesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
 		branches, err := repo.Branches()
-		return branchesMsg{branches: branches, err: err}
+		return branchesMsg{repo: repo, branches: branches, err: err}
 	}
 }
 
@@ -81,7 +83,7 @@ func renameBranchCmd(repo git.Repo, from, to string) tea.Cmd {
 func thenBranches(repo git.Repo, change func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := change(); err != nil {
-			return branchesMsg{err: err}
+			return branchesMsg{repo: repo, err: err}
 		}
 		msg := branchesCmd(repo)().(branchesMsg)
 		msg.edit = true

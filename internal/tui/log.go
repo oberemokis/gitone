@@ -21,8 +21,10 @@ const logLimit = 200
 // logMsg несёт список коммитов под фильтром или ошибку git. После правки
 // истории (#219) курсор открытого лога встаёт на коммит follow (тема и автор:
 // хэш после rebase другой), а без него на строку at; -1 значит тот же коммит,
-// что был под курсором.
+// что был под курсором. request это номер запроса (requestLog).
 type logMsg struct {
+	repo    git.Repo
+	request int
 	entries []git.LogEntry
 	filter  git.LogFilter
 	err     error
@@ -31,11 +33,18 @@ type logMsg struct {
 }
 
 func (msg logMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.logArrived(msg), nil }
+func (msg logMsg) from() git.Repo                     { return msg.repo }
 
-func logCmd(repo git.Repo, filter git.LogFilter) tea.Cmd {
-	return func() tea.Msg {
+// requestLog просит у git лог под фильтром filter. Номер запроса уходит в
+// ответ, и лог принимает только ответ на последний: фильтр автора git ищет по
+// всей истории секунды, сброс фильтра приходит раньше, и поздний ответ лёг бы
+// поверх сброса (#380).
+func (m Model) requestLog(filter git.LogFilter) (Model, tea.Cmd) {
+	m.logRequest++
+	repo, request := m.repo, m.logRequest
+	return m, func() tea.Msg {
 		entries, err := repo.Log(logLimit, filter)
-		return logMsg{entries: entries, filter: filter, err: err, at: -1}
+		return logMsg{repo: repo, request: request, entries: entries, filter: filter, err: err, at: -1}
 	}
 }
 
@@ -46,6 +55,8 @@ func logCmd(repo git.Repo, filter git.LogFilter) tea.Cmd {
 // совпадений.
 func (m Model) logArrived(msg logMsg) Model {
 	switch {
+	case msg.request != m.logRequest:
+		return m
 	case msg.err == nil && msg.filter.File && len(msg.entries) == 0 && m.active == noWindow:
 		return m.putNotice(m.text.Text("history.empty", i18n.Args{"path": visible(msg.filter.Path)}))
 	case msg.err == nil && m.beneath() == logWindow:
@@ -66,7 +77,7 @@ func (m Model) fileHistory() (tea.Model, tea.Cmd) {
 	if path == "" {
 		return m.putNotice(m.text.Text("stage.noFile", nil)), nil
 	}
-	return m, logCmd(m.repo, git.LogFilter{Path: path, File: true})
+	return m.requestLog(git.LogFilter{Path: path, File: true})
 }
 
 // refilterLog ставит в открытый лог список под новым фильтром (#226). Курсор
@@ -118,7 +129,7 @@ func abs(number int) int {
 func (m Model) askLogFilter() Model {
 	filter := m.logFilter
 	reload := func(m Model, next git.LogFilter) (tea.Model, tea.Cmd) {
-		return m, logCmd(m.repo, next)
+		return m.requestLog(next)
 	}
 	field := func(titleKey, value string, set func(text string) git.LogFilter) menuItem {
 		title := m.text.Text(titleKey, nil)

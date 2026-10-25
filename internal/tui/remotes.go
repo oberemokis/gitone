@@ -13,17 +13,19 @@ import (
 // remotesMsg несёт список remote или ошибку git. note это итог правки, после
 // которой список пришёл в открытое окно.
 type remotesMsg struct {
+	repo    git.Repo
 	remotes []git.Remote
 	err     error
 	note    string
 }
 
 func (msg remotesMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.remotesArrived(msg), nil }
+func (msg remotesMsg) from() git.Repo                     { return msg.repo }
 
 func remotesCmd(repo git.Repo) tea.Cmd {
 	return func() tea.Msg {
 		remotes, err := repo.Remotes()
-		return remotesMsg{remotes: remotes, err: err}
+		return remotesMsg{repo: repo, remotes: remotes, err: err}
 	}
 }
 
@@ -32,7 +34,7 @@ func remotesCmd(repo git.Repo) tea.Cmd {
 func thenRemotes(repo git.Repo, note string, change func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := change(); err != nil {
-			return remotesMsg{err: err}
+			return remotesMsg{repo: repo, err: err}
 		}
 		msg := remotesCmd(repo)().(remotesMsg)
 		msg.note = note
