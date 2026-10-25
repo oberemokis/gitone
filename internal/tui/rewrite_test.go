@@ -99,6 +99,38 @@ func TestRewordFromLog(t *testing.T) {
 	}
 }
 
+// Отказ reword (выше коммита слияние) оставляет набранное: r на том же
+// коммите открывает окно с ним, а не с прежним сообщением (#393).
+func TestRefusedRewordKeepsDraft(t *testing.T) {
+	repo := newRepo(t)
+	for _, name := range []string{"one", "two"} {
+		write(t, repo, name+".txt", name+"\n")
+		commitAll(t, repo)
+	}
+	runGit(t, repo, "switch", "-q", "-c", "side")
+	write(t, repo, "side.txt", "side\n")
+	commitAll(t, repo)
+	runGit(t, repo, "switch", "-q", "main")
+	write(t, repo, "three.txt", "three\n")
+	commitAll(t, repo)
+	runGit(t, repo, "merge", "-q", "--no-ff", "--no-edit", "side")
+	model := openAsync(resize(open(t, options(repo, layout.Focus())), 140, 30), key('l'))
+	// под слиянием и двумя его родителями коммит two
+	for range 3 {
+		model, _ = model.Update(key('j'))
+	}
+
+	model = enterKey(typeText(pressAndSettle(model, key('r')), " two"))
+	if notice := noticeOf(model); !strings.Contains(notice, "merge commits") {
+		t.Fatalf("тост %q, ожидался отказ из-за слияния", notice)
+	}
+
+	model = pressAndSettle(model, key('r'))
+	if body := screenText(model); !strings.Contains(body, "> commit two_") {
+		t.Fatalf("r после отказа открыл окно без набранного:\n%s", body)
+	}
+}
+
 // Reword без правки не запускает rebase: таб в описании не превращается в
 // пробелы, хэши на месте (#299, случай 2).
 func TestRewordUnchangedKeepsCommit(t *testing.T) {
