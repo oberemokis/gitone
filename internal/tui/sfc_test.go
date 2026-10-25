@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -205,6 +206,33 @@ func TestVersionHighlightOfLineCutByDiff(t *testing.T) {
 	write(t, repo, "App.vue", long("42"))
 
 	requireKeywordConsts(t, openSized(t, repo, 140, 30), "answer = 41")
+}
+
+// Версия режется так же, как строка диффа: комментарий кончается 4096-й руной,
+// её заменяет «…», и отрезок его подсветки не рвёт «…» пополам. Перенос по умолчанию показывает строку до конца (#394).
+func TestVersionLineCutLikeDiffLine(t *testing.T) {
+	long := func(answer string) string {
+		line := "const answer = " + answer + "\n"
+		// 19 рун до комментария, 4073 буквы и две пары знаков в нём
+		wide := "const answer = " + answer + "; /*" + strings.Repeat("x", 4073) + "*/ let beyond = 1\n"
+		return strings.Replace(vueComponent(answer), line, wide, 1)
+	}
+	repo := newRepo(t)
+	write(t, repo, "App.vue", long("41"))
+	commitAll(t, repo)
+	write(t, repo, "App.vue", long("42"))
+
+	model := openSized(t, repo, 200, 150)
+
+	content := model.View().Content
+	if !utf8.ValidString(content) || strings.ContainsRune(content, utf8.RuneError) {
+		t.Fatalf("на экране разрезанная руна:\n%s", screenText(model))
+	}
+	if !strings.Contains(screenText(model), "x*…") {
+		t.Fatalf("строка не кончается «…»:\n%s", screenText(model))
+	}
+	// комментарий в обрезанной строке не закрыт: следующие строки всё равно код
+	requireKeywordConsts(t, model, "fourth = 4")
 }
 
 // colorBefore это последний SGR перед первым text в строке экрана с кодами.
