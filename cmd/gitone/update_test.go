@@ -83,6 +83,10 @@ func installed(t *testing.T) string {
 	if err := os.WriteFile(exe, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// права из WriteFile режет umask, а тесты ждут 0755 у старого бинарника
+	if err := os.Chmod(exe, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	return exe
 }
 
