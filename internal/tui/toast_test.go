@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -166,5 +167,32 @@ func TestToastOverWindowIsNotShaded(t *testing.T) {
 	}
 	if got := borderColor(t, model, toastRow); !sameRGB(got, theme.Dark().Error) {
 		t.Fatalf("рамка тоста %v, ожидался error %v без подложки", got, theme.Dark().Error)
+	}
+}
+
+// Клик по тосту, который лежит поверх строк окна, никуда не проходит: ветка
+// под ним не переключается, окно остаётся открытым (#391, случай 1). Клик мимо
+// тоста работает как раньше (случай 2).
+func TestClickOnToastStaysOnToast(t *testing.T) {
+	var names []string
+	for index := range 30 {
+		names = append(names, fmt.Sprintf("branch-%02d", index))
+	}
+	repo, model := branchesWith(t, names...)
+	// отказ git повторяет длинное имя, и тост доходит до строк веток
+	model, _ = model.Update(key('R'))
+	model = enterKey(typeText(model, strings.Repeat("bad name ", 20)))
+
+	model = clickOn(t, model, "valid branch name")
+	if current := runGit(t, repo, "branch", "--show-current"); current != "main" {
+		t.Fatalf("клик по тосту переключил ветку на %q", current)
+	}
+	if body := screenText(model); !strings.Contains(body, "Branches") {
+		t.Fatalf("окно веток закрылось:\n%s", body)
+	}
+
+	clickOn(t, model, "branch-25")
+	if current := runGit(t, repo, "branch", "--show-current"); current != "branch-25" {
+		t.Fatalf("клик мимо тоста: текущая %q, want branch-25", current)
 	}
 }
