@@ -43,6 +43,20 @@ func TestCompareWithBranch(t *testing.T) {
 	}
 }
 
+// Тег feature на main не подменяет ветку: W сравнивает с веткой, а заголовок
+// называет её коротким именем (#387, случай 1).
+func TestCompareWithBranchOverTag(t *testing.T) {
+	repo, _ := compareRepo(t)
+	runGit(t, repo, "tag", "feature", "main")
+	model := openAsync(resize(open(t, options(repo, layout.Focus())), 120, 24), key('B'))
+	model, _ = model.Update(key('k'))
+
+	model = pressAndSettle(model, key('W'))
+	if got := headerText(screenOf(model)); !strings.Contains(got, "(1/2) vs feature") {
+		t.Fatalf("заголовок %q, ожидались два файла от ветки feature", got)
+	}
+}
+
 // W на коммите лога сравнивает с ним (случай 2); вид только для просмотра.
 func TestCompareWithCommit(t *testing.T) {
 	repo, head := compareRepo(t)

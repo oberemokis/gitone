@@ -93,7 +93,9 @@ func thenBranches(repo git.Repo, change func() error) tea.Cmd {
 
 // branchActions это действия окна веток: branches.switch переключает на
 // выбранную (на текущую ничего не делает), branches.new создаёт ветку на
-// выбранной, branches.delete удаляет выбранную после вопроса.
+// выбранной, branches.delete удаляет выбранную после вопроса. База новой ветки
+// и точка сравнения уходят в git полной ссылкой: тег-тёзку git предпочёл бы
+// ветке (#387).
 var branchActions = []windowAction[git.Branch]{
 	{action: keymap.BranchesSwitch, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
 		m.active = noWindow
@@ -103,7 +105,7 @@ var branchActions = []windowAction[git.Branch]{
 		return m, switchCmd(m.repo, branch.Name)
 	}},
 	{action: keymap.BranchesNew, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
-		return m.askBranchName(branch.Name, branch.Name), nil
+		return m.askBranchName(branch.Name, "refs/heads/"+branch.Name), nil
 	}},
 	{action: keymap.BranchesRename, changesRepo: true, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
 		return m.askRename(branch.Name), nil
@@ -127,7 +129,7 @@ var branchActions = []windowAction[git.Branch]{
 		return m.pasteCommit()
 	}},
 	{action: keymap.CompareWith, run: func(m Model, branch git.Branch) (tea.Model, tea.Cmd) {
-		return m.compareWith(branch.Name, branch.Name)
+		return m.compareWith("refs/heads/"+branch.Name, branch.Name)
 	}},
 }
 

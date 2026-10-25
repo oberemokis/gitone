@@ -40,6 +40,20 @@ func TestSetUpstream(t *testing.T) {
 	}
 }
 
+// Локальная ветка с именем origin/x не перехватывает upstream: ветка
+// привязывается к удалённой origin/x (#387, случай 3).
+func TestSetUpstreamTakesRemoteOverLocalNamesake(t *testing.T) {
+	_, local := remotePair(t)
+	runGit(t, local, "push", "-q", "origin", "main:x")
+	runGit(t, local, "branch", "origin/x")
+	runGit(t, local, "switch", "-q", "-c", "topic")
+
+	err := open(t, local).SetUpstream("topic", "origin/x")
+	if got := strings.TrimSpace(runGit(t, local, "rev-parse", "--symbolic-full-name", "topic@{upstream}")); err != nil || got != "refs/remotes/origin/x" {
+		t.Fatalf("SetUpstream = %v, upstream %q, ожидалась refs/remotes/origin/x", err, got)
+	}
+}
+
 // divergedRepo это main и feature, разошедшиеся от общего коммита: у каждой
 // свой файл. Текущая main.
 func divergedRepo(t *testing.T) string {
@@ -158,6 +172,21 @@ func TestMergeAndRebaseAutostashConflict(t *testing.T) {
 				t.Fatal("отложенных правок нет в stash")
 			}
 		})
+	}
+}
+
+// Сообщение при теге-тёзке такое же, как git пишет без него: вне main и
+// master оно называет ветку, в которую сливают (#387, случай 4).
+func TestMergeOverTagNamesTarget(t *testing.T) {
+	repo := divergedRepo(t)
+	runGit(t, repo, "tag", "feature", "main~1")
+	runGit(t, repo, "switch", "-q", "-c", "topic")
+
+	if err := open(t, repo).Merge("feature"); err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if got := lastSubject(t, repo); got != "Merge branch 'feature' into topic" {
+		t.Fatalf("сообщение %q, ожидалось с веткой topic", got)
 	}
 }
 
