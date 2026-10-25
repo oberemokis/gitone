@@ -34,9 +34,11 @@ func (r Repo) commit(subject string, description string) error {
 }
 
 // messageArgs добавляет к команде тему и описание вторым -m: git ставит между
-// ними пустую строку, а пустое описание тела не даёт.
+// ними пустую строку, а пустое описание тела не даёт. Режим очистки закреплён:
+// commit.cleanup=strip из конфига пользователя вырезал бы тему «#42 fix crash»,
+// а у amend оставил бы пустое сообщение (#381).
 func messageArgs(args []string, subject, description string) []string {
-	args = append(args, "-m", subject)
+	args = append(args, "--cleanup=whitespace", "-m", subject)
 	if body := strings.TrimSpace(description); body != "" {
 		args = append(args, "-m", body)
 	}
@@ -51,9 +53,11 @@ func (r Repo) LastMessage() (subject, description string, err error) {
 
 // Message возвращает тему и описание коммита rev: amend и reword (#219)
 // открывают окно коммита с ними. Тема это первая строка сообщения, описание
-// всё после неё: %s склеил бы первый абзац из нескольких строк в одну.
+// всё после неё: %s склеил бы первый абзац из нескольких строк в одну. Без
+// --no-show-signature log.showSignature ставит проверку подписи первой строкой,
+// и amend без правок записал бы её в историю (#381).
 func (r Repo) Message(rev string) (subject, description string, err error) {
-	out, err := r.inRoot("log", "-1", "--format=%B", rev, "--")
+	out, err := r.inRoot("log", "-1", "--no-show-signature", "--format=%B", rev, "--")
 	if err != nil {
 		if !hasCommits(r.root) {
 			err = i18n.New("git.noCommits", nil)

@@ -4,9 +4,11 @@ import "strings"
 
 // UnstagedDiff возвращает дифф файла path между индексом и рабочим деревом
 // (#212): в нём то, что ещё можно поставить в индекс по хункам и строкам.
-// flags это флаги вида, как у Diff.
+// flags это флаги вида, как у Diff. Патч выбранных строк собирается из этого
+// диффа, поэтому он идёт без textconv: строки из вывода драйвера diff в
+// .gitattributes к файлу не прикладываются (#381).
 func (r Repo) UnstagedDiff(path string, flags ...string) (string, error) {
-	text, err := run(literal(r.root), diffCommand(flags, "--", path)...)
+	text, err := run(literal(r.root), diffCommand(flags, "--no-textconv", "--", path)...)
 	return text, failed("diff", err)
 }
 
