@@ -21,7 +21,7 @@ func (msg patchMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.patchSaved(ms
 // буфер обмена, патч в буфер и в файл. Буфер это OSC 52: терминал не отвечает,
 // принял ли он текст, поэтому патч сохраняется файлом всегда.
 func (m Model) askCopy(entry git.LogEntry) Model {
-	short := entry.Hash[:7]
+	short := shortCommit(entry.Hash)
 	return m.openMenu(m.text.Text("copy.title", i18n.Args{"hash": short}), []menuItem{
 		{label: m.text.Text("copy.hash", nil), run: func(m Model) (tea.Model, tea.Cmd) {
 			m = m.sayCalm(m.text.Text("copy.hashDone", i18n.Args{"hash": short}))

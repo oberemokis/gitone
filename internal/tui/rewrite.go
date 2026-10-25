@@ -34,7 +34,7 @@ func rewriteAction(change git.Rewrite) func(Model, git.LogEntry) (tea.Model, tea
 		switch change {
 		case git.RewriteDrop:
 			args := questionArgs(m.keys)
-			args["hash"] = entry.Hash[:7]
+			args["hash"] = shortCommit(entry.Hash)
 			return m.ask(m.text.Text("rewrite.dropQuestion", args), func(m Model) (tea.Model, tea.Cmd) {
 				return m, m.rewrite(entry.Hash, git.RewriteDrop, "", git.LogEntry{}, m.cursor)
 			}), nil
@@ -89,7 +89,7 @@ func (m Model) parentEntry(hash string) git.LogEntry {
 // коммит), и после S (fixup-коммиты над ним пропали).
 func (m Model) fixupCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
 	repo, at := m.repo, m.cursor
-	note := m.text.Text("rewrite.fixupCreated", i18n.Args{"hash": entry.Hash[:7]})
+	note := m.text.Text("rewrite.fixupCreated", i18n.Args{"hash": shortCommit(entry.Hash)})
 	return m, func() tea.Msg {
 		return rewrittenMsg{err: repo.Fixup(entry.Hash), note: note, follow: entry, at: at + 1}
 	}
@@ -97,7 +97,7 @@ func (m Model) fixupCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
 
 func (m Model) autosquash(entry git.LogEntry) (tea.Model, tea.Cmd) {
 	repo, at := m.repo, m.cursor
-	note := m.text.Text("rewrite.autosquashed", i18n.Args{"hash": entry.Hash[:7]})
+	note := m.text.Text("rewrite.autosquashed", i18n.Args{"hash": shortCommit(entry.Hash)})
 	return m, func() tea.Msg {
 		published, err := repo.Autosquash(entry.Hash)
 		return rewrittenMsg{err: err, published: published, note: note, follow: entry, at: at}
@@ -107,7 +107,7 @@ func (m Model) autosquash(entry git.LogEntry) (tea.Model, tea.Cmd) {
 // rewrite запускает правку истории в команде: итог придёт rewrittenMsg.
 func (m Model) rewrite(hash string, change git.Rewrite, message string, follow git.LogEntry, at int) tea.Cmd {
 	repo := m.repo
-	note := m.text.Text("rewrite.done."+string(change), i18n.Args{"hash": hash[:7]})
+	note := m.text.Text("rewrite.done."+string(change), i18n.Args{"hash": shortCommit(hash)})
 	return func() tea.Msg {
 		published, err := repo.RewriteHistory(hash, change, message)
 		return rewrittenMsg{err: err, published: published, note: note, follow: follow, at: at, reword: change == git.RewriteReword}

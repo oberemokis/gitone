@@ -40,13 +40,13 @@ var reflogActions = []windowAction[git.ReflogEntry]{
 	{action: keymap.LogOpen, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
 		return m.showCommit(git.LogEntry{Hash: entry.Hash, Root: entry.Root})
 	}},
-	{action: keymap.LogCheckout, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
-		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
+	{action: keymap.LogCheckout, changesRepo: true, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
+		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": shortCommit(entry.Hash)}), func(repo git.Repo) error {
 			return repo.CheckoutCommit(entry.Hash)
 		})
 	}},
 	{action: keymap.LogNewBranch, changesRepo: true, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
-		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
+		return m.askBranchName(shortCommit(entry.Hash), entry.Hash), nil
 	}},
 }
 
@@ -99,7 +99,7 @@ func reflogBox(p paint, entries []git.ReflogEntry, cursor int, query string, typ
 	styles := []lipgloss.Style{panel.Foreground(p.colors.Accent), muted, panel, muted}
 	box.rows = make([]string, len(entries))
 	for index, entry := range entries {
-		box.rows[index] = tableRow(panel, widths, styles, entry.Hash[:7], entry.Action, entry.Subject, entry.When)
+		box.rows[index] = tableRow(panel, widths, styles, shortCommit(entry.Hash), entry.Action, entry.Subject, entry.When)
 	}
 
 	return box.view(p, screenWidth, screenHeight)

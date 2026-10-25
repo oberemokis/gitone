@@ -55,7 +55,6 @@
   "action.app.log.help": "Commit log",
   "action.app.quit.footer": "quit",
   "action.app.quit.help": "Quit",
-  "action.app.worktrees.footer": "worktrees",
   "action.app.worktrees.help": "Worktrees",
   "action.app.tags.help": "Tags",
   "action.app.remotes.help": "Remotes",
