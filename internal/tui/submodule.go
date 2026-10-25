@@ -56,12 +56,9 @@ func (m Model) submoduleKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // startSubmoduleUpdate обновляет подмодуль тем же фоновым путём, что push:
 // клон идёт по сети, со спиннером и отменой по esc.
 func (m Model) startSubmoduleUpdate(path string) (tea.Model, tea.Cmd) {
-	ctx, cancel := context.WithCancel(context.Background())
-	m.remote = remote{kind: updatingSubmodule, id: m.remote.id + 1, cancel: cancel}
-
-	repo, id := m.repo, m.remote.id
-	return m, tea.Batch(m.remoteSpinTick(id), func() tea.Msg {
-		return remoteDoneMsg{id: id, kind: updatingSubmodule, target: path, err: repo.UpdateSubmodule(ctx, path)}
+	repo := m.repo
+	return m.startRemote(updatingSubmodule, func(ctx context.Context) remoteDoneMsg {
+		return remoteDoneMsg{target: path, err: repo.UpdateSubmodule(ctx, path)}
 	})
 }
 

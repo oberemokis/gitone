@@ -174,6 +174,6 @@ func inRepo(command func(git.Repo) tea.Cmd) actionFunc {
 // remoteAction запускает pull, push или fetch в фоне.
 func remoteAction(kind remoteKind) actionFunc {
 	return func(m Model) (tea.Model, tea.Cmd) {
-		return m.startRemote(kind)
+		return m.startRemote(kind, syncWork(m.repo, kind))
 	}
 }

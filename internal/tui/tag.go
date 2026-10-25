@@ -114,12 +114,9 @@ func (m Model) askTagName() Model {
 // startTagPush отправляет тег на origin тем же фоновым путём, что push: со
 // спиннером и отменой по esc.
 func (m Model) startTagPush(name string) (tea.Model, tea.Cmd) {
-	ctx, cancel := context.WithCancel(context.Background())
-	m.remote = remote{kind: pushingTag, id: m.remote.id + 1, cancel: cancel}
-
-	repo, id := m.repo, m.remote.id
-	return m, tea.Batch(m.remoteSpinTick(id), func() tea.Msg {
-		return remoteDoneMsg{id: id, kind: pushingTag, target: name, err: repo.PushTag(ctx, name)}
+	repo := m.repo
+	return m.startRemote(pushingTag, func(ctx context.Context) remoteDoneMsg {
+		return remoteDoneMsg{target: name, err: repo.PushTag(ctx, name)}
 	})
 }
 
