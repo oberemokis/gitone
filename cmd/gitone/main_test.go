@@ -56,6 +56,52 @@ func TestMainPrintsGitErrorWithoutControlCharacters(t *testing.T) {
 	}
 }
 
+// Отказ вне репозитория выходит через os.Exit, а сокет askpass к этому моменту
+// уже открыт: его каталог в $TMPDIR закрывается до выхода (#395).
+func TestMainOutsideRepoRemovesAskpassDir(t *testing.T) {
+	// TMPDIR короткий: путь сокета длиннее 104 байт macOS не примет, и Listen
+	// уберёт каталог сам, не дойдя до выхода
+	temp, err := os.MkdirTemp("", "gitone-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(temp) })
+
+	command := exec.Command(os.Args[0])
+	command.Dir = t.TempDir()
+	command.Env = append(os.Environ(), runMainEnv+"=1", "TMPDIR="+temp, "HOME="+command.Dir, "XDG_CONFIG_HOME="+command.Dir, "GIT_CEILING_DIRECTORIES="+filepath.Dir(command.Dir))
+
+	if err := command.Run(); err == nil {
+		t.Fatal("gitone вне репозитория вышел без ошибки")
+	}
+	if left, _ := filepath.Glob(filepath.Join(temp, "gitone-askpass-*")); len(left) > 0 {
+		t.Errorf("после выхода остался каталог askpass: %v", left)
+	}
+}
+
+// Без HOME настройки читаются из абсолютного XDG_CONFIG_HOME: домашний
+// каталог нужен, только когда его нет (#395).
+func TestLoadSettingsWithoutHome(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "gitone"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gitone", "config.json"), []byte(`{"diff": {"mode": "split"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	opts, errs := loadSettings()
+
+	if err := errors.Join(errs...); err != nil {
+		t.Fatalf("loadSettings() error = %v", err)
+	}
+	if opts.Config.Diff.Mode != "split" || opts.StateDir != filepath.Join(dir, "gitone") {
+		t.Errorf("настройки не прочитаны: mode %q, state %q", opts.Config.Diff.Mode, opts.StateDir)
+	}
+}
+
 func TestAddNotice(t *testing.T) {
 	text := i18n.Custom("xx", map[string]string{"json.extraText": "лишний текст"})
 

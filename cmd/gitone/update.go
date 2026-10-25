@@ -329,6 +329,11 @@ func (u updater) install(binary []byte, version string) error {
 
 func writeExecutable(file *os.File, binary []byte, mode fs.FileMode) error {
 	_, err := file.Write(binary)
+	// rename в replace атомарен для имени, а не для данных: без Sync сбой
+	// питания после него оставит на месте gitone пустой файл
+	if err == nil {
+		err = file.Sync()
+	}
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}

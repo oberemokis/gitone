@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -66,9 +67,18 @@ func main() {
 		opts.Ticks = ticker.C
 	}
 
+	if err := run(opts, dir); err != nil {
+		exit(opts.Text.Error(err))
+	}
+}
+
+// run открывает сокет askpass, грузит дифф и держит интерфейс. Ошибка
+// возвращается, а не выходит через exit: os.Exit обошёл бы defer, и каталог
+// сокета остался бы в $TMPDIR (#395).
+func run(opts tui.Options, dir string) error {
 	// без сокета git отказывает без вопроса, как до #375
 	if server, err := askpass.Listen(); err != nil {
-		opts.Notice = addNotice(text, opts.Notice, err)
+		opts.Notice = addNotice(opts.Text, opts.Notice, err)
 	} else {
 		defer server.Close()
 		opts.Askpass = server
@@ -76,12 +86,11 @@ func main() {
 
 	model, err := loadWithNotice(opts, dir)
 	if err != nil {
-		exit(opts.Text.Error(err))
+		return err
 	}
 
-	if _, err := tea.NewProgram(model).Run(); err != nil {
-		exit(opts.Text.Error(err))
-	}
+	_, err = tea.NewProgram(model).Run()
+	return err
 }
 
 // loadSettings читает config.json, keybinds.json, тему и раскладку. Ошибка
@@ -91,12 +100,13 @@ func main() {
 func loadSettings() (tui.Options, []error) {
 	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: layout.Default()}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return opts, []error{err}
+	// домашний каталог нужен, только когда XDG_CONFIG_HOME не абсолютный
+	home, homeErr := os.UserHomeDir()
+	dir := config.Dir(os.Getenv("XDG_CONFIG_HOME"), home)
+	if homeErr != nil && !filepath.IsAbs(dir) {
+		return opts, []error{homeErr}
 	}
 
-	dir := config.Dir(os.Getenv("XDG_CONFIG_HOME"), home)
 	settings, settingsErr := config.Load(dir)
 	keys, keysErr := keymap.Load(dir)
 	palette, themeErr := theme.Load(dir, settings.Theme)
