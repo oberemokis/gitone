@@ -32,7 +32,8 @@ func cleanRepo(t *testing.T, keybinds string, width, height int) (string, tea.Mo
 // Под «No changes» после двух пустых строк один ряд клавиш окон по центру
 // тела, как подсказки подвала: клавиша и подпись, между ними три пробела.
 // «No changes» стоит там же, где стоял без ряда, в середине тела. Клавиши,
-// которые подвал уже показывает (B, ?, q), в ряд не идут.
+// которые подвал уже показывает (B, W, ?, q), в ряд не идут: W виден на экране
+// один раз (#400).
 func TestNoChangesShowsWindowKeysInOneRow(t *testing.T) {
 	_, model := cleanRepo(t, "", 100, 30)
 	screen := screenOf(model)
@@ -45,20 +46,20 @@ func TestNoChangesShowsWindowKeysInOneRow(t *testing.T) {
 		t.Fatalf("между надписью и рядом %q, want две пустые строки:\n%s", got, screenText(model))
 	}
 
-	want := "ctrl p files   l log   W worktrees   Z stash"
+	want := "ctrl p files   l log   Z stash"
 	if got := strings.TrimSpace(screen[17]); got != want {
 		t.Fatalf("ряд %q, want %q:\n%s", got, want, screenText(model))
 	}
-	// ряд шириной 44 в теле шириной 100: свободно 56 колонок, слева 28
-	if left := column(screen[17], "ctrl p files"); left != 28 {
-		t.Errorf("ряд начинается в колонке %d, want 28", left)
+	// ряд шириной 30 в теле шириной 100: свободно 70 колонок, слева 35
+	if left := column(screen[17], "ctrl p files"); left != 35 {
+		t.Errorf("ряд начинается в колонке %d, want 35", left)
 	}
 
 	if rest := strings.TrimSpace(strings.Join(screen[18:27], "")); rest != "" {
 		t.Errorf("под рядом %q, want пусто:\n%s", rest, screenText(model))
 	}
 	body := strings.Join(screen[3:27], "\n")
-	for _, absent := range []string{"B branches", "? help", "q quit"} {
+	for _, absent := range []string{"B branches", "W worktrees", "? help", "q quit"} {
 		if strings.Contains(body, absent) {
 			t.Errorf("в теле осталась подсказка подвала %q:\n%s", absent, screenText(model))
 		}
@@ -70,7 +71,6 @@ func TestClickNoChangesHintOpensWindow(t *testing.T) {
 	tests := []struct{ hint, opens string }{
 		{hint: "ctrl p files", opens: "Files"},
 		{hint: "l log", opens: "subject-clean"},
-		{hint: "W worktrees", opens: "Worktrees"},
 		{hint: "Z stash", opens: "Stash"},
 	}
 
@@ -120,7 +120,7 @@ func TestNoChangesSkipsDisabledAction(t *testing.T) {
 	_, model := cleanRepo(t, `{"keybinds":{"app.log":"none"}}`, 100, 30)
 	screen := screenOf(model)
 
-	want := "ctrl p files   W worktrees   Z stash"
+	want := "ctrl p files   Z stash"
 	if got := strings.TrimSpace(screen[17]); got != want {
 		t.Fatalf("ряд %q, want %q:\n%s", got, want, screenText(model))
 	}
@@ -133,7 +133,7 @@ func TestNoChangesSkipsDisabledAction(t *testing.T) {
 func TestNoChangesShowsRebindKey(t *testing.T) {
 	_, model := cleanRepo(t, `{"keybinds":{"app.log":"ctrl+l"}}`, 100, 30)
 
-	want := "ctrl p files   ctrl l log   W worktrees   Z stash"
+	want := "ctrl p files   ctrl l log   Z stash"
 	if got := strings.TrimSpace(screenOf(model)[17]); got != want {
 		t.Fatalf("ряд %q, want %q:\n%s", got, want, screenText(model))
 	}
@@ -146,10 +146,9 @@ func TestNoChangesRowDropsHintsFromTheEnd(t *testing.T) {
 		width int
 		row   string
 	}{
-		{width: 44, row: "ctrl p files   l log   W worktrees   Z stash"},
-		{width: 43, row: "ctrl p files   l log   W worktrees"},
-		{width: 40, row: "ctrl p files   l log   W worktrees"},
-		{width: 32, row: "ctrl p files   l log"},
+		{width: 30, row: "ctrl p files   l log   Z stash"},
+		{width: 29, row: "ctrl p files   l log"},
+		{width: 20, row: "ctrl p files   l log"},
 		{width: 19, row: "ctrl p files"},
 		{width: 11, row: ""},
 	}
@@ -180,7 +179,7 @@ func TestNoChangesRowIsCutByBodyHeight(t *testing.T) {
 		height int
 		row    string
 	}{
-		{name: "ряд помещается", height: 12, row: "ctrl p files   l log   W worktrees   Z stash"},
+		{name: "ряд помещается", height: 12, row: "ctrl p files   l log   Z stash"},
 		{name: "ряд не помещается", height: 11, row: ""},
 	}
 

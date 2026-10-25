@@ -181,9 +181,9 @@ func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Bindin
 }
 
 // emptyActions это действия, о которых говорит экран без изменений: окна, про
-// которые подвал молчит. Ветки, справку и выход он показывает сам.
+// которые подвал молчит. Ветки, worktree, справку и выход он показывает сам.
 var emptyActions = []keymap.Action{
-	keymap.FilesPick, keymap.AppLog, keymap.AppWorktrees, keymap.StashList,
+	keymap.FilesPick, keymap.AppLog, keymap.StashList,
 }
 
 // emptyHints собирает под «No changes» ряд клавиш шириной не больше width так
