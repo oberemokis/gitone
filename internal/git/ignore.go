@@ -19,6 +19,11 @@ func (r Repo) Ignore(path string) error {
 }
 
 func (r Repo) ignore(path string) (err error) {
+	// строка .gitignore не назовёт такой путь: перевод строки разбил бы её на
+	// два шаблона, а \r в конце git срезает (#389)
+	if strings.Contains(path, "\n") || strings.HasSuffix(path, "\r") {
+		return i18n.New("git.ignoreLineBreak", nil)
+	}
 	if _, err := run(literal(r.root), "ls-files", "--error-unmatch", "--", path); err == nil {
 		return i18n.New("git.ignoreTracked", i18n.Args{"path": path})
 	}

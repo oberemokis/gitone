@@ -24,6 +24,21 @@ func (r Repo) Version(hash, path string) ([]byte, error) {
 	if err != nil {
 		return nil, failed("version", err)
 	}
-	data, err := os.ReadFile(name)
+	data, err := worktreeContent(name)
 	return data, failed("version", err)
+}
+
+// worktreeContent читает файл рабочего дерева так, как его хэширует git: у
+// симлинка это текст ссылки, а не файл, на который она ведёт (#389).
+func worktreeContent(name string) ([]byte, error) {
+	info, err := os.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return os.ReadFile(name)
+	}
+
+	target, err := os.Readlink(name)
+	return []byte(target), err
 }

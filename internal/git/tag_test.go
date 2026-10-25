@@ -62,3 +62,28 @@ func TestPushTag(t *testing.T) {
 		t.Fatalf("теги на origin %q, ожидался v1", got)
 	}
 }
+
+// Имя с дефисом git не читает флагом: «-d» он отвергает как имя тега, а тег
+// «-x», пришедший со стороны, удаляется (#389, случай 1).
+func TestTagNameLikeFlag(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+
+	for _, message := range []string{"", "release"} {
+		if err := open(t, repo).CreateTag("-d", message); err == nil {
+			t.Fatalf("CreateTag(-d, %q) = nil, ожидался отказ git", message)
+		}
+	}
+	if tags := runGit(t, repo, "tag", "--list"); tags != "" {
+		t.Fatalf("теги %q, ожидалось ни одного", tags)
+	}
+
+	runGit(t, repo, "update-ref", "refs/tags/-x", "HEAD")
+	if err := open(t, repo).DeleteTag("-x"); err != nil {
+		t.Fatalf("DeleteTag(-x): %v", err)
+	}
+	if tags := runGit(t, repo, "tag", "--list"); tags != "" {
+		t.Fatalf("теги %q, тег -x должен был уйти", tags)
+	}
+}
