@@ -151,9 +151,12 @@ func numberedLines(count int) string {
 // дифф, и тесты диффа не видят панель файлов. Заметки подвала в нём не гаснут:
 // settle доводит команды до конца и ждал бы таймер в пять секунд, а потом
 // стёр бы заметку, которую тест хочет увидеть. Гашение проверяет notice_test.go.
-// Репозиторий открывается сразу: каталог repo создан тестом, и отказ git здесь
-// значит сломанный тест, а не проверяемое поведение. Пустой repo это модель
-// без репозитория для тестов одного экрана: git на нулевом Repo отказывает.
+// Шаг спиннера в микросекунду по той же причине: settle ждал бы 80 мс на
+// каждом перечитывании и каждой сетевой операции, а порядок шага и ответа git
+// задаёт пакет команд, а не время. Репозиторий открывается сразу: каталог
+// repo создан тестом, и отказ git здесь значит сломанный тест, а не
+// проверяемое поведение. Пустой repo это модель без репозитория для тестов
+// одного экрана: git на нулевом Repo отказывает.
 func options(repo string, root layout.Node) tui.Options {
 	var opened git.Repo
 	if repo != "" {
@@ -162,7 +165,7 @@ func options(repo string, root layout.Node) tui.Options {
 			panic(fmt.Sprintf("Open(%s): %v", repo, err))
 		}
 	}
-	return tui.Options{Repo: opened, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true}
+	return tui.Options{Repo: opened, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true, SpinnerStep: time.Microsecond}
 }
 
 // open загружает дифф репозитория opts.Repo с аргументами opts.Args и флагами

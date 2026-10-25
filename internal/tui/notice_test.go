@@ -34,6 +34,9 @@ func fading(t *testing.T, repo string, args ...string) *bubble {
 
 func newBubble(t *testing.T, opts tui.Options) *bubble {
 	t.Helper()
+	// часы пузыря поддельные, настоящий шаг спиннера ничего не стоит, а
+	// короткий из options() крутился бы тысячи раз за каждую секунду ожидания
+	opts.SpinnerStep = 0
 	return &bubble{model: resize(open(t, opts), 120, 20), msgs: make(chan tea.Msg, 64)}
 }
 
