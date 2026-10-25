@@ -96,8 +96,10 @@ func (r Repo) RemoteBranches() ([]string, error) {
 
 // SetUpstream привязывает ветку к удалённой upstream (#230), заменяя прежнюю.
 // Удалённой ветки нет в локальных ссылках, и git отказывает своим текстом.
+// upstream называется полной ссылкой: локальную ветку или тег с именем
+// origin/x git предпочёл бы удалённой (#387).
 func (r Repo) SetUpstream(branch, upstream string) error {
-	_, err := r.inRoot("branch", "--set-upstream-to="+upstream, branch)
+	_, err := r.inRoot("branch", "--set-upstream-to=refs/remotes/"+upstream, branch)
 	return failed("branch", err)
 }
 
@@ -109,9 +111,24 @@ func (r Repo) SetUpstream(branch, upstream string) error {
 func (r Repo) Merge(name string) error {
 	args := []string{"merge", "--no-edit", name}
 	if _, err := r.inRoot("rev-parse", "--verify", "-q", "refs/tags/"+name); err == nil {
-		args = []string{"merge", "--no-edit", "-m", "Merge branch '" + name + "'", "refs/heads/" + name}
+		args = []string{"merge", "--no-edit", "-m", r.mergeMessage(name), "refs/heads/" + name}
 	}
 	return failed("merge", r.stopping("merge", args...))
+}
+
+// mergeMessage повторяет сообщение git по умолчанию: вне main и master он
+// называет ветку, в которую сливает, а без ветки пишет HEAD (#387).
+func (r Repo) mergeMessage(name string) string {
+	message := "Merge branch '" + name + "'"
+	current, err := r.inRoot("symbolic-ref", "--short", "-q", "HEAD")
+	current = strings.TrimSpace(current)
+	if err != nil {
+		current = "HEAD"
+	}
+	if current != "main" && current != "master" {
+		message += " into " + current
+	}
+	return message
 }
 
 // Rebase перестраивает текущую ветку поверх name (#229). Грязное дерево git

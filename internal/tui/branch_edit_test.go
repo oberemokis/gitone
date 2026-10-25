@@ -53,6 +53,25 @@ func TestNewBranchFromBranchWindow(t *testing.T) {
 	}
 }
 
+// Тег unmerged на main не подменяет базу: новая ветка встаёт на вершину ветки
+// unmerged, а не падает на неоднозначном имени (#387, случай 2).
+func TestNewBranchFromBranchOverTag(t *testing.T) {
+	repo, model := branchRepo(t)
+	runGit(t, repo, "tag", "unmerged", "main")
+
+	model, _ = model.Update(key('j'))
+	model, _ = model.Update(key('j'))
+	model, _ = model.Update(key('n'))
+	if body := screenText(model); !strings.Contains(body, "New branch from unmerged") {
+		t.Fatalf("n не открыл поле имени от unmerged:\n%s", body)
+	}
+	model = enterKey(typeText(model, "hotfix"))
+
+	if got, want := runGit(t, repo, "rev-parse", "hotfix"), runGit(t, repo, "rev-parse", "refs/heads/unmerged"); got != want {
+		t.Fatalf("hotfix на %s, ожидалась вершина ветки unmerged %s; подвал %q", got, want, footerOf(model))
+	}
+}
+
 // Имя с пробелом git отвергает, подвал показывает причину, ветка прежняя
 // (случай 2).
 func TestNewBranchBadNameShowsRefusal(t *testing.T) {
