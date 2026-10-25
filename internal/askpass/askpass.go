@@ -18,8 +18,8 @@ import (
 // socketVar несёт клиенту путь к сокету сервера.
 const socketVar = "GITONE_ASKPASS"
 
-// ErrCanceled это вопрос, отменённый в окне: git получает отказ.
-var ErrCanceled = errors.New("askpass: canceled")
+// errCanceled это вопрос, отменённый в окне: git получает отказ.
+var errCanceled = errors.New("askpass: canceled")
 
 // Env это окружение сетевой команды git, нулевое ничего не задаёт. Тип
 // сравним, поэтому git.Repo с ним остаётся сравнимым.
@@ -177,7 +177,7 @@ func ask(socket, prompt string, out io.Writer) error {
 		return err
 	}
 	if len(answer) == 0 {
-		return ErrCanceled
+		return errCanceled
 	}
 
 	_, err = out.Write(answer)
