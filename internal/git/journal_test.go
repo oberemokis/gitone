@@ -59,6 +59,24 @@ func TestJournal(t *testing.T) {
 	}
 }
 
+// check-ignore только читает: его обычный ответ «не игнорируется» с кодом 1
+// не пишется в журнал сбоем после успешного ignore (#402).
+func TestJournalSkipsCheckIgnore(t *testing.T) {
+	repo := newRepo(t)
+	write(t, repo, "a.txt", "one\n")
+	commitAll(t, repo)
+	write(t, repo, "journal-ignored.txt", "new\n")
+
+	if err := open(t, repo).Ignore("journal-ignored.txt"); err != nil {
+		t.Fatalf("Ignore: %v", err)
+	}
+	for _, entry := range git.Journal() {
+		if entry.Args[0] == "check-ignore" && slices.Contains(entry.Args, "./journal-ignored.txt") {
+			t.Fatalf("check-ignore в журнале: %+v", entry)
+		}
+	}
+}
+
 // Логин и пароль в адресе remote маскируются (случай 4), журнал помнит не
 // больше 200 записей (случай 3).
 func TestJournalMasksAndLimits(t *testing.T) {
