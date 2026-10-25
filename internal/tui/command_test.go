@@ -112,3 +112,27 @@ func TestCustomCommandDoesNotReadOwnStdin(t *testing.T) {
 		t.Fatalf("подвал %q, команда прочитала stdin gitone", footer)
 	}
 }
+
+// git в своей команде не спрашивает логин из терминала: GIT_TERMINAL_PROMPT=0
+// (#392, случай 1).
+func TestCustomCommandGitDoesNotPrompt(t *testing.T) {
+	_, model := commandRepo(t, "echo prompt=$GIT_TERMINAL_PROMPT")
+
+	model = pressAndSettle(model, key('o'))
+	if footer := footerOf(model); !strings.Contains(footer, "mine: prompt=0") {
+		t.Fatalf("подвал %q, ожидалось GIT_TERMINAL_PROMPT=0", footer)
+	}
+}
+
+// Команда идёт в своей сессии и терминал интерфейса открыть не может: ssh и
+// другие программы, читающие /dev/tty, получают отказ, а не ждут ответа поверх
+// экрана (#392, случай 2). Без управляющего терминала у самого теста (CI)
+// отказ будет и без правки.
+func TestCustomCommandHasNoTerminal(t *testing.T) {
+	_, model := commandRepo(t, "if (: </dev/tty) 2>/dev/null; then echo opened; else echo refused; fi")
+
+	model = pressAndSettle(model, key('o'))
+	if footer := footerOf(model); !strings.Contains(footer, "mine: refused") {
+		t.Fatalf("подвал %q, команда открыла терминал интерфейса", footer)
+	}
+}
