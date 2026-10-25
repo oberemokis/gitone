@@ -252,9 +252,10 @@ func New(opts Options, files []diff.File) Model {
 }
 
 // Init ждёт тик опроса и вопрос git о пароле (#375) и записывает открытый
-// репозиторий в недавние (#248).
+// репозиторий в недавние (#248). Заметка запуска (ошибка настроек) гаснет,
+// как любая другая (#391): она новее, чем ничего.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(waitTick(m.ticks), waitCredential(m.askpass), rememberRepoCmd(m.stateDir, m.repo.Root()))
+	return m.wantExpiry(m.noticeID-1, tea.Batch(waitTick(m.ticks), waitCredential(m.askpass), rememberRepoCmd(m.stateDir, m.repo.Root())))
 }
 
 // Update разбирает сообщение, а после него следит, чтобы видимые файлы ленты
@@ -659,9 +660,19 @@ func (m Model) View() tea.View {
 // переносит. Окно идёт в списке мест первым и целиком, клик по пустому месту в
 // нём не доходит до панели под ним. Пока открыто окно, клик работает только в
 // нём, как клавиши, поэтому места панелей и подвала не собираются, а экран
-// под окном гаснет (backdrop.go).
+// под окном гаснет (backdrop.go). Тост лежит поверх всего и стоит в списке
+// ещё раньше окна: клик по нему не доходит до строки под ним (#391).
 func (m Model) screen() (string, []zone.Zone) {
+	top, height := m.titleHeight(), m.bodyHeight()
+	// тост стоит на пустой строке под заголовком и не ниже тела
+	toastTop := max(top-1, 0)
+	toast := m.toast(m.width, top+height-toastTop)
+	toastX := m.width - toastMargin - lipgloss.Width(toast)
+
 	var zones []zone.Zone
+	if toast != "" {
+		zones = append(zones, zone.Zone{Area: image.Rect(toastX, toastTop, toastX+lipgloss.Width(toast), toastTop+lipgloss.Height(toast))})
+	}
 	scan := func(content string, x, y int, collect bool) string {
 		clean, found := zone.Scan(content)
 		for _, place := range found {
@@ -673,7 +684,6 @@ func (m Model) screen() (string, []zone.Zone) {
 		return clean
 	}
 	free := m.active == noWindow
-	top, height := m.titleHeight(), m.bodyHeight()
 
 	box, modal := m.windowBox()
 	x, y := centered(box, m.width, height)
@@ -710,11 +720,9 @@ func (m Model) screen() (string, []zone.Zone) {
 		screen = backdrop(screen, box, x, top+y, m.terminal)
 	}
 
-	// тост ложится последним: поверх окна, и подложка его не гасит. Он стоит
-	// на пустой строке под заголовком и не ниже тела
-	toastTop := max(top-1, 0)
-	if toast := m.toast(m.width, top+height-toastTop); toast != "" {
-		screen = overlay(screen, toast, m.width-toastMargin-lipgloss.Width(toast), toastTop)
+	// тост ложится последним: поверх окна, и подложка его не гасит
+	if toast != "" {
+		screen = overlay(screen, toast, toastX, toastTop)
 	}
 	return screen, zones
 }

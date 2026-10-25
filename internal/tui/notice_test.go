@@ -233,6 +233,31 @@ func TestEveryInfoNoteFades(t *testing.T) {
 	}
 }
 
+// Заметка запуска (ошибка config.json) гаснет через пять секунд, как любая
+// другая (#391, случай 3).
+func TestStartupNoteFades(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		repo := newRepo(t)
+		write(t, repo, "a.txt", "one\n")
+		commitAll(t, repo)
+		opts := options(repo, layout.Focus())
+		opts.KeepNotices = false
+		opts.Notice = "config.json: broken"
+		app := newBubble(t, opts)
+
+		app.run(app.model.Init())
+		app.deliver()
+		if notice := noticeOf(app.model); notice != "config.json: broken" {
+			t.Fatalf("тост при запуске %q, ожидалась ошибка config.json", notice)
+		}
+
+		app.wait(5 * time.Second)
+		if notice := noticeOf(app.model); notice != "" {
+			t.Errorf("через пять секунд тост %q, ожидалось пусто", notice)
+		}
+	})
+}
+
 // Case 2: заметка Б встала на третьей секунде жизни заметки А и живёт свои пять
 // секунд. Таймер А на пятой секунде Б не стирает. Тексты у заметок одинаковые:
 // таймер узнаёт свою заметку по номеру, а не по тексту.
