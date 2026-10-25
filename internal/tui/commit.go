@@ -341,5 +341,5 @@ func commitHint(p paint, field commitField) string {
 		hints = append(hints, pressable(keymap.CommitField, keyHint(panel, p.colors, key, p.text.Text(target, nil))))
 	}
 
-	return strings.Join(slices.DeleteFunc(hints, func(hint string) bool { return hint == "" }), panel.Render("   "))
+	return strings.Join(slices.DeleteFunc(hints, func(hint string) bool { return hint == "" }), panel.Render(hintGap))
 }

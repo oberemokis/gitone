@@ -177,7 +177,7 @@ func keyHints(colors theme.Theme, text i18n.Dictionary, bindings []keymap.Bindin
 		hints = append(hints, pressable(binding.Action, hint))
 	}
 
-	return strings.Join(hints, "   ")
+	return strings.Join(hints, hintGap)
 }
 
 // emptyActions это действия, о которых говорит экран без изменений: окна, про
@@ -200,7 +200,7 @@ func emptyHints(colors theme.Theme, text i18n.Dictionary, keys keymap.Keymap, wi
 	}
 
 	for ; len(hints) > 0; hints = hints[:len(hints)-1] {
-		if row := strings.Join(hints, "   "); lipgloss.Width(row) <= width {
+		if row := strings.Join(hints, hintGap); lipgloss.Width(row) <= width {
 			return row
 		}
 	}
@@ -229,9 +229,9 @@ func locationLabel(location git.Location, colors theme.Theme, keys keymap.Keymap
 		return styled
 	}
 
-	label := pair(keymap.AppBranches, colors.Accent, visible(location.Branch)) + "   " + pair(keymap.AppWorktrees, colors.Worktree, visible(location.Worktree))
+	label := pair(keymap.AppBranches, colors.Accent, visible(location.Branch)) + hintGap + pair(keymap.AppWorktrees, colors.Worktree, visible(location.Worktree))
 	if location.Operation != "" {
-		label += "   " + pair(keymap.GitOperation, colors.Error, text.Text("operation."+location.Operation, nil))
+		label += hintGap + pair(keymap.GitOperation, colors.Error, text.Text("operation."+location.Operation, nil))
 	}
 	return label
 }

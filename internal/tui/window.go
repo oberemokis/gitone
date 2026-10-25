@@ -256,7 +256,7 @@ func matching[T any](items []T, query string, text func(T) string) []T {
 // строки с курсором и последняя строка с подсказкой или вопросом.
 type list struct {
 	title string
-	// close это «esc close» справа от заголовка (closeHint)
+	// close это «esc close» справа от заголовка (paint.close)
 	close string
 	// наибольшая ширина окна, на узком экране оно ужимается
 	width int
@@ -394,11 +394,11 @@ func (l list) view(p paint, screenWidth, screenHeight int) string {
 }
 
 // packHint раскладывает подсказку окна по строкам шириной width: пары
-// «клавиша подпись» (windowHint) не рвутся, строка переносится между ними. Пара
+// «клавиша подпись» (paint.hint) не рвутся, строка переносится между ними. Пара
 // шире строки обрезается «…»: длинную переназначенную клавишу иначе нечем
 // показать.
 func packHint(panel, muted lipgloss.Style, hint string, width int) []string {
-	gap := panel.Render("   ")
+	gap := panel.Render(hintGap)
 	ellipsis := muted.Render("…")
 
 	var lines []string
