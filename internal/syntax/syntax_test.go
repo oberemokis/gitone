@@ -1,6 +1,7 @@
 package syntax_test
 
 import (
+	"fmt"
 	"runtime"
 	"slices"
 	"strings"
@@ -432,6 +433,34 @@ func TestEmbedsNeedWholeFile(t *testing.T) {
 		if got := syntax.Detect(path).Embeds(); got != want {
 			t.Errorf("%s: Embeds %v, want %v", path, got, want)
 		}
+	}
+}
+
+// Минифицированный бандл разбирался секунды и гигабайты прямо в Update, а
+// длинный lock-файл стоит долю секунды: первый остаётся без подсветки, второй
+// красится (#386).
+func TestParseLimit(t *testing.T) {
+	var bundle []string
+	for index := range 300 {
+		bundle = append(bundle, strings.Repeat(fmt.Sprintf("a%d.b(c,\"x\");", index%10), 4000/14))
+	}
+	if spans := syntax.Detect("bundle.min.js").Lines(bundle); spans != nil {
+		t.Error("бандл на 300 строк по 4000 символов подсвечен")
+	}
+
+	lock := []string{"{", `  "packages": {`}
+	for index := range 4000 {
+		lock = append(lock,
+			fmt.Sprintf(`    "node_modules/pkg-%d": {`, index),
+			`      "version": "1.2.3",`,
+			fmt.Sprintf(`      "resolved": "https://registry.npmjs.org/pkg-%d/-/pkg-1.2.3.tgz",`, index),
+			`      "integrity": "sha512-abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef=="`,
+			`    },`)
+	}
+	lock = append(lock, "  }", "}")
+	spans := syntax.Detect("package-lock.json").Lines(lock)
+	if got := kindOf(lock, spans, len(lock)-4, `"sha512`); got != syntax.String {
+		t.Errorf("последняя запись package-lock.json на %d строк: вид %q, want %q", len(lock), got, syntax.String)
 	}
 }
 
