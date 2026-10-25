@@ -56,6 +56,29 @@ func TestMainPrintsGitErrorWithoutControlCharacters(t *testing.T) {
 	}
 }
 
+// Без HOME настройки читаются из абсолютного XDG_CONFIG_HOME: домашний
+// каталог нужен, только когда его нет (#395).
+func TestLoadSettingsWithoutHome(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "gitone"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gitone", "config.json"), []byte(`{"diff": {"mode": "split"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	opts, errs := loadSettings()
+
+	if err := errors.Join(errs...); err != nil {
+		t.Fatalf("loadSettings() error = %v", err)
+	}
+	if opts.Config.Diff.Mode != "split" || opts.StateDir != filepath.Join(dir, "gitone") {
+		t.Errorf("настройки не прочитаны: mode %q, state %q", opts.Config.Diff.Mode, opts.StateDir)
+	}
+}
+
 func TestAddNotice(t *testing.T) {
 	text := i18n.Custom("xx", map[string]string{"json.extraText": "лишний текст"})
 

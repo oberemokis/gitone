@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -91,12 +92,13 @@ func main() {
 func loadSettings() (tui.Options, []error) {
 	opts := tui.Options{Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: layout.Default()}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return opts, []error{err}
+	// домашний каталог нужен, только когда XDG_CONFIG_HOME не абсолютный
+	home, homeErr := os.UserHomeDir()
+	dir := config.Dir(os.Getenv("XDG_CONFIG_HOME"), home)
+	if homeErr != nil && !filepath.IsAbs(dir) {
+		return opts, []error{homeErr}
 	}
 
-	dir := config.Dir(os.Getenv("XDG_CONFIG_HOME"), home)
 	settings, settingsErr := config.Load(dir)
 	keys, keysErr := keymap.Load(dir)
 	palette, themeErr := theme.Load(dir, settings.Theme)
