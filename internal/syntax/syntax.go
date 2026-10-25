@@ -85,7 +85,8 @@ func Detect(path string) Lexer {
 // Lines размечает подряд идущие строки одной стороны хунка и возвращает
 // отрезки каждой строки. Строки разбираются вместе: tree-sitter нужен
 // контекст, по одной строке он путает типы и параметры, а многострочный
-// комментарий терял бы продолжение. Без языка или при сбое разбора nil.
+// комментарий терял бы продолжение. Без языка, при сбое разбора и сверх
+// предела parseIterations nil.
 func (l Lexer) Lines(lines []string) [][]Span {
 	if l.entry == nil || len(lines) == 0 {
 		return nil
@@ -202,19 +203,32 @@ func (l Lexer) paint(source []byte) []Kind {
 // внутри разметки разбирается на каждый её узел (#161).
 var pools sync.Map
 
+// parseIterations ограничивает разбор одного куска исходника (#386). Разбор
+// идёт прямо в Update, и минифицированный бандл на 1 МБ стоил 4 с и 2,5 ГБ на
+// каждое перечитывание. Предел в итерациях парсера, а не в байтах и не во
+// времени: цена байта зависит от языка (package-lock.json на 885 КБ
+// разбирается за 0,15 с, плотный JS на 125 КБ за 2,6 с), а время плавает от
+// машины и под -race. 200 тысяч итераций покрывают package-lock.json на 20
+// тысяч строк с запасом в треть и останавливают разбор за 0,2–0,3 с на любом
+// языке. Заданный предел заодно уводит JavaScript с лесного пути gotreesitter:
+// тот квадратичен по числу инструкций верхнего уровня и таймаута не проверяет.
+const parseIterations = 200_000
+
+// parse упёршийся в предел разбор возвращает ошибкой: дерево обрезано, и
+// сторона остаётся без подсветки.
 func parse(entry *grammars.LangEntry, language *ts.Language, source []byte) (*ts.Tree, error) {
 	var pool *ts.ParserPool
 	if cached, found := pools.Load(entry.Name); found {
 		pool = cached.(*ts.ParserPool)
 	} else {
-		pool = ts.NewParserPool(language)
+		pool = ts.NewParserPool(language, ts.WithParserPoolParseWorkLimits(ts.ParseWorkLimits{IterationLimit: parseIterations}))
 		pools.Store(entry.Name, pool)
 	}
 
 	if entry.TokenSourceFactory != nil {
-		return pool.ParseWithTokenSource(source, entry.TokenSourceFactory(source, language))
+		return pool.ParseWithTokenSourceStrict(source, entry.TokenSourceFactory(source, language))
 	}
-	return pool.Parse(source)
+	return pool.ParseStrict(source)
 }
 
 // queries хранит собранные запросы по имени языка: сборка запроса стоит
