@@ -309,6 +309,23 @@ func TestActionsRefuseWhilePushRuns(t *testing.T) {
 	}
 }
 
+// Пока идёт pull, действия лога, которые правят репозиторий, отказывают сразу:
+// g и b не открывают меню reset и bisect, V не говорит о пустом буфере, а
+// space и t не доходят до правки (#400).
+func TestLogActionsRefuseWhilePullRuns(t *testing.T) {
+	for _, pressed := range []tea.KeyPressMsg{key('g'), key('b'), key('V'), space, key('t')} {
+		t.Run(pressed.String(), func(t *testing.T) {
+			_, repo := remoteRepo(t)
+			model, _ := openRemote(t, repo).Update(key('p'))
+			model = pressAndSettle(openAsync(model, key('l')), pressed)
+
+			if notice := noticeOf(model); !strings.Contains(notice, "pull is running") {
+				t.Errorf("тост %q, ожидался отказ «pull is running»:\n%s", notice, screenText(model))
+			}
+		})
+	}
+}
+
 // Пока идёт pull, в окнах отказывают переключение ветки и worktree, apply и drop
 // у stash. Окно остаётся открытым, причина стоит в подвале.
 func TestWindowActionsRefuseWhilePullRuns(t *testing.T) {

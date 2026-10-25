@@ -40,7 +40,7 @@ var reflogActions = []windowAction[git.ReflogEntry]{
 	{action: keymap.LogOpen, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
 		return m.showCommit(git.LogEntry{Hash: entry.Hash, Root: entry.Root})
 	}},
-	{action: keymap.LogCheckout, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
+	{action: keymap.LogCheckout, changesRepo: true, run: func(m Model, entry git.ReflogEntry) (tea.Model, tea.Cmd) {
 		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
 			return repo.CheckoutCommit(entry.Hash)
 		})

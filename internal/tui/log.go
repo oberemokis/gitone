@@ -174,7 +174,7 @@ func logTitle(text i18n.Dictionary, filter git.LogFilter) string {
 // коммитом, правка истории в rewriteAction.
 var logActions = []windowAction[git.LogEntry]{
 	{action: keymap.LogOpen, run: Model.showCommit},
-	{action: keymap.LogCheckout, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+	{action: keymap.LogCheckout, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.changeHistory(m.text.Text("log.detached", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
 			return repo.CheckoutCommit(entry.Hash)
 		})
@@ -182,12 +182,12 @@ var logActions = []windowAction[git.LogEntry]{
 	{action: keymap.LogNewBranch, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.askBranchName(entry.Hash[:7], entry.Hash), nil
 	}},
-	{action: keymap.LogRevert, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+	{action: keymap.LogRevert, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.changeHistory(m.text.Text("log.reverted", i18n.Args{"hash": entry.Hash[:7]}), func(repo git.Repo) error {
 			return repo.Revert(entry.Hash)
 		})
 	}},
-	{action: keymap.LogReset, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+	{action: keymap.LogReset, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.askReset(entry.Hash, entry.Hash[:7], -1), nil
 	}},
 	{action: keymap.LogSquash, changesRepo: true, run: rewriteAction(git.RewriteSquash)},
@@ -202,7 +202,7 @@ var logActions = []windowAction[git.LogEntry]{
 		m.copied = entry
 		return m.putNotice(m.text.Text("log.copied", i18n.Args{"hash": entry.Hash[:7], "key": firstKey(m.keys, keymap.CherryPickPaste)})), nil
 	}},
-	{action: keymap.CherryPickPaste, run: func(m Model, _ git.LogEntry) (tea.Model, tea.Cmd) {
+	{action: keymap.CherryPickPaste, changesRepo: true, run: func(m Model, _ git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.pasteCommit()
 	}},
 	{action: keymap.LogCopy, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
@@ -211,7 +211,7 @@ var logActions = []windowAction[git.LogEntry]{
 	{action: keymap.CompareWith, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.compareWith(entry.Hash, entry.Hash[:7])
 	}},
-	{action: keymap.LogBisect, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
+	{action: keymap.LogBisect, changesRepo: true, run: func(m Model, entry git.LogEntry) (tea.Model, tea.Cmd) {
 		return m.askBisect(entry.Hash, entry.Hash[:7]), nil
 	}},
 }
