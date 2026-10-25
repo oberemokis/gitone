@@ -22,7 +22,8 @@ func (r Repo) savePatch(hash string) (string, string, error) {
 		return "", "", i18n.New("git.patchMerge", nil)
 	}
 
-	written, err := r.inRoot("format-patch", "-1", "--output-directory", r.root, hash)
+	// format.coverLetter=true добавил бы второй файл, а ответ ждётся одним путём
+	written, err := r.inRoot("format-patch", "-1", "--no-cover-letter", "--output-directory", r.root, hash)
 	if err != nil {
 		return "", "", err
 	}

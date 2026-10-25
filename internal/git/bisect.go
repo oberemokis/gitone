@@ -53,7 +53,7 @@ func (r Repo) BisectMark(hash string, good bool) (BisectStep, error) {
 // bisectStep разбирает вывод git bisect good и bad.
 func bisectStep(root, out string) BisectStep {
 	if match := bisectFound.FindStringSubmatch(out); match != nil {
-		subject, _ := run(call{dir: root}, "log", "-1", "--format=%s", match[1])
+		subject, _ := run(call{dir: root}, "log", "-1", "--no-show-signature", "--format=%s", match[1])
 		return BisectStep{Found: true, Commit: match[1], Subject: strings.TrimSpace(subject)}
 	}
 

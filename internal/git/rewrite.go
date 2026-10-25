@@ -134,8 +134,11 @@ func baseOf(root, first string) (base string, published bool) {
 // сообщением reword. Оба файла лежат во временном каталоге и подставляются
 // командой cp вместо редактора: git зовёт редактор через sh с путём файла.
 // Сообщение reword git не чистит (commit.cleanup=whitespace): строки с «#»
-// остаются, как у Commit и Amend через -m. Без своего списка git строит его
-// сам с --autosquash, и он принимается как есть.
+// остаются, как у Commit и Amend через -m. Сообщение squash git склеивает сам
+// с комментариями «# This is a combination…» и вычищает их режимом strip:
+// режим закреплён, иначе commit.cleanup=whitespace или scissors из конфига
+// пользователя оставили бы их в истории (#381). Без своего списка git строит
+// его сам с --autosquash, и он принимается как есть.
 func (r Repo) rebaseWith(base string, todo []string, message string) error {
 	temp, err := os.MkdirTemp("", "gitone-rebase-")
 	if err != nil {
@@ -155,7 +158,8 @@ func (r Repo) rebaseWith(base string, todo []string, message string) error {
 		sequence = "cp " + shellQuote(todoFile)
 	}
 
-	env := []string{"GIT_SEQUENCE_EDITOR=" + sequence, "GIT_EDITOR=true"}
+	env := []string{"GIT_SEQUENCE_EDITOR=" + sequence, "GIT_EDITOR=true",
+		"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=commit.cleanup", "GIT_CONFIG_VALUE_0=strip"}
 	if message != "" {
 		messageFile := filepath.Join(temp, "message")
 		if err := os.WriteFile(messageFile, []byte(message+"\n"), 0o600); err != nil {
