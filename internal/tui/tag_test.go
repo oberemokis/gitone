@@ -121,7 +121,7 @@ func TestTagsDeleteNeedsYes(t *testing.T) {
 	if body := screenText(model); !strings.Contains(body, `Delete tag "release" locally? y yes`) {
 		t.Fatalf("окно не задало вопрос:\n%s", body)
 	}
-	model, _ = model.Update(key('n'))
+	model = pressAndSettle(model, key('n'))
 	if got := runGit(t, repo, "tag", "-l"); got != "light\nrelease" {
 		t.Fatalf("теги %q, удалено без y", got)
 	}

@@ -153,6 +153,8 @@ type Model struct {
 	closing closedClick
 	// exec отдаёт терминал внешней программе, редактору (edit.go)
 	exec func(*exec.Cmd, tea.ExecCallback) tea.Cmd
+	// spinStep шаг спиннеров загрузки и сетевой операции (Options.SpinnerStep)
+	spinStep time.Duration
 }
 
 // Options это всё, что корню нужно до запуска: репозиторий (Open) и аргументы
@@ -180,6 +182,10 @@ type Options struct {
 	// KeepNotices отключает таймер заметок (#209): они висят до нажатия клавиши.
 	// Нужен тестам, которые доводят команды до конца и не ждут пять секунд.
 	KeepNotices bool
+	// SpinnerStep это шаг спиннера, 0 значит spinnerStep. Тесты, которые
+	// доводят команды до конца, ставят короткий и не ждут шага на каждом
+	// перечитывании.
+	SpinnerStep time.Duration
 	// Exec отдаёт терминал редактору (#215), nil значит tea.ExecProcess. Тест
 	// подставляет запуск без терминала: Bubble Tea выполняет ExecProcess сам,
 	// и команда без программы его не выполнит.
@@ -223,11 +229,16 @@ func New(opts Options, files []diff.File) Model {
 	if run == nil {
 		run = tea.ExecProcess
 	}
+	step := opts.SpinnerStep
+	if step == 0 {
+		step = spinnerStep
+	}
 	repo := opts.Repo.WithAskpass(opts.Askpass.Env())
 
 	return Model{
 		now:      now,
 		exec:     run,
+		spinStep: step,
 		noFade:   opts.KeepNotices,
 		repo:     repo,
 		askpass:  opts.Askpass,
@@ -390,7 +401,7 @@ func (m Model) startReload() (Model, tea.Cmd) {
 	m.stale = false
 	m.spin = 0
 	m = m.dropQuestion()
-	return m, tea.Batch(spinTick(m.load), reload(m.repo, m.args, m.diffFlags()))
+	return m, tea.Batch(m.spinTick(m.load), reload(m.repo, m.args, m.diffFlags()))
 }
 
 // resize отдаёт диффу ширину и высоту его панели: раскладка может отрезать

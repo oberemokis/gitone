@@ -84,8 +84,8 @@ func TestWindowTitlesLookAlike(t *testing.T) {
 
 			// в сыром выводе строка заголовка единственная с «close»
 			raw := model.View().Content
-			if code := styleBefore(t, raw, " close", window.title); strings.Contains(code, "38;2;10;10;10") {
-				t.Errorf("заголовок цветом accent: %q", code)
+			if code := styleBefore(t, raw, " close", window.title); strings.Contains(code, "38;2;10;10;10") || !isBold(code) {
+				t.Errorf("заголовок цветом accent или не жирный: %q", code)
 			}
 			if code := styleBefore(t, raw, " close", "esc"); strings.Contains(code, mutedFg) {
 				t.Errorf("esc приглушён: %q", code)

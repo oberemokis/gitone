@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,7 +29,10 @@ import (
 // newRepo создаёт репозиторий во временном каталоге. Глобальный и системный
 // конфиги отключены, язык C: результат не должен зависеть от настроек машины,
 // а тесты сверяют английские сообщения git. Git с gettext (Homebrew) при C
-// игнорирует и LANGUAGE.
+// игнорирует и LANGUAGE. HOME и XDG_CONFIG_HOME временные: глобальные ignore
+// и attributes git читает из них и без глобального конфига. Askpass и ssh
+// снимаются: терминал редактора (VS Code) ставит свой GIT_ASKPASS, и git
+// спросил бы пароль у него.
 func newRepo(t testing.TB) string {
 	t.Helper()
 	t.Setenv("LC_ALL", "C")
@@ -38,10 +42,38 @@ func newRepo(t testing.TB) string {
 	t.Setenv("GIT_AUTHOR_EMAIL", "test@example.com")
 	t.Setenv("GIT_COMMITTER_NAME", "test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
+	// снять, а не обнулить: пустой GIT_SSH_COMMAND git-слой считает заданным;
+	// t.Setenv вернёт прежнее значение после теста
+	for _, name := range []string{"GIT_ASKPASS", "SSH_ASKPASS", "GIT_SSH", "GIT_SSH_COMMAND"} {
+		t.Setenv(name, "")
+		os.Unsetenv(name)
+	}
 
 	repo := t.TempDir()
 	runGit(t, repo, "init", "-q", "-b", "main")
 	return repo
+}
+
+// newRepo не пускает в тесты окружение машины: глобальный ignore из
+// XDG_CONFIG_HOME скрыл бы файл, GIT_ASKPASS терминала ответил бы git.
+func TestNewRepoIsolatesUserEnvironment(t *testing.T) {
+	config := t.TempDir()
+	write(t, config, "git/ignore", "*.log\n")
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("GIT_ASKPASS", "/usr/bin/true")
+
+	repo := newRepo(t)
+	write(t, repo, "a.log", "x\n")
+
+	if got := runGit(t, repo, "status", "--porcelain"); got != "?? a.log" {
+		t.Errorf("status %q, глобальный ignore дошёл до теста", got)
+	}
+	if _, set := os.LookupEnv("GIT_ASKPASS"); set {
+		t.Error("GIT_ASKPASS дошёл до теста")
+	}
 }
 
 // runGit запускает git в каталоге и возвращает вывод без пробелов по краям.
@@ -120,9 +152,12 @@ func numberedLines(count int) string {
 // дифф, и тесты диффа не видят панель файлов. Заметки подвала в нём не гаснут:
 // settle доводит команды до конца и ждал бы таймер в пять секунд, а потом
 // стёр бы заметку, которую тест хочет увидеть. Гашение проверяет notice_test.go.
-// Репозиторий открывается сразу: каталог repo создан тестом, и отказ git здесь
-// значит сломанный тест, а не проверяемое поведение. Пустой repo это модель
-// без репозитория для тестов одного экрана: git на нулевом Repo отказывает.
+// Шаг спиннера в микросекунду по той же причине: settle ждал бы 80 мс на
+// каждом перечитывании и каждой сетевой операции, а порядок шага и ответа git
+// задаёт тест (spinFirst), а не время. Репозиторий открывается сразу: каталог
+// repo создан тестом, и отказ git здесь значит сломанный тест, а не
+// проверяемое поведение. Пустой repo это модель без репозитория для тестов
+// одного экрана: git на нулевом Repo отказывает.
 func options(repo string, root layout.Node) tui.Options {
 	var opened git.Repo
 	if repo != "" {
@@ -131,7 +166,7 @@ func options(repo string, root layout.Node) tui.Options {
 			panic(fmt.Sprintf("Open(%s): %v", repo, err))
 		}
 	}
-	return tui.Options{Repo: opened, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true}
+	return tui.Options{Repo: opened, Config: config.Default(), Keys: keymap.Default(), Theme: theme.Dark(), Layout: root, KeepNotices: true, SpinnerStep: time.Microsecond}
 }
 
 // open загружает дифф репозитория opts.Repo с аргументами opts.Args и флагами
@@ -263,6 +298,23 @@ func oneTick() <-chan time.Time {
 	ticks <- time.Time{}
 	close(ticks)
 	return ticks
+}
+
+// isSpin говорит, что ответ это шаг спиннера загрузки или сетевой операции.
+func isSpin(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tui.SpinMsg, tui.RemoteSpinMsg:
+		return true
+	}
+	return false
+}
+
+// spinFirst ставит шаги спиннера раньше остальных ответов: так их доставил бы
+// Bubble Tea, пока git отвечает дольше шага. Место шага в пакете команд на
+// порядок не влияет.
+func spinFirst(msgs []tea.Msg) []tea.Msg {
+	spins := slices.DeleteFunc(slices.Clone(msgs), func(msg tea.Msg) bool { return !isSpin(msg) })
+	return append(spins, slices.DeleteFunc(msgs, isSpin)...)
 }
 
 // runAll выполняет команду, как Bubble Tea: части пакетной команды идут

@@ -254,11 +254,11 @@ func (msg spinMsg) apply(m Model) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.spin++
-	return m, spinTick(m.load)
+	return m, m.spinTick(m.load)
 }
 
-func spinTick(load int) tea.Cmd {
-	return tea.Tick(spinnerStep, func(time.Time) tea.Msg { return spinMsg{load: load} })
+func (m Model) spinTick(load int) tea.Cmd {
+	return tea.Tick(m.spinStep, func(time.Time) tea.Msg { return spinMsg{load: load} })
 }
 
 // spinner это кадр frame и надпись label приглушённым цветом: загрузка, pull и

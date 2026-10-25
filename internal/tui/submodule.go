@@ -60,7 +60,7 @@ func (m Model) startSubmoduleUpdate(path string) (tea.Model, tea.Cmd) {
 	m.remote = remote{kind: updatingSubmodule, id: m.remote.id + 1, cancel: cancel}
 
 	repo, id := m.repo, m.remote.id
-	return m, tea.Batch(remoteSpinTick(id), func() tea.Msg {
+	return m, tea.Batch(m.remoteSpinTick(id), func() tea.Msg {
 		return remoteDoneMsg{id: id, kind: updatingSubmodule, target: path, err: repo.UpdateSubmodule(ctx, path)}
 	})
 }

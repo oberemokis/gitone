@@ -16,7 +16,7 @@ func TestForcePushAfterAmend(t *testing.T) {
 	if footer := footerOf(model); !strings.Contains(footer, "Force push with lease? y yes") {
 		t.Fatalf("подвал %q, ожидался вопрос", footer)
 	}
-	model, _ = model.Update(key('n'))
+	model = pressAndSettle(model, key('n'))
 	if got := runGit(t, origin, "rev-parse", "main"); got != before {
 		t.Fatal("ветка отправлена без y")
 	}

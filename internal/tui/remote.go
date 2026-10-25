@@ -91,11 +91,11 @@ func (msg remoteSpinMsg) apply(m Model) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.remote.spin++
-	return m, remoteSpinTick(msg.id)
+	return m, m.remoteSpinTick(msg.id)
 }
 
-func remoteSpinTick(id int) tea.Cmd {
-	return tea.Tick(spinnerStep, func(time.Time) tea.Msg { return remoteSpinMsg{id: id} })
+func (m Model) remoteSpinTick(id int) tea.Cmd {
+	return tea.Tick(m.spinStep, func(time.Time) tea.Msg { return remoteSpinMsg{id: id} })
 }
 
 // pullCmd и pushCmd запускают git в команде, а не в Update: сеть бывает
@@ -138,7 +138,7 @@ func (m Model) startRemote(kind remoteKind) (tea.Model, tea.Cmd) {
 		run = fetchCmd(ctx, m.repo, m.remote.id)
 	}
 
-	return m, tea.Batch(remoteSpinTick(m.remote.id), run)
+	return m, tea.Batch(m.remoteSpinTick(m.remote.id), run)
 }
 
 // stopRemote отменяет идущую операцию: git убит, ответ придёт сообщением с

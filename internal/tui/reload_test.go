@@ -3,6 +3,7 @@ package tui_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -130,8 +131,8 @@ func TestSecondReloadWhileLoadingIsIgnored(t *testing.T) {
 // сразу после ответа и модель, дочитавшую новый дифф до конца: пока новое
 // чтение не пришло, запоздавший ответ экран менять не должен.
 func lateReply(model tea.Model, reading tea.Cmd) (atOnce string, settled tea.Model) {
-	// в пакете первым идёт шаг спиннера, вторым ответ git
-	reply := runAll(reading)[1]
+	// ответ git это единственная часть пакета, кроме шага спиннера
+	reply := slices.DeleteFunc(runAll(reading), isSpin)[0]
 	model, restart := model.Update(reply)
 	return screenText(model), settle(model, restart, 3)
 }

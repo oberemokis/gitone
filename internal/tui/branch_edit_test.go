@@ -113,7 +113,7 @@ func TestDeleteMergedBranch(t *testing.T) {
 	if body := screenText(model); !strings.Contains(body, `Delete branch "merged"? y yes`) {
 		t.Fatalf("d не задал вопрос в окне:\n%s", body)
 	}
-	model, _ = model.Update(key('n'))
+	model = pressAndSettle(model, key('n'))
 	if got := runGit(t, repo, "branch", "--list", "merged"); got == "" {
 		t.Fatal("ветка удалена без y")
 	}
