@@ -95,6 +95,24 @@ func (r Repo) diffText(args, flags []string) (string, error) {
 		return run(call{dir: r.dir, diffExit: true}, diffCommand(flags, args...)...)
 	}
 
+	// git сначала обходит каталоги, потом читает каждый найденный файл, и
+	// файл, удалённый между этими шагами, отвергает fatal «unable to stat» на
+	// весь дифф (#382). Окно в микросекунды, но vim пишет и удаляет «4913» при
+	// каждом сохранении: повтор с новым обходом его уже не застаёт.
+	text, err := r.worktreeDiff(flags)
+	for attempt := 1; err != nil && attempt < worktreeAttempts; attempt++ {
+		text, err = r.worktreeDiff(flags)
+	}
+	return text, err
+}
+
+// worktreeAttempts это сколько раз Diff читает дифф рабочего дерева, пока git
+// отказывает на файле, исчезнувшем посреди обхода.
+const worktreeAttempts = 3
+
+// worktreeDiff это дифф рабочего дерева от HEAD вместе с неотслеженными
+// файлами.
+func (r Repo) worktreeDiff(flags []string) (string, error) {
 	index, cleanup, err := indexWithUntracked(r.root)
 	if err != nil {
 		return "", err
@@ -156,7 +174,7 @@ func indexWithUntracked(root string) (string, func(), error) {
 	cleanup := func() { os.RemoveAll(temp) }
 
 	index := filepath.Join(temp, "index")
-	if err := fillIndex(root, strings.TrimSpace(realIndex), index, withoutDirectories(listed)); err != nil {
+	if err := fillIndex(root, strings.TrimSpace(realIndex), index, untrackedPathspecs(root, listed)); err != nil {
 		cleanup()
 		return "", nil, err
 	}
@@ -164,16 +182,16 @@ func indexWithUntracked(root string) (string, func(), error) {
 	return index, cleanup, nil
 }
 
-// fillIndex собирает копию индекса: содержимое настоящего плюс untracked как
-// намерение.
-func fillIndex(root, realIndex, index, untracked string) error {
+// fillIndex собирает копию индекса: содержимое настоящего плюс неотслеженные
+// файлы под pathspecs как намерение.
+func fillIndex(root, realIndex, index string, pathspecs []string) error {
 	realTime, err := copyIndex(realIndex, index)
 	if err != nil {
 		return err
 	}
 
-	if untracked != "" {
-		addCall := call{dir: root, env: []string{"GIT_INDEX_FILE=" + index, literalPathspecs}, stdin: untracked}
+	if pathspecs != nil {
+		addCall := call{dir: root, env: []string{"GIT_INDEX_FILE=" + index}, stdin: strings.Join(pathspecs, "\x00")}
 		if _, err := run(addCall, "add", "--intent-to-add", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
 			return err
 		}
@@ -210,18 +228,49 @@ func copyIndex(from, to string) (time.Time, error) {
 	return modTime, os.WriteFile(to, content, 0o600)
 }
 
-// withoutDirectories убирает из вывода `ls-files -z` записи на `/`. Так
-// ls-files называет вложенный репозиторий или worktree, и `add -N` на нём
-// падает, а с ним вся загрузка.
-func withoutDirectories(listed string) string {
-	var kept []string
+// untrackedPathspecs это pathspec для `add -N` по выводу `ls-files --others
+// -z`: весь корень за вычетом вложенных репозиториев и нечитаемых файлов, а
+// без неотслеженных файлов nil. Корень, а не список путей: файл, исчезнувший
+// после ls-files (vim пишет и сразу удаляет «4913»), add отвергал fatal на
+// весь дифф, а «.» совпадает всегда (#382). Записи на `/` это вложенный
+// репозиторий или worktree, `add -N` на них падает. Нечитаемый файл (права
+// 000 у файла root из docker-тома) add принимает, а git diff на нём
+// отказывает «cannot hash». Исключения идут магией literal: имя файла не
+// шаблон.
+func untrackedPathspecs(root, listed string) []string {
+	pathspecs := []string{"."}
+	files := false
 	for _, entry := range strings.Split(listed, "\x00") {
-		if entry != "" && !strings.HasSuffix(entry, "/") {
-			kept = append(kept, entry)
+		switch {
+		case entry == "":
+		case strings.HasSuffix(entry, "/") || unreadableFile(filepath.Join(root, entry)):
+			pathspecs = append(pathspecs, ":(exclude,literal)"+entry)
+		default:
+			files = true
 		}
 	}
 
-	return strings.Join(kept, "\x00")
+	if !files {
+		return nil
+	}
+	return pathspecs
+}
+
+// unreadableFile говорит, что обычный файл есть, но не открывается на чтение.
+// Исчезнувший файл сюда не относится: add его уже не увидит. У симлинка git
+// читает саму ссылку, а не файл за ней.
+func unreadableFile(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return true
+	}
+	file.Close()
+	return false
 }
 
 // topLevel возвращает корень репозитория, в котором лежит dir. Его ищут только
