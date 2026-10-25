@@ -212,7 +212,10 @@ func TestErrorsCarryGitMessage(t *testing.T) {
 // newRepo создаёт репозиторий во временном каталоге. Глобальный и системный
 // конфиги отключены, язык C: результат не должен зависеть от настроек машины,
 // а тесты сверяют английские сообщения git. Git с gettext (Homebrew) при C
-// игнорирует и LANGUAGE.
+// игнорирует и LANGUAGE. HOME и XDG_CONFIG_HOME временные: глобальные ignore
+// и attributes git читает из них и без глобального конфига. Askpass и ssh
+// снимаются: терминал редактора (VS Code) ставит свой GIT_ASKPASS, и git
+// спросил бы пароль у него.
 func newRepo(t *testing.T) string {
 	t.Helper()
 	t.Setenv("LC_ALL", "C")
@@ -222,10 +225,38 @@ func newRepo(t *testing.T) string {
 	t.Setenv("GIT_AUTHOR_EMAIL", "test@example.com")
 	t.Setenv("GIT_COMMITTER_NAME", "test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", home)
+	// снять, а не обнулить: пустой GIT_SSH_COMMAND sshEnv считает заданным;
+	// t.Setenv вернёт прежнее значение после теста
+	for _, name := range []string{"GIT_ASKPASS", "SSH_ASKPASS", "GIT_SSH", "GIT_SSH_COMMAND"} {
+		t.Setenv(name, "")
+		os.Unsetenv(name)
+	}
 
 	repo := t.TempDir()
 	runGit(t, repo, "init", "-q", "-b", "main")
 	return repo
+}
+
+// newRepo не пускает в тесты окружение машины: глобальный ignore из
+// XDG_CONFIG_HOME скрыл бы файл, GIT_ASKPASS терминала ответил бы git.
+func TestNewRepoIsolatesUserEnvironment(t *testing.T) {
+	config := t.TempDir()
+	write(t, config, "git/ignore", "*.log\n")
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("GIT_ASKPASS", "/usr/bin/true")
+
+	repo := newRepo(t)
+	write(t, repo, "a.log", "x\n")
+
+	if got := runGit(t, repo, "status", "--porcelain"); got != "?? a.log\n" {
+		t.Errorf("status %q, глобальный ignore дошёл до теста", got)
+	}
+	if _, set := os.LookupEnv("GIT_ASKPASS"); set {
+		t.Error("GIT_ASKPASS дошёл до теста")
+	}
 }
 
 func runGit(t *testing.T, dir string, args ...string) string {
