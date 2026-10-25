@@ -115,7 +115,7 @@ func stashRenameCmd(repo git.Repo, stash git.Stash, at int, message string) tea.
 
 // askStashMessage спрашивает новое сообщение записи (#237), в поле стоит
 // прежнее. Пустое поле не закрывается молча: Repo.StashRename отвечает
-// причиной в подвале.
+// причиной в тосте.
 func (m Model) askStashMessage(stash git.Stash) Model {
 	at := m.cursor
 	title := m.text.Text("stash.renameTitle", i18n.Args{"ref": visible(stash.Ref)})

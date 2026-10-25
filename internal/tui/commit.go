@@ -34,7 +34,7 @@ func commitCmd(repo git.Repo, subject, description string) tea.Cmd {
 }
 
 // amendCmd переписывает последний коммит. Если прежний коммит уже лежал в
-// upstream, подвал держит предупреждение: обычный push ветку не отправит.
+// upstream, тост предупреждает: обычный push ветку не отправит.
 func amendCmd(repo git.Repo, subject, description, note, warning string) tea.Cmd {
 	return func() tea.Msg {
 		published, err := repo.Amend(subject, description)

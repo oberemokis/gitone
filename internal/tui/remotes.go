@@ -42,7 +42,7 @@ func thenRemotes(repo git.Repo, note string, change func() error) tea.Cmd {
 	}
 }
 
-// remotesArrived открывает окно remote или обновляет открытое (arrived), подвал
+// remotesArrived открывает окно remote или обновляет открытое (arrived), тост
 // говорит итог правки. Ответ правки это ответ с note.
 func (m Model) remotesArrived(msg remotesMsg) Model {
 	m = m.arrived(listArrival{shown: remoteWindow, err: msg.err, edit: msg.note != "", set: func(m *Model) { m.remotes = msg.remotes }})
@@ -53,7 +53,7 @@ func (m Model) remotesArrived(msg remotesMsg) Model {
 }
 
 // remoteActions это действия окна remote (#233): remotes.new спрашивает имя и
-// адрес, remotes.delete удаляет после вопроса. Пока идёт pull, push или fetch,
+// адрес, remotes.delete удаляет после вопроса. Пока идёт сетевая операция,
 // правки отказывают: git работает с тем же remote.
 var remoteActions = []windowAction[git.Remote]{
 	{action: keymap.RemotesNew, anyRow: true, changesRepo: true, run: func(m Model, _ git.Remote) (tea.Model, tea.Cmd) {

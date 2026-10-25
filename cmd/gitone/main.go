@@ -110,9 +110,9 @@ func loadSettings() (tui.Options, []error) {
 	return opts, []error{settingsErr, keysErr, themeErr, layoutErr}
 }
 
-// addNotice дописывает к тексту подвала тексты ошибок на языке интерфейса
-// через «; »: подвал показывает одну строку. nil пропускается, иначе в тексте
-// осталась бы пустая часть.
+// addNotice дописывает к заметке запуска тексты ошибок на языке интерфейса
+// через «; »: тост показывает одну заметку, новая заменила бы прежнюю. nil
+// пропускается, иначе в тексте осталась бы пустая часть.
 func addNotice(text i18n.Dictionary, notice string, errs ...error) string {
 	var parts []string
 	if notice != "" {

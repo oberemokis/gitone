@@ -148,8 +148,8 @@ const (
 	CommitSubmit Action = "commit.submit"
 	CommitField  Action = "commit.field"
 	CommitClose  Action = "commit.close"
-	// поиск в логе, ветках и worktree: / открывает поле, done оставляет
-	// фильтр, cancel снимает
+	// поиск в логе, reflog, ветках, worktree и тегах: / открывает поле, done
+	// оставляет фильтр, cancel снимает
 	ListSearch       Action = "list.search"
 	ListSearchDone   Action = "listSearch.done"
 	ListSearchCancel Action = "listSearch.cancel"
@@ -227,7 +227,7 @@ func newKeymap(bindings []Binding, commands []Command) Keymap {
 
 // Command это своя команда из раздела commands в keybinds.json (#246), как
 // customCommands в lazygit: клавиша на главном экране, команда shell и имя
-// для подвала. {path} в команде заменяется путём открытого файла.
+// для тоста. {path} в команде заменяется путём открытого файла.
 type Command struct {
 	Key  string `json:"key"`
 	Run  string `json:"command"`

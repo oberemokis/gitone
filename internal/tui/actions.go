@@ -78,7 +78,7 @@ var globalActions = map[keymap.Action]globalAction{
 		m.helpOpen, m.helpTop = !m.helpOpen, 0
 		return m
 	})},
-	// esc закрывает справку, а без неё отменяет идущий pull или push
+	// esc закрывает справку, а без неё отменяет идущую сетевую операцию
 	keymap.HelpClose: {run: stay(func(m Model) Model {
 		if !m.helpOpen {
 			m = m.stopRemote()

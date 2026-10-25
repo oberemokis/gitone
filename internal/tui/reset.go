@@ -7,7 +7,7 @@ import (
 	"gitone/internal/i18n"
 )
 
-// resetTargetMsg несёт цель reset из окна веток, её имя для подвала и число
+// resetTargetMsg несёт цель reset из окна веток, её имя для тоста и число
 // коммитов, которые он снимет, или ошибку: у текущей ветки нет upstream.
 type resetTargetMsg struct {
 	target string
@@ -20,7 +20,7 @@ func (msg resetTargetMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.resetTa
 
 // resetTargetCmd находит цель reset из окна веток (#231): у текущей ветки её
 // upstream, у другой она сама, и считает снимаемые коммиты. Другая ветка
-// приходит полной ссылкой, а в подвале названа коротким именем.
+// приходит полной ссылкой, а в меню и тосте названа коротким именем.
 func resetTargetCmd(repo git.Repo, branch git.Branch) tea.Cmd {
 	return func() tea.Msg {
 		target, drops, err := repo.ResetTarget(branch.Name, branch.Current)
@@ -76,8 +76,8 @@ func (m Model) askReset(target, label string, drops int) Model {
 }
 
 // resetTo переводит текущую ветку на target и закрывает окно. Если reset снял
-// коммиты, которые уже лежат в upstream, подвал предупреждает: ветка разошлась
-// с remote, и обычный push её не отправит. Пока идёт pull или push, reset
+// коммиты, которые уже лежат в upstream, тост предупреждает: ветка разошлась
+// с remote, и обычный push её не отправит. Пока идёт сетевая операция, reset
 // отказывает.
 func (m Model) resetTo(target, label string, mode git.ResetMode) (tea.Model, tea.Cmd) {
 	if next, refused := m.refuseWhileRemote(); refused {

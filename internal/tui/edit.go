@@ -50,7 +50,8 @@ func editorCmd(root, path string) tea.Cmd {
 			return editorMsg{err: i18n.New("editor.notSet", nil)}
 		}
 
-		// путь от корня, а не полный: полный из os.Stat не влез бы в подвал
+		// путь от корня, а не полный: полный из os.Stat растянул бы тост на
+		// несколько строк
 		file := filepath.Join(root, path)
 		if _, err := os.Stat(file); errors.Is(err, fs.ErrNotExist) {
 			return editorMsg{err: i18n.New("editor.missing", i18n.Args{"path": path})}
@@ -75,7 +76,7 @@ func editorCommand(editor, file string) *exec.Cmd {
 
 // startEditor отдаёт терминал редактору, а после его выхода перечитывает дифф:
 // правка видна сразу, а не к тику опроса. Код выхода редактора, кроме нуля,
-// идёт в подвал.
+// идёт в тост.
 func (m Model) startEditor(msg editorMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		return m.say(m.text.Error(msg.err)), nil

@@ -77,7 +77,8 @@ type Model struct {
 	logRequest int
 	// copied коммит, скопированный для cherry-pick (#222), до выхода из gitone
 	copied git.LogEntry
-	// поиск в логе, ветках и worktree: запрос и открытое поле (window.go).
+	// поиск в логе, reflog, ветках, worktree и тегах: запрос и открытое поле
+	// (window.go).
 	// Окно открыто одно, поэтому поиск общий, открытие окна его сбрасывает.
 	query     string
 	searching bool
@@ -100,13 +101,13 @@ type Model struct {
 	// заметка стоит тостом (toast.go) до следующего нажатия и пропадает сама
 	// через noticeLifetime (notice.go); noticeID номер заметки, у таймера свой
 	// номер; noFade выключает таймер (Options.KeepNotices). calm это текст
-	// итога pull или push: заметка с таким текстом идёт не цветом ошибки
+	// последнего итога: заметка с таким текстом идёт не цветом ошибки
 	// (sayCalm)
 	notice   string
 	noticeID int
 	noFade   bool
 	calm     string
-	// идущий pull или push (remote.go)
+	// идущая сетевая операция (remote.go)
 	remote remote
 	// askpass сервер вопросов git о логине и пароле, credential вопрос, на
 	// который ещё не ответили (credential.go, #375)
@@ -156,7 +157,7 @@ type Model struct {
 
 // Options это всё, что корню нужно до запуска: репозиторий (Open) и аргументы
 // для перечитывания по r, настройки, клавиши, раскладка и текст ошибок их
-// загрузки для подвала. Пустая раскладка значит один дифф на весь экран.
+// загрузки для тоста. Пустая раскладка значит один дифф на весь экран.
 type Options struct {
 	Repo   git.Repo
 	Args   []string
@@ -458,8 +459,8 @@ func (m Model) wheel(msg tea.MouseWheelMsg) diffview.Model {
 }
 
 // handleAction выполняет действие главного экрана из таблицы globalActions.
-// Действие, которое правит репозиторий, отказывает, пока идёт pull, push или
-// fetch; при выделении часть действий работает иначе (selectionAction).
+// Действие, которое правит репозиторий, отказывает, пока идёт сетевая
+// операция; при выделении часть действий работает иначе (selectionAction).
 func (m Model) handleAction(action keymap.Action) (tea.Model, tea.Cmd) {
 	entry, found := globalActions[action]
 	if entry.changesRepo {
@@ -729,9 +730,9 @@ func (m Model) screen() (string, []zone.Zone) {
 }
 
 // footerLine собирает подвал: ветку слева, состояние по центру, подсказки
-// справа. Пока идёт перечитывание, в центре спиннер. Пока идёт pull или push,
-// спиннер с его надписью занимает то же место и важнее загрузки. Ошибки и
-// итоги стоят не здесь, а тостом (toast.go).
+// справа. Пока идёт перечитывание, в центре спиннер. Пока идёт сетевая
+// операция, спиннер с её надписью занимает то же место и важнее загрузки.
+// Ошибки и итоги стоят не здесь, а тостом (toast.go).
 func (m Model) footerLine() string {
 	center := ""
 	switch {

@@ -50,7 +50,7 @@ func (m Model) requestLog(filter git.LogFilter) (Model, tea.Cmd) {
 
 // logArrived открывает окно лога (arrived). Список под новым фильтром или
 // после правки истории ложится в открытый лог (#226), и под вопросом над ним
-// тоже. У нового файла истории нет: пустое окно сказало бы меньше подвала
+// тоже. У нового файла истории нет: пустое окно сказало бы меньше тоста
 // (#241), а в открытой истории файла пустой список это фильтр автора без
 // совпадений.
 func (m Model) logArrived(msg logMsg) Model {
@@ -254,7 +254,7 @@ func (m Model) showCommit(entry git.LogEntry) (tea.Model, tea.Cmd) {
 
 // pasteCommit переносит скопированный коммит в текущую ветку (#222), как V в
 // lazygit. Буфер живёт в памяти до выхода, в git ничего не пишется. Без
-// скопированного коммита подвал говорит, как его скопировать.
+// скопированного коммита тост говорит, как его скопировать.
 func (m Model) pasteCommit() (tea.Model, tea.Cmd) {
 	entry := m.copied
 	if entry.Hash == "" {
@@ -266,8 +266,8 @@ func (m Model) pasteCommit() (tea.Model, tea.Cmd) {
 	})
 }
 
-// changeHistory закрывает лог и выполняет правку истории change, подвал говорит
-// итог note. Пока идёт pull или push, правка отказывает, окно остаётся.
+// changeHistory закрывает лог и выполняет правку истории change, тост говорит
+// итог note. Пока идёт сетевая операция, правка отказывает, окно остаётся.
 func (m Model) changeHistory(note string, change func(repo git.Repo) error) (tea.Model, tea.Cmd) {
 	if next, refused := m.refuseWhileRemote(); refused {
 		return next, nil

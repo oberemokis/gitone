@@ -34,8 +34,8 @@ func branchesCmd(repo git.Repo) tea.Cmd {
 }
 
 // branchesArrived открывает окно веток с курсором на текущей или обновляет
-// открытое (arrived). После удаления или переименования подвал говорит итог
-// и перечитывается: имя текущей ветки могло смениться.
+// открытое (arrived). После удаления или переименования тост говорит итог, а
+// дифф и подвал перечитываются: имя текущей ветки могло смениться.
 func (m Model) branchesArrived(msg branchesMsg) (tea.Model, tea.Cmd) {
 	m = m.arrived(listArrival{shown: branchWindow, err: msg.err, edit: msg.edit, set: func(m *Model) { m.branches = msg.branches }, start: currentIndex(msg.branches)})
 	if msg.err != nil || !msg.edit {
@@ -48,7 +48,7 @@ func (m Model) branchesArrived(msg branchesMsg) (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
-// switchCmd переключает ветку. Отказ git приходит ошибкой и остаётся в подвале.
+// switchCmd переключает ветку. Отказ git приходит ошибкой и встаёт тостом.
 func switchCmd(repo git.Repo, name string) tea.Cmd {
 	return func() tea.Msg {
 		return actionDoneMsg{err: repo.Switch(name)}
@@ -149,7 +149,7 @@ func (m Model) branchKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // ontoCurrent сливает выбранную ветку в текущую или перестраивает текущую
 // поверх неё (#229), без вопроса: операцию отменяет reflog, а конфликт
-// останавливает её с причиной в подвале. Выбрана сама текущая, и подвал
+// останавливает её с причиной в тосте. Выбрана сама текущая, и тост
 // сразу говорит, что нужна другая. Итог успеха noteKey гаснет сам.
 func (m Model) ontoCurrent(branch git.Branch, run func(repo git.Repo, name string) error, noteKey string) (tea.Model, tea.Cmd) {
 	if branch.Current {
@@ -188,7 +188,7 @@ func (m Model) askRename(from string) Model {
 }
 
 // askDeleteBranch спрашивает, удалять ли ветку. Текущую git не удалит, поэтому
-// вопрос не задаётся: подвал сразу говорит почему.
+// вопрос не задаётся: тост сразу говорит почему.
 func (m Model) askDeleteBranch(branch git.Branch) Model {
 	if branch.Current {
 		return m.putNotice(m.text.Text("branches.deleteCurrent", nil))

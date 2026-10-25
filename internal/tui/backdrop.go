@@ -15,7 +15,8 @@ import (
 const backdropKeep = 105
 
 // terminalColors это цвета терминала по умолчанию, ими красятся клетки без
-// своего цвета. nil, пока терминал не ответил на запрос из Init.
+// своего цвета. nil, пока терминал не ответил на запрос, который уходит с
+// первым размером экрана (update).
 type terminalColors struct {
 	fg, bg color.Color
 }

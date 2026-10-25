@@ -22,7 +22,7 @@ func (m Model) diffFlags() []string {
 }
 
 // flagsOf это флаги вида диффа (#217): без пробелов и число строк контекста.
-// Без нажатий флагов нет, и git берёт свои настройки.
+// У вида по умолчанию флагов нет, и git берёт свои настройки.
 func flagsOf(view config.View) []string {
 	var flags []string
 	if view.IgnoreWhitespace {
@@ -57,7 +57,7 @@ func (m Model) changeContext(delta int) (tea.Model, tea.Cmd) {
 	return m.flagsChanged()
 }
 
-// flagsChanged перечитывает дифф с новыми флагами, подвал называет вид. Без
+// flagsChanged перечитывает дифф с новыми флагами, тост называет вид. Без
 // флагов вид остаётся только один: пробелы снова видны.
 func (m Model) flagsChanged() (tea.Model, tea.Cmd) {
 	view := m.flagsLabel()
@@ -69,7 +69,7 @@ func (m Model) flagsChanged() (tea.Model, tea.Cmd) {
 	return m.startReload()
 }
 
-// flagsLabel это вид диффа словами для заголовка и подвала: «whitespace
+// flagsLabel это вид диффа словами для заголовка и тоста: «whitespace
 // hidden, context 5». Без флагов пустая строка.
 func (m Model) flagsLabel() string {
 	var parts []string

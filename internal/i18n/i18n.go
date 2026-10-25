@@ -67,7 +67,8 @@ type Dictionary struct {
 	texts map[string]string
 }
 
-// Keys это ключи английского словаря по порядку, то есть все строки.
+// Keys это ключи английского словаря по порядку, то есть все строки. Зовут его
+// только тесты: сверка ключей с кодом и псевдословарь в tui.
 func Keys() []string {
 	return slices.Sorted(maps.Keys(builtin()[english]))
 }

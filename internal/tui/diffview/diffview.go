@@ -161,7 +161,8 @@ func (m Model) Mode() Mode {
 }
 
 // ToggleMode переключает от того вида, что сейчас на экране, а не от auto, и
-// держит выбор до конца сеанса: смена ширины после этого вид не меняет.
+// держит выбор: смена ширины после этого вид не меняет. Корень запоминает
+// выбор в state.json, и он переживает выход (#369).
 func (m Model) ToggleMode() Model {
 	return m.keepTop(func(m Model) Model {
 		if m.effectiveMode() == ModeSplit {
