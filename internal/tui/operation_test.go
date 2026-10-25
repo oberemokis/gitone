@@ -94,7 +94,8 @@ func TestOperationMenuWithoutOperation(t *testing.T) {
 	model := resize(open(t, options(repo, layout.Focus())), 100, 20)
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'M', Text: "M"})
-	if footer := footerOf(model); !strings.Contains(footer, "no merge, rebase") {
+	// am тоже операция меню (#399)
+	if footer := footerOf(model); !strings.Contains(footer, "no merge, rebase, cherry-pick, revert or am is in progress") {
 		t.Fatalf("подвал %q, ожидался отказ", footer)
 	}
 }

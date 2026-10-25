@@ -8,14 +8,15 @@ import (
 )
 
 // askOperation открывает меню незавершённой операции (#243), как m в
-// lazygit: продолжить или прервать merge, rebase, cherry-pick или revert.
+// lazygit: продолжить или прервать merge, rebase, am, cherry-pick или revert.
 // Прервать можно только после вопроса: решённые конфликты пропадут вместе с
-// операцией. Без операции тост говорит, что продолжать нечего.
+// операцией. Без операции тост говорит, что продолжать нечего, тем же текстом,
+// что отказ git-слоя.
 func (m Model) askOperation() Model {
 	operation := m.location.Operation
 	switch operation {
 	case "":
-		return m.putNotice(m.text.Text("operation.none", nil))
+		return m.putNotice(m.text.Text("git.noOperation", nil))
 	// bisect не продолжается и не прерывается, а отмечает HEAD (#245)
 	case "bisect":
 		return m.askBisect("HEAD", "HEAD")
