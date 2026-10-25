@@ -133,7 +133,7 @@ func unfinished(root string) bool {
 // корня репозитория. Остановку она сводит к ошибке из словаря: строка git
 // называет один файл, а знать нужно, что операция не закончена. Отказ до
 // начала (грязное дерево, незавершённая прежняя операция) сводится к одной
-// строке (headline).
+// строке (headline). Успех проверяется на конфликт возврата autostash.
 func (r Repo) stopping(operation string, args ...string) error {
 	if unfinished(r.root) {
 		_, err := r.inRoot(args...)
@@ -141,7 +141,10 @@ func (r Repo) stopping(operation string, args ...string) error {
 	}
 
 	_, err := r.inRoot(args...)
-	if err != nil && unfinished(r.root) {
+	switch {
+	case err == nil:
+		return r.autostashConflict(operation)
+	case unfinished(r.root):
 		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": operation})
 	}
 	return headline(err)

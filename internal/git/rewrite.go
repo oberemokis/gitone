@@ -180,13 +180,10 @@ func (r Repo) rebaseWith(base string, todo []string, message string) error {
 	before := unfinished(r.root)
 	_, err = run(call{dir: r.root, env: env}, args...)
 	switch {
-	case err != nil && !before && r.stoppedOnConflict():
-		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": "rebase"})
-	// --autostash выходит с 0, даже когда отложенные правки не встали обратно
 	case err == nil:
-		if conflicted, _ := r.ConflictedPaths(); len(conflicted) > 0 {
-			return i18n.New("git.autostashConflict", i18n.Args{"operation": "rebase"})
-		}
+		return r.autostashConflict("rebase")
+	case !before && r.stoppedOnConflict():
+		return i18n.New("git.stoppedOnConflict", i18n.Args{"operation": "rebase"})
 	}
 	return headline(err)
 }

@@ -201,6 +201,7 @@
   "git.rewriteNotInBranch": "the commit is not in the current branch",
   "git.stashChanged": "stash changed, reopen the list",
   "git.stashKept": "conflict: fix the files, the stash entry is kept",
+  "git.stashUnmerged": "resolve the conflicted files first, the stash entry is not applied",
   "git.stoppedOnConflict": "{operation} stopped on a conflict: resolve it with {select}, then {next} continues or aborts",
   "git.submoduleDiscard": "submodule \"{path}\" cannot be discarded",
   "help.title": "Hotkeys",

@@ -121,6 +121,21 @@ func TestPullReportsUpToDateBranch(t *testing.T) {
 	}
 }
 
+// Pull с merge.autoStash, чьи отложенные правки не встали обратно, отвечает
+// ошибкой, а не «перемотано»: правки лежат в stash (#388, случай 1).
+func TestPullAutostashConflict(t *testing.T) {
+	origin, local := remotePair(t)
+	publish(t, origin, "a.txt", "remote\n")
+	runGit(t, local, "config", "merge.autoStash", "true")
+	write(t, local, "a.txt", "dirty\n")
+
+	_, err := open(t, local).Pull(context.Background())
+	refusedWith(t, err, "git.autostashConflict")
+	if stash := runGit(t, local, "stash", "list"); stash == "" {
+		t.Fatal("отложенных правок нет в stash")
+	}
+}
+
 // Разошедшиеся ветки git не сливает и не перебазирует, даже если у пользователя
 // включён pull.rebase: gitone просит только перемотку.
 func TestPullRefusesDivergedBranches(t *testing.T) {

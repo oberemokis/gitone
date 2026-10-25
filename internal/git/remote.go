@@ -32,8 +32,9 @@ func (r Repo) fetch(ctx context.Context) error {
 // Pull подтягивает текущую ветку из её upstream только перемоткой: `git pull
 // --ff-only`. Разошедшиеся ветки git отвергает, ничего не сливая и не
 // перебазируя, pull.rebase пользователя на это не влияет. updated говорит, что
-// HEAD сдвинулся: по выводу git этого не узнать, git переводит его на язык
-// пользователя. Отмена ctx убивает git, ошибка тогда context.Canceled.
+// HEAD сдвинулся, это видно по HEAD, а не по выводу git. Отмена ctx убивает
+// git, ошибка тогда context.Canceled. Перемотка с merge.autoStash, чьи правки
+// не встали обратно, отвечает autostashConflict.
 func (r Repo) Pull(ctx context.Context) (updated bool, err error) {
 	updated, err = r.pull(ctx)
 	return updated, failed("pull", headline(err))
@@ -49,7 +50,7 @@ func (r Repo) pull(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	return r.headCommit() != before, nil
+	return r.headCommit() != before, r.autostashConflict("pull")
 }
 
 // Push отправляет текущую ветку и возвращает, куда она ушла («origin/main»).
