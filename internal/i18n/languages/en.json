@@ -184,6 +184,7 @@
   "git.nothingToRedo": "nothing to redo",
   "git.nothingToUndo": "nothing to undo: HEAD has not moved",
   "git.undoRebasing": "a rebase is in progress, finish or abort it first",
+  "git.undoUnfinished": "{operation} is in progress, finish or abort it first",
   "git.undoStash": "the last change is a stash, it did not move HEAD: undo works only with HEAD moves",
   "git.noRemote": "no remote is configured",
   "git.noUpstream": "the current branch has no upstream, choose another branch to reset to",

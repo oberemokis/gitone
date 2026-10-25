@@ -38,6 +38,10 @@ type move struct {
 // изменение, не двигавшее HEAD (stash), откатить этим нельзя, и шаг не
 // отменяет вместо него более старое движение.
 func (r Repo) UndoStep() (Step, error) {
+	if err := r.refuseUnfinished(); err != nil {
+		return Step{}, err
+	}
+
 	entries, err := r.Reflog()
 	if err != nil {
 		return Step{}, err
@@ -66,6 +70,10 @@ func (r Repo) UndoStep() (Step, error) {
 // RedoStep находит движение, откаченное последним. Новое движение HEAD после
 // отката повтор сбрасывает: оно стоит в reflog раньше записи отката.
 func (r Repo) RedoStep() (Step, error) {
+	if err := r.refuseUnfinished(); err != nil {
+		return Step{}, err
+	}
+
 	entries, err := r.Reflog()
 	if err != nil {
 		return Step{}, err
@@ -86,6 +94,17 @@ func (r Repo) RedoStep() (Step, error) {
 		err = i18n.New("git.nothingToRedo", nil)
 	}
 	return step, err
+}
+
+// refuseUnfinished отказывает откату и повтору посреди операции. reset --soft
+// посреди cherry-pick снимал CHERRY_PICK_HEAD, и коммит пропадал из ветки, а
+// посреди pull --rebase откат принимал записи «pull --rebase (pick)» за шаг и
+// двигал HEAD внутри rebase (#385).
+func (r Repo) refuseUnfinished() error {
+	if !unfinished(r.root) {
+		return nil
+	}
+	return i18n.New("git.undoUnfinished", i18n.Args{"operation": operation(r.root)})
 }
 
 // walk идёт по reflog от новых записей к старым, как parseReflogForActions в
@@ -116,7 +135,15 @@ func walk(entries []ReflogEntry, visit func(counter int, found move) (bool, erro
 		case rebaseStep(entry.Action, "(start)"):
 			return i18n.New("git.undoRebasing", nil)
 		case entry.Action == "checkout":
-			if from, to, ok := checkoutTargets(entry.Subject); ok {
+			from, to, ok := checkoutTargets(entry.Subject)
+			switch {
+			case !ok:
+			// «moving from main to main» после switch -C и checkout -B ветку
+			// не меняет: её сдвигает соседняя запись «branch: Reset to», и хэш
+			// у них один. Другой хэш значит, что HEAD сдвинул сам checkout.
+			case from == to && entry.Hash != previous:
+				found = &move{from: previous, to: entry.Hash, entry: entry}
+			default:
 				found = &move{checkout: true, from: from, to: to, entry: entry}
 			}
 		case movesHead(entry.Action):
@@ -152,9 +179,10 @@ func checkoutTargets(subject string) (from, to string, ok bool) {
 
 // movesHead говорит, что действие переставило HEAD на новый коммит. merge,
 // cherry-pick и revert lazygit пропускает, и тогда откат молча отменил бы
-// движение до них.
+// движение до них. am пишет коммит патча, branch это «branch: Reset to» от
+// switch -C и checkout -B: без них откат отменял движение до них (#385).
 func movesHead(action string) bool {
-	for _, prefix := range []string{"commit", "reset", "pull", "merge", "cherry-pick", "revert"} {
+	for _, prefix := range []string{"commit", "reset", "pull", "merge", "cherry-pick", "revert", "am", "branch"} {
 		if strings.HasPrefix(action, prefix) {
 			return true
 		}
