@@ -17,7 +17,7 @@ func TestReplyReachesClient(t *testing.T) {
 	}{
 		{name: "ответ", respond: func(r Request) { r.Answer("token") }, out: "token\n"},
 		{name: "пустой ответ", respond: func(r Request) { r.Answer("") }, out: "\n"},
-		{name: "отмена", respond: Request.Cancel, err: ErrCanceled},
+		{name: "отмена", respond: Request.Cancel, err: errCanceled},
 	}
 
 	for _, c := range cases {

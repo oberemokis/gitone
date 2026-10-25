@@ -66,34 +66,32 @@ func remember(args []string, exit int) {
 var credentials = regexp.MustCompile(`://[^/@\s]+@`)
 
 // readOnly говорит, что вызов ничего не меняет в репозитории. Подкоманды со
-// смешанным смыслом (stash, branch, tag, remote, config, submodule, worktree,
-// bisect) читают только в формах, которые здесь перечислены.
+// смешанным смыслом (stash, remote, config, submodule, worktree) читают только
+// в формах, которые здесь перечислены; перечислено то, что пакет запускает.
+// check-ignore отвечает кодом 1, когда путь не игнорируется: это ответ, а не
+// сбой (#402).
 func readOnly(args []string) bool {
 	if len(args) == 0 {
 		return true
 	}
 
 	switch rest := args[1:]; args[0] {
-	case "rev-parse", "diff", "ls-files", "ls-tree", "for-each-ref", "log", "show", "merge-base", "merge-tree",
-		"symbolic-ref", "cat-file", "status", "format-patch", "rev-list", "describe", "reflog":
+	case "rev-parse", "diff", "ls-files", "ls-tree", "for-each-ref", "log", "merge-base", "merge-tree",
+		"symbolic-ref", "cat-file", "format-patch", "rev-list", "reflog", "check-ignore":
 		return true
 	// у hash-object -w пишет объект, а у diff это «без пробелов»
 	case "hash-object":
 		return !slices.Contains(rest, "-w")
 	case "stash":
-		return len(rest) > 0 && (rest[0] == "list" || rest[0] == "show")
+		return len(rest) > 0 && rest[0] == "list"
 	case "worktree":
 		return len(rest) > 0 && rest[0] == "list"
 	case "submodule":
 		return len(rest) > 0 && rest[0] == "status"
 	case "remote":
-		return len(rest) == 0 || rest[0] == "-v" || rest[0] == "get-url"
-	case "bisect":
-		return len(rest) > 0 && rest[0] == "log"
-	case "config", "branch", "tag":
-		return slices.ContainsFunc(rest, func(arg string) bool {
-			return strings.HasPrefix(arg, "--get") || arg == "--list" || arg == "-l" || arg == "--show-current"
-		})
+		return len(rest) == 0 || rest[0] == "-v"
+	case "config":
+		return slices.ContainsFunc(rest, func(arg string) bool { return strings.HasPrefix(arg, "--get") })
 	}
 	return false
 }
