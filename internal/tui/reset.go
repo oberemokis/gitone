@@ -48,7 +48,8 @@ func (m Model) resetTargetFound(msg resetTargetMsg) Model {
 // в lazygit. Hard стирает правки, поэтому спрашивает ещё раз: question.yes
 // выполняет, любая другая клавиша нет, как у отмены правок файла. drops это
 // число коммитов, которые снимет reset, отрицательное значит, что его не
-// считали: тогда вопрос его не называет.
+// считали: тогда вопрос его не называет, как и без коммитов. Форм числа в
+// словаре нет, один коммит назван отдельным ключом (#399).
 func (m Model) askReset(target, label string, drops int) Model {
 	item := func(labelKey string, mode git.ResetMode) menuItem {
 		return menuItem{label: m.text.Text(labelKey, nil), run: func(m Model) (tea.Model, tea.Cmd) {
@@ -59,7 +60,10 @@ func (m Model) askReset(target, label string, drops int) Model {
 			args := questionArgs(m.keys)
 			args["target"], args["count"] = label, drops
 			question := "reset.hardQuestion"
-			if drops >= 0 {
+			switch {
+			case drops == 1:
+				question = "reset.hardQuestionDropsOne"
+			case drops > 1:
 				question = "reset.hardQuestionDrops"
 			}
 			return m.ask(m.text.Text(question, args), func(m Model) (tea.Model, tea.Cmd) {
