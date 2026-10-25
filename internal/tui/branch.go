@@ -253,7 +253,7 @@ func markedCell(panel, name lipgloss.Style, width int, label string, current boo
 		mark = ""
 	}
 
-	label = ansi.Truncate(visible(label), max(width-ansi.StringWidth(mark), 1), "…")
+	label = truncate(visible(label), max(width-ansi.StringWidth(mark), 1), "…")
 	used := ansi.StringWidth(label) + ansi.StringWidth(mark)
 	return name.Render(label) + panel.Render(mark+strings.Repeat(" ", max(width-used, 0)))
 }

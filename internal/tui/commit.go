@@ -246,7 +246,7 @@ func commitBox(p paint, heading, subject string, description editor.Model, field
 	}
 
 	// подсказка обрезается: длинная переназначенная клавиша перенесла бы строку
-	hint := ansi.Truncate(commitHint(p, field), content, p.muted().Render("…"))
+	hint := truncate(commitHint(p, field), content, p.muted().Render("…"))
 	lines = append(lines, "", hint)
 
 	return panel.Padding(1, windowPaddingX).Width(width).Render(strings.Join(lines, "\n"))
