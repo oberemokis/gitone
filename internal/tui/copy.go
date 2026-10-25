@@ -37,7 +37,7 @@ func (m Model) askCopy(entry git.LogEntry) Model {
 	})
 }
 
-// patchSaved кладёт патч в буфер обмена и называет файл в подвале. Файл
+// patchSaved кладёт патч в буфер обмена и называет файл в тосте. Файл
 // появился в рабочем дереве, поэтому дифф перечитывается.
 func (m Model) patchSaved(msg patchMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {

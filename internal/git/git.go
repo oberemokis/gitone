@@ -286,7 +286,7 @@ func topLevel(dir string) (string, error) {
 
 type call struct {
 	// ctx отменяет команду, убивая git вместе с детьми (stopGroup). Нужен долгим
-	// вызовам, которые ходят по сети: pull и push. nil значит без отмены.
+	// вызовам, которые ходят по сети (network). nil значит без отмены.
 	ctx   context.Context
 	dir   string
 	env   []string

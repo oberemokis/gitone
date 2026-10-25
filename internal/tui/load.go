@@ -17,7 +17,8 @@ func Open(dir string) (git.Repo, error) {
 }
 
 // Load читает дифф репозитория: cmd/gitone при запуске, а по r reload одним и
-// тем же путём. flags это флаги вида (#217), при запуске их нет.
+// тем же путём. flags это флаги вида (#217), при запуске флаги запомненного
+// вида (Options.DiffFlags, #369).
 func Load(repo git.Repo, args []string, flags ...string) ([]diff.File, error) {
 	text, err := repo.Diff(args, flags...)
 	if err != nil {
@@ -159,7 +160,7 @@ func readDiff(repo git.Repo, args, flags []string) reloadMsg {
 	return msg
 }
 
-// reloaded ставит перечитанный дифф на экран, а ошибку git в подвал. Если за
+// reloaded ставит перечитанный дифф на экран, а ошибку git в тост. Если за
 // время загрузки gitone сам что-то поменял, загрузка идёт ещё раз. Ответ про
 // другой каталог или другие аргументы на экран не идёт, как у опроса: его
 // место занимает чтение нового диффа.

@@ -27,7 +27,7 @@ func (m Model) askBisect(hash, label string) Model {
 	return m.openMenu(m.text.Text("bisect.title", nil), items)
 }
 
-// markBisect отмечает коммит и ставит в подвал итог: ждёт второй отметки,
+// markBisect отмечает коммит и ставит тостом итог: ждёт второй отметки,
 // перешёл на коммит для проверки или нашёл первый плохой. Окно закрывается:
 // после отметки HEAD стоит на другом коммите, и дифф перечитывается.
 func (m Model) markBisect(hash string, good bool) (tea.Model, tea.Cmd) {

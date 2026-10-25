@@ -31,7 +31,7 @@ func undoStepCmd(repo git.Repo, redo bool) tea.Cmd {
 
 // askUndo спрашивает в подвале, откатить или повторить найденный шаг (#239):
 // вопрос называет запись reflog и то, куда встанет HEAD. Ошибка ставится
-// причиной в подвал. Окно, открытое, пока шаг искался, вопрос не перебивает.
+// причиной в тост. Окно, открытое, пока шаг искался, вопрос не перебивает.
 func (m Model) askUndo(msg undoStepMsg) Model {
 	if msg.err != nil {
 		return m.say(m.text.Error(msg.err))

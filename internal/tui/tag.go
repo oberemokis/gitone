@@ -44,7 +44,7 @@ func thenTags(repo git.Repo, note string, change func() error) tea.Cmd {
 	}
 }
 
-// tagsArrived открывает окно тегов или обновляет открытое (arrived), подвал
+// tagsArrived открывает окно тегов или обновляет открытое (arrived), тост
 // говорит итог правки. Ответ правки это ответ с note.
 func (m Model) tagsArrived(msg tagsMsg) Model {
 	m = m.arrived(listArrival{shown: tagWindow, err: msg.err, edit: msg.note != "", set: func(m *Model) { m.tags = msg.tags }})

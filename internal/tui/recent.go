@@ -63,7 +63,7 @@ func (m Model) recentArrived(msg recentMsg) Model {
 
 // recentActions это действия окна недавних: recent.open открывает выбранный
 // репозиторий тем же путём, что переключение worktree. Пропавший каталог не
-// открывается, подвал говорит почему.
+// открывается, тост говорит почему.
 var recentActions = []windowAction[recentRepo]{
 	{action: keymap.RecentOpen, changesRepo: true, run: func(m Model, repo recentRepo) (tea.Model, tea.Cmd) {
 		switch {

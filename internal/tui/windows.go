@@ -36,7 +36,7 @@ type windowKind struct {
 
 var windowKinds = map[window]windowKind{
 	pickerWindow: {
-		// поиск файлов гасит подвал, как главный экран
+		// поиск файлов гасит тост, как главный экран
 		key: func(m Model, key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.notice = ""
 			return m.pickerKey(key)

@@ -27,9 +27,10 @@ const (
 	updatingSubmodule
 )
 
-// remote это идущий pull или push. Он идёт командой в фоне, интерфейс при этом
-// отзывчив. id растёт с каждой операцией: шаг спиннера и ответ чужой операции
-// отбрасываются. cancel отменяет контекст команды, и git убивается (esc).
+// remote это идущая сетевая операция. Она идёт командой в фоне, интерфейс
+// при этом отзывчив. id растёт с каждой операцией: шаг спиннера и ответ чужой
+// операции отбрасываются. cancel отменяет контекст команды, и git убивается
+// (esc).
 type remote struct {
 	kind   remoteKind
 	id     int
@@ -66,8 +67,8 @@ func (r remote) busyKey() string {
 	return "remote.pullRunning"
 }
 
-// remoteDoneMsg несёт итог pull или push: сдвинулся ли HEAD, куда ушла ветка
-// или ошибку git. Отмена приходит как context.Canceled.
+// remoteDoneMsg несёт итог сетевой операции: сдвинулся ли HEAD, куда ушла
+// ветка или ошибку git. Отмена приходит как context.Canceled.
 type remoteDoneMsg struct {
 	id      int
 	kind    remoteKind
@@ -78,9 +79,9 @@ type remoteDoneMsg struct {
 
 func (msg remoteDoneMsg) apply(m Model) (tea.Model, tea.Cmd) { return m.remoteDone(msg) }
 
-// remoteSpinMsg это шаг спиннера операции id. У pull и push своя цепочка шагов:
-// перечитывание диффа во время операции крутит свой спиннер, и её цепочка не
-// должна на нём оборваться.
+// remoteSpinMsg это шаг спиннера операции id. У сетевой операции своя цепочка
+// шагов: перечитывание диффа во время операции крутит свой спиннер, и её
+// цепочка не должна на нём оборваться.
 type remoteSpinMsg struct {
 	id int
 }
@@ -123,7 +124,7 @@ func fetchCmd(ctx context.Context, repo git.Repo, id int) tea.Cmd {
 	}
 }
 
-// startRemote запускает pull, push или fetch. Вторая операция не стартует, пока
+// startRemote запускает сетевую операцию. Вторая операция не стартует, пока
 // идёт первая: это отказ из changesRepo, он решён выше по вызову.
 func (m Model) startRemote(kind remoteKind) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -149,7 +150,7 @@ func (m Model) stopRemote() Model {
 	return m
 }
 
-// remoteDone ставит итог в подвал и перечитывает дифф, ветку и списки: pull
+// remoteDone ставит итог в тост и перечитывает дифф, ветку и списки: pull
 // меняет дерево, а при ошибке видно, что на самом деле осталось, как у
 // actionDone. Итог и отмена идут не цветом ошибки (sayCalm).
 func (m Model) remoteDone(msg remoteDoneMsg) (tea.Model, tea.Cmd) {

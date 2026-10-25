@@ -10,7 +10,7 @@ import (
 // askOperation открывает меню незавершённой операции (#243), как m в
 // lazygit: продолжить или прервать merge, rebase, cherry-pick или revert.
 // Прервать можно только после вопроса: решённые конфликты пропадут вместе с
-// операцией. Без операции подвал говорит, что продолжать нечего.
+// операцией. Без операции тост говорит, что продолжать нечего.
 func (m Model) askOperation() Model {
 	operation := m.location.Operation
 	switch operation {
